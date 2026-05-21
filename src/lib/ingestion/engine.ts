@@ -17,6 +17,7 @@ import { generateAndSaveParadocsAnalysis } from '../services/paradocs-analysis.s
 import { generateAndSaveAnswerLine } from '../services/answer-line.service';
 import { generateAndSaveWitnessProfile } from '../services/witness-profile.service';
 import { generateCompellingTitle } from '../services/compelling-title.service';
+import { generateAndSaveConsolidatedAI, isConsolidatedAIEnabled } from '../services/consolidated-ai.service';
 import { embedReport } from '../services/embedding.service';
 import { enrichReport } from './enrichment/report-enricher';
 import { checkForDuplicate, DedupCandidate } from './dedup';
@@ -1242,21 +1243,49 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
             // Paradocs Analysis now generates hook + analysis + assessment in a single call
             // (replaces the separate feed_hook generation).
             if (status === 'approved') {
-              // Paradocs Analysis — produces hook, analysis, pull_quote, credibility_signal
-              // Also writes feed_hook. Service has built-in retries with backoff.
-              try {
-                var analysisSuccess = await generateAndSaveParadocsAnalysis(insertedReport.id);
-                if (!analysisSuccess) {
-                  console.log('[Ingestion] Paradocs Analysis failed for ' + slug + ' after all retries — will need manual backfill');
-                  // Fallback: try generating just a feed hook via legacy service
-                  try {
-                    await generateAndSaveFeedHook(insertedReport.id);
-                  } catch (hookError) {
-                    console.log('[Ingestion] Fallback feed hook also failed for ' + slug);
+              // V11.13 — Consolidated AI path. When USE_CONSOLIDATED_AI=true
+              // in env, ONE Haiku call generates every AI field
+              // (compelling title, hook, feed_hook, pull_quote, analysis,
+              // frames, open_questions, similar_phenomena, emotional_tone,
+              // suggested_category, discovery_tags, answer_line,
+              // witness_profile). Replaces the 5-call multi-service
+              // sequence and skips the downstream calls. Multi-call path
+              // remains the default; enable consolidated via env to A/B
+              // in production without breaking the existing pipeline.
+              var useConsolidated = isConsolidatedAIEnabled();
+              if (useConsolidated) {
+                try {
+                  var consolidatedRes = await generateAndSaveConsolidatedAI(insertedReport.id);
+                  if (!consolidatedRes.success) {
+                    console.log('[Ingestion] Consolidated AI failed for ' + slug + ' (' + (consolidatedRes.error || 'unknown') + ') — falling back to multi-call');
+                    // Fallback: run the multi-call path so the row still
+                    // gets populated. The demotion gate below handles
+                    // anything that still ends up empty.
+                    try { await generateAndSaveParadocsAnalysis(insertedReport.id); } catch (_e) {}
                   }
+                } catch (consolidatedErr) {
+                  console.log('[Ingestion] Consolidated AI exception for ' + slug + ':', consolidatedErr);
+                  try { await generateAndSaveParadocsAnalysis(insertedReport.id); } catch (_e) {}
                 }
-              } catch (analysisError) {
-                console.log('[Ingestion] Paradocs Analysis exception for ' + slug + ':', analysisError);
+              } else {
+                // Original multi-call path. Paradocs Analysis — produces
+                // hook, analysis, pull_quote, credibility_signal. Also
+                // writes feed_hook. Service has built-in retries with
+                // backoff.
+                try {
+                  var analysisSuccess = await generateAndSaveParadocsAnalysis(insertedReport.id);
+                  if (!analysisSuccess) {
+                    console.log('[Ingestion] Paradocs Analysis failed for ' + slug + ' after all retries — will need manual backfill');
+                    // Fallback: try generating just a feed hook via legacy service
+                    try {
+                      await generateAndSaveFeedHook(insertedReport.id);
+                    } catch (hookError) {
+                      console.log('[Ingestion] Fallback feed hook also failed for ' + slug);
+                    }
+                  }
+                } catch (analysisError) {
+                  console.log('[Ingestion] Paradocs Analysis exception for ' + slug + ':', analysisError);
+                }
               }
 
               // V11 (Path C — Sonnet-refusal demotion) — re-read the row
@@ -1309,27 +1338,34 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                 console.log('[Ingestion] Sonnet-refusal demotion check failed (non-fatal) for ' + slug + ':', demoteErr);
               }
 
-              // V10.4 Phase 1.6 — answer_line (one-sentence faithful summary)
-              // for the new mobile-first report page. Generated through the
-              // unified rewrite-pipeline so it goes through anti-fabrication
-              // + claim-citation + audit log. Best-effort: failure doesn't
-              // block ingestion (UI handles null answer_line gracefully).
-              try {
-                await generateAndSaveAnswerLine(insertedReport.id);
-              } catch (answerError) {
-                console.log('[Ingestion] answer_line generation failed for ' + slug + ':', answerError);
-              }
+              // V11.13 — When the consolidated AI path is active, the
+              // answer_line and witness_profile fields were already
+              // populated by generateAndSaveConsolidatedAI above. Skip
+              // the separate Haiku calls to avoid duplicate work +
+              // duplicate cost.
+              if (!useConsolidated) {
+                // V10.4 Phase 1.6 — answer_line (one-sentence faithful summary)
+                // for the new mobile-first report page. Generated through the
+                // unified rewrite-pipeline so it goes through anti-fabrication
+                // + claim-citation + audit log. Best-effort: failure doesn't
+                // block ingestion (UI handles null answer_line gracefully).
+                try {
+                  await generateAndSaveAnswerLine(insertedReport.id);
+                } catch (answerError) {
+                  console.log('[Ingestion] answer_line generation failed for ' + slug + ':', answerError);
+                }
 
-              // V10.7.A.1 — witness_profile (structured demographic
-              // extraction). Powers the witness-profile pill on the
-              // report page + the upcoming /explore filters on age /
-              // state-of-consciousness. Best-effort: failure doesn't
-              // block ingestion; the UI hides the pill when profile
-              // is null. ~$0.001/row (Haiku, ~400 output tokens).
-              try {
-                await generateAndSaveWitnessProfile(insertedReport.id);
-              } catch (witnessError) {
-                console.log('[Ingestion] witness_profile generation failed for ' + slug + ':', witnessError);
+                // V10.7.A.1 — witness_profile (structured demographic
+                // extraction). Powers the witness-profile pill on the
+                // report page + the upcoming /explore filters on age /
+                // state-of-consciousness. Best-effort: failure doesn't
+                // block ingestion; the UI hides the pill when profile
+                // is null. ~$0.001/row (Haiku, ~400 output tokens).
+                try {
+                  await generateAndSaveWitnessProfile(insertedReport.id);
+                } catch (witnessError) {
+                  console.log('[Ingestion] witness_profile generation failed for ' + slug + ':', witnessError);
+                }
               }
 
               // V9.0 — Anchor case generation. Produces the cold-open
