@@ -119,13 +119,26 @@ interface RedditPost {
 }
 
 async function fetchPage(subreddit: string, before: number | null, fromTs: number, limit: number): Promise<{ posts: RedditPost[]; lastTimestamp: number | null }> {
-  var url = ARCTIC_SHIFT_API + '?subreddit=' + encodeURIComponent(subreddit) + '&limit=' + limit + '&sort=created_utc:desc'
-  if (before) url += '&created_utc=<' + before
-  if (fromTs) url += '&created_utc=>' + fromTs
+  // V11.14 — Arctic Shift API param format (verified current as of
+  // May 2026 via direct curl probe):
+  //   subreddit  — bare name, no r/ prefix
+  //   limit      — number of results per request
+  //   sort       — defaults to descending by created_utc; no explicit
+  //                sort param needed (passing 'sort=desc' returned 400
+  //                "Unknown query parameter")
+  //   before     — created_utc upper bound (paginate to older posts)
+  //   after      — created_utc lower bound (date-range floor)
+  // Older versions used 'sort=created_utc:desc' / 'created_utc=<X' /
+  // 'created_utc=>X' / 'until=' / 'since='; all return HTTP 400 now.
+  var perRequest = Math.min(limit, 100)
+  var url = ARCTIC_SHIFT_API + '?subreddit=' + encodeURIComponent(subreddit) + '&limit=' + perRequest
+  if (before) url += '&before=' + before
+  if (fromTs) url += '&after=' + fromTs
   try {
     var resp = await fetch(url)
     if (!resp.ok) {
-      console.warn('[arctic-shift] fetch ' + resp.status + ' for ' + subreddit)
+      var errText = await resp.text().catch(function () { return '' })
+      console.warn('[arctic-shift] fetch ' + resp.status + ' for r/' + subreddit + ': ' + errText.substring(0, 200))
       return { posts: [], lastTimestamp: null }
     }
     var data = await resp.json()
