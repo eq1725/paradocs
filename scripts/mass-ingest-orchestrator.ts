@@ -524,7 +524,7 @@ async function runWorkerPool(state: OrchestratorState, ctx: SharedCtx, concurren
 // overlapping batches that both grab the same pending_review rows.
 var batchWorkerInFlight = { count: 0 }
 
-function spawnBatchWorker(state: OrchestratorState, log: (msg: string) => void): void {
+function spawnBatchWorker(state: OrchestratorState, log: (msg: string) => void, finalSweep: boolean = false): void {
   // Concurrency guard — at most one batch worker at a time. The worker
   // queries `status='pending_review' AND paradocs_narrative IS NULL`
   // and there's no row-level lock; two workers running concurrently
@@ -536,9 +536,16 @@ function spawnBatchWorker(state: OrchestratorState, log: (msg: string) => void):
   var ts = Date.now()
   var logPath = path.join('outputs', 'orchestrator-batch-' + ts + '.log')
   var out = fs.openSync(logPath, 'a')
-  log('  ⚙  Spawning batch worker → ' + logPath)
-  var child = spawn('npx', ['tsx', 'scripts/batch-ingest-worker.ts', '--backfill', '--limit', '500'], {
-    detached: false,  // keep attached so we can track exit
+  // V11.14.3 — during normal ingestion, 500/batch keeps the queue
+  // drained without one huge wait at the end. On the final sweep we
+  // drop the cap so a single batch grabs everything left and we exit
+  // cleanly. Anthropic batches accept up to 100k requests, so even a
+  // 50k drain fits in one submission.
+  var limit = finalSweep ? '100000' : '500'
+  var maxWait = finalSweep ? '5400' : '3600'  // 90 min vs 60 min poll budget
+  log('  ⚙  Spawning batch worker' + (finalSweep ? ' (FINAL SWEEP — limit ' + limit + ')' : '') + ' → ' + logPath)
+  var child = spawn('npx', ['tsx', 'scripts/batch-ingest-worker.ts', '--backfill', '--limit', limit, '--max-wait', maxWait], {
+    detached: false,
     stdio: ['ignore', out, out],
     env: process.env,
   })
@@ -551,7 +558,7 @@ function spawnBatchWorker(state: OrchestratorState, log: (msg: string) => void):
     batchWorkerInFlight.count = Math.max(0, batchWorkerInFlight.count - 1)
     log('  ✗ Batch worker spawn error: ' + (err.message || err))
   })
-  state.ai_runs.push({ started_at: new Date().toISOString(), batch_count: 500 })
+  state.ai_runs.push({ started_at: new Date().toISOString(), batch_count: finalSweep ? 100000 : 500 })
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -660,18 +667,27 @@ async function main() {
     saveState(state)
   }
 
-  // Final batch sweep if anything was inserted since last batch trigger.
-  // Wait for any in-flight batch worker to finish first so the final
-  // sweep picks up the leftovers cleanly.
+  // Final batch sweep — drain ALL remaining pending_review reports,
+  // regardless of why the worker pool stopped (target hit, shards
+  // exhausted, or SIGINT). Wait for any in-flight batch worker first
+  // so the final-sweep batch picks up everything that's accumulated.
   while (batchWorkerInFlight.count > 0) {
     console.log('  Waiting on ' + batchWorkerInFlight.count + ' in-flight batch worker(s) before final sweep...')
     await new Promise(function (r) { setTimeout(r, 30_000) })
   }
-  if (!shutdown.value && insertsSinceBatch.value > 0) {
-    console.log('\nFinal batch sweep for ' + insertsSinceBatch.value + ' lingering pending_review reports...')
-    spawnBatchWorker(state, ctx.log)
-    // Wait for it to actually finish so the summary numbers below
-    // reflect the final state.
+  // V11.14.3 fix — the prior code gated this on (!shutdown.value &&
+  // insertsSinceBatch.value > 0), which incorrectly skipped the sweep
+  // whenever target-hit caused shutdown.value=true, leaving thousands
+  // of reports stuck at pending_review. The right policy is: always
+  // drain whatever's left after ingestion stops, unless the user
+  // SIGINT-ed (in which case they may want to inspect the queue
+  // before continuing). Even on SIGINT we still drain — the worker
+  // is idempotent, and leaving rows half-processed is the worse
+  // failure mode.
+  if (insertsSinceBatch.value > 0) {
+    console.log('\nFinal batch sweep for ~' + insertsSinceBatch.value + ' lingering pending_review reports...')
+    console.log('Using --limit 100000 to drain in one Anthropic batch (auto-caps to queue size).')
+    spawnBatchWorker(state, ctx.log, /*finalSweep=*/true)
     while (batchWorkerInFlight.count > 0) {
       await new Promise(function (r) { setTimeout(r, 15_000) })
     }
