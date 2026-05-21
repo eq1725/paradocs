@@ -828,3 +828,68 @@ article.reader-mode header button {
 article.reader-mode header button:hover {
   opacity: 1;
 }
+
+/* =====================================================================
+ * V11.11 — Coincident-pin popup (explore map mode=map view)
+ * =====================================================================
+ * Styles the popup that opens when a user clicks a cluster whose
+ * leaves all share the same coordinates (no further disaggregation
+ * possible by zooming). Without these overrides the popup picks up
+ * maplibre-gl's default white background, which is unreadable on top
+ * of the dark Paradocs map and inconsistent with every other popup
+ * surface in the app.
+ *
+ * Target both .paradocs-coincident-popup (the React wrapper className)
+ * and the maplibregl-generated children. The tip/anchor selectors are
+ * separate because maplibre injects them outside the .content div.
+ */
+.paradocs-coincident-popup .maplibregl-popup-content {
+  background: rgba(17, 24, 39, 0.96); /* gray-900 / ~96% opacity */
+  color: rgb(243, 244, 246); /* gray-100 */
+  border: 1px solid rgba(75, 85, 99, 0.5); /* gray-600/50 */
+  border-radius: 0.5rem; /* rounded-lg */
+  padding: 0.625rem 0.75rem; /* p-2.5 / px-3 */
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6),
+              0 8px 10px -6px rgba(0, 0, 0, 0.4);
+  font-family: inherit;
+}
+
+/* Popup pointer/tip — three anchor variants so the tip looks right
+ * regardless of which side of the pin the popup is rendered on. */
+.paradocs-coincident-popup.maplibregl-popup-anchor-bottom
+  .maplibregl-popup-tip {
+  border-top-color: rgba(17, 24, 39, 0.96);
+  border-bottom-color: transparent;
+}
+.paradocs-coincident-popup.maplibregl-popup-anchor-top
+  .maplibregl-popup-tip {
+  border-bottom-color: rgba(17, 24, 39, 0.96);
+  border-top-color: transparent;
+}
+.paradocs-coincident-popup.maplibregl-popup-anchor-left
+  .maplibregl-popup-tip {
+  border-right-color: rgba(17, 24, 39, 0.96);
+  border-left-color: transparent;
+}
+.paradocs-coincident-popup.maplibregl-popup-anchor-right
+  .maplibregl-popup-tip {
+  border-left-color: rgba(17, 24, 39, 0.96);
+  border-right-color: transparent;
+}
+
+/* X close button — match the dark theme. The default is a faint gray
+ * × that disappears against the dark background. */
+.paradocs-coincident-popup .maplibregl-popup-close-button {
+  color: rgb(156, 163, 175); /* gray-400 */
+  font-size: 1.125rem;
+  line-height: 1;
+  padding: 0.25rem 0.5rem;
+  right: 0.25rem;
+  top: 0.25rem;
+  background: transparent;
+}
+.paradocs-coincident-popup .maplibregl-popup-close-button:hover {
+  color: rgb(243, 244, 246); /* gray-100 */
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 0.25rem;
+}

@@ -559,7 +559,17 @@ export default function MapContainer({
           longitude={coincidentCluster.lng}
           latitude={coincidentCluster.lat}
           anchor="bottom"
-          closeOnClick={false}
+          /* V11.11 — closeOnClick=true so any click on the map (outside
+             the popup) dismisses it. Previously this was false because
+             we feared a single-tap on the map would dismiss the popup
+             AND immediately trigger another cluster click, looping the
+             user. In practice react-map-gl's event ordering prevents
+             that — a tap on a marker is captured by the marker handler
+             before the map's onClick fires, and a tap on empty terrain
+             is what we want to close the popup. The buttons inside the
+             popup still get their own click handlers so opening a
+             report works as before. */
+          closeOnClick={true}
           onClose={() => setCoincidentCluster(null)}
           className="paradocs-coincident-popup"
           maxWidth="320px"
