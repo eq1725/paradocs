@@ -56,7 +56,12 @@ var REQUEST_TIMEOUT_MS = 90000
 // SYSTEM PROMPT (cached via prompt-caching ephemeral marker)
 // ─────────────────────────────────────────────────────────────────────
 
-var CONSOLIDATED_SYSTEM_PROMPT = [
+// V11.14 — exported so the batch-API worker can build identical
+// payloads to what the live ingestion path uses. Same prompt → same
+// caching benefit (system prompt is identical between live and batch
+// requests).
+export var CONSOLIDATED_SYSTEM_PROMPT: string  // assigned below
+CONSOLIDATED_SYSTEM_PROMPT = [
   'You are the editorial intelligence behind Paradocs, the world\'s most credible',
   'paranormal research platform. Your job is to produce ALL the AI-generated fields',
   'for a submitted report in a SINGLE structured JSON response.',
@@ -402,7 +407,8 @@ var CONSOLIDATED_SYSTEM_PROMPT = [
 // USER PROMPT BUILDER
 // ─────────────────────────────────────────────────────────────────────
 
-function buildConsolidatedUserPrompt(report: any): string {
+// V11.14 — exported for batch worker reuse.
+export function buildConsolidatedUserPrompt(report: any): string {
   var parts: string[] = []
   if (report.title) parts.push('Original source title: ' + report.title)
   if (report.category) parts.push('Pre-assigned category: ' + report.category)
@@ -617,6 +623,44 @@ export async function generateAndSaveConsolidatedAI(reportId: string): Promise<G
   var p = result.parsed
   await logConsolidatedCost(supabase, reportId, result, 'completed')
 
+  var saved = await persistConsolidatedResult(supabase, reportId, p, (report as any).category, (report as any).title)
+  if (!saved.ok) {
+    return { success: false, cost: result.costUsd, error: saved.error }
+  }
+
+  console.log('[ConsolidatedAI] Saved all fields for ' + reportId + ' (title: ' + (p.title || '').substring(0, 40) + '...)')
+  return { success: true, cost: result.costUsd, parsed: p }
+}
+
+/**
+ * V11.14 — Persistence helper extracted so the batch-API worker can
+ * reuse it. Takes a parsed consolidated JSON result and writes every
+ * AI field to the right DB column. Returns { ok, error? }.
+ *
+ * Used by:
+ *   - generateAndSaveConsolidatedAI (live ingestion, single-shot Haiku)
+ *   - scripts/batch-ingest-worker.ts (mass-mode batch Haiku, 50% off)
+ *
+ * Schema:
+ *   - reports.title — overwritten with parsed.title when present
+ *   - reports.feed_hook — parsed.feed_hook
+ *   - reports.answer_line — parsed.answer_line
+ *   - reports.paradocs_narrative — parsed.analysis
+ *   - reports.paradocs_assessment (JSONB) — pull_quote, frames, etc.
+ *   - reports.witness_profile (JSONB) — demographics
+ *   - reports.paradocs_analysis_generated_at — now
+ *   - reports.paradocs_analysis_model — HAIKU_MODEL + ' (consolidated)'
+ *     or HAIKU_MODEL + ' (consolidated-batch)' depending on caller
+ */
+export async function persistConsolidatedResult(
+  supabase: any,
+  reportId: string,
+  parsed: any,
+  reportCategory: string | null,
+  fallbackTitle: string | null,
+  modelMarker?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  var p = parsed
   // Build the assessment JSONB (matches existing paradocs_assessment shape)
   var assessmentData: Record<string, any> = {
     pull_quote: p.pull_quote || null,
@@ -628,7 +672,7 @@ export async function generateAndSaveConsolidatedAI(reportId: string): Promise<G
     suggested_category: p.suggested_category || null,
     discovery_tags: Array.isArray(p.discovery_tags) ? p.discovery_tags : [],
   }
-  if (p.suggested_category && (report as any).category && p.suggested_category !== (report as any).category) {
+  if (p.suggested_category && reportCategory && p.suggested_category !== reportCategory) {
     assessmentData.category_mismatch = true
   }
 
@@ -644,19 +688,15 @@ export async function generateAndSaveConsolidatedAI(reportId: string): Promise<G
     confidence: typeof wp.confidence === 'number' ? wp.confidence : 0.5,
   }
 
-  // Build the update payload — same columns the multi-call services
-  // would have written. The engine's V11.8 demotion gate then reads
-  // paradocs_narrative + paradocs_assessment.pull_quote and demotes
-  // if either is null/empty.
   var updateData: Record<string, any> = {
-    title: p.title || (report as any).title,
+    title: p.title || fallbackTitle,
     feed_hook: p.feed_hook || null,
     answer_line: p.answer_line || null,
     paradocs_narrative: p.analysis || null,
     paradocs_assessment: assessmentData,
     witness_profile: witnessProfile,
     paradocs_analysis_generated_at: new Date().toISOString(),
-    paradocs_analysis_model: HAIKU_MODEL + ' (consolidated)',
+    paradocs_analysis_model: HAIKU_MODEL + ' (' + (modelMarker || 'consolidated') + ')',
     feed_hook_generated_at: new Date().toISOString(),
   }
 
@@ -666,11 +706,9 @@ export async function generateAndSaveConsolidatedAI(reportId: string): Promise<G
 
   if (updateError) {
     console.error('[ConsolidatedAI] DB save error for ' + reportId + ': ' + updateError.message)
-    return { success: false, cost: result.costUsd, error: 'db_save_failed: ' + updateError.message }
+    return { ok: false, error: 'db_save_failed: ' + updateError.message }
   }
-
-  console.log('[ConsolidatedAI] Saved all fields for ' + reportId + ' (title: ' + (p.title || '').substring(0, 40) + '...)')
-  return { success: true, cost: result.costUsd, parsed: p }
+  return { ok: true }
 }
 
 /**
