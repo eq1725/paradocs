@@ -72,6 +72,61 @@ const samples: Case[] = [
     description: `I don't know what happened. The first time, it turned completely liquid, but after that, it never went back to that state. Supposedly, the guy who made it used pure DMT, and that might be the problem. The cart turned hard like a crystal and won't liquefy again no matter how much I warm it up. Has anyone had this happen with their carts before? I've tried heating with a hairdryer but nothing changes.`,
     shouldReject: true,
   },
+  // ---- V11.10 smoke #9 slip-throughs ----
+  {
+    name: '#9-A Linga Sharira essay opener ("In the West, X is debated")',
+    title: 'Linga Sharira Separation Through Prana Redirection',
+    description: `In the West, Astral Projection is often debated as a neurological glitch or a modern esoteric phenomenon. However, thousands of years before laboratory sleep studies, ancient Indian Yogic and Tantric texts documented the practice extensively. The Linga Sharira, often translated as the "subtle body" or "astral body", is a key concept in this tradition.`,
+    shouldReject: true,
+  },
+  {
+    name: '#9-B "In my opinion" love-spells comment',
+    title: 'Advanced Occultism Replaces Love Binding Spells',
+    description: `In my opinion, love bindings and spells are tools exclusively for non-initiates... They are the resource of people who have no control over their own energy and seek to force things out of desperation rather than work with the natural flow of magical practice. A true initiate would never resort to such crude methods.`,
+    shouldReject: true,
+  },
+  {
+    name: '#9-C "First of all" contrarian comment',
+    title: 'Binding Spell Distinction Separates Love from Possession',
+    description: `First of all, there's no such thing as "love spells." I think the correct term would be the one used in Spanish: "amarre" (bind). Because you can't love someone and force them to love you back; when you bind someone what you really want is to possess them, which is the opposite of love.`,
+    shouldReject: true,
+  },
+  {
+    name: '#9-D Analogy opener "Magick is like water"',
+    title: 'Love Spell Backfire Leads to Arson and Cohabitation',
+    description: `Magick is like water: it takes the path of least resistance. People are extremely complicated and it's impossible to anticipate all possible outcomes. For example, you may try a love spell on someone and the spell finds the easiest path — even if that path is the target burning down their ex's house just to be with you.`,
+    shouldReject: true,
+  },
+  {
+    name: `#9-E "I'd say 99%" opinion-percentage opener`,
+    title: 'Love Spell Practice Equated with Magical Coercion',
+    description: `I'd say 99% of the time they're objectively useless because if you had any personality or were appropriate for the person you're coveting, you wouldn't need a love spell, and most would-be practitioners don't have the discipline to do them correctly anyway. The remaining 1% is just confirmation bias.`,
+    shouldReject: true,
+  },
+  {
+    name: '#9-F "Well, OP" reply-to-OP marker',
+    title: 'Love Spell Backfire Claims Examined Against Historical Practice',
+    description: `Well, OP, you got your answer and it has a lot to do with gatekeeping and either ignorance, amnesia, or just a rejection of past paradigms and reasons that people practiced magic. Love, just, and money spells were the entire reason most people sought out cunning folk in the first place.`,
+    shouldReject: true,
+  },
+  {
+    name: '#9-G "It explains how X" theory opener',
+    title: 'Shifting Practice Offers Multiverse Proof Method',
+    description: `It explains how existence even works. It's the only way multiverse would be proved. And with shifting, we can prove it any way, like any knowledge, we have the entire universe at our hands, with it we can prove the existence of parallel realities. The implications are staggering.`,
+    shouldReject: true,
+  },
+  {
+    name: '#9-H "have been planning to experience" prospective',
+    title: 'Ayahuasca Seeker Plans August Journey to Paculppa',
+    description: `I will be visiting Peru in August and for years have been planning to experience an ayahuasca ceremony. From my research it sounds as if paculppa is the place to go to have an authentic experience. Has anyone done a ceremony there and could share their experience or recommendations?`,
+    shouldReject: true,
+  },
+  {
+    name: '#9-I DMT extraction yield documentation',
+    title: 'First DMT Extraction Yields Warm White Crystals',
+    description: `Hi tonight was my first time extraction DMT and I used 200Grams of root bark. So it's done and I have 4 pans from my first pull and on one pan the yield came to just about 1 gram. Is that about right? I used naphtha and sodium hydroxide following the standard tek. Any tips for the second pull?`,
+    shouldReject: true,
+  },
   // ---- Negative controls — should PASS (legit experience reports) ----
   {
     name: 'CTRL: clean sleep paralysis report (should PASS)',

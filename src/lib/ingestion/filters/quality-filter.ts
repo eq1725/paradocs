@@ -76,6 +76,15 @@ export const META_POST_PATTERNS = [
   // trailing question-word; "we kinda wonder", "we're just wondering",
   // and "I'm wondering" (standalone) all need to match.
   /\b(?:i'?m|we'?re|we|i)\s+(?:just\s+|kinda\s+|sort\s+of\s+|kind\s+of\s+|sorta\s+)?wonder(?:ing)?\b/i,
+  // V11.10 — Prospective drug-use / journey-planning posts where the
+  // subject is split from the verb by intervening clauses. Smoke #9
+  // surfaced "I will be visiting Peru in August and for years have
+  // been planning to experience an ayahuasca ceremony." The V11.8
+  // pattern required "i" + (want|hope|plan) to be adjacent; this
+  // catches the "have been planning/wanting/hoping/etc." standalone
+  // form regardless of the subject pronoun's distance.
+  /\bhave\s+been\s+(?:planning|wanting|hoping|trying|considering|thinking\s+about|looking\s+forward)\s+to\b/i,
+  /\bfor\s+years\s+(?:i'?ve|i\s+have|i\s+had|i\s+(?:was|am|am\s+still))?\s*been\s+(?:planning|wanting|hoping|trying)\s+to\b/i,
 ];
 
 // Art, merchandise, and promotional content
@@ -172,6 +181,17 @@ export const NON_EXPERIENCE_PATTERNS = [
   // more of these tokens in the title+description triggers rejection
   // via the META_POST flow (handled separately below).
   /\b(?:grain\s+spawn|colonize|colonization|spawn\s+bag|fruiting\s+chamber|monotub|substrate|mycelium|spore\s+print|spore\s+syringe|inoculate|humidifier|absolute\s+humidity|temp\s+controlled)\b.*\b(?:grain\s+spawn|colonize|colonization|spawn\s+bag|fruiting\s+chamber|monotub|substrate|mycelium|spore\s+print|spore\s+syringe|inoculate|humidifier|absolute\s+humidity|temp\s+controlled)\b/i,
+  // V11.10 — DMT / spice extraction process documentation. Smoke #9
+  // surfaced "tonight was my first time extraction DMT and I used
+  // 200Grams of root bark. So it's done and I have 4 pans from my
+  // first pull and on one pan the yield came to just about 1 gram.
+  // Is that about right?" — process documentation + yield question,
+  // not a consciousness experience. Two co-occurring terms suffices.
+  /\b(?:root\s+bark|first\s+pull|second\s+pull|third\s+pull|extra\s+pull|extraction\s+(?:method|procedure|yield|tek)|spice\s+(?:yield|extraction)|crystalliz(?:e|ed|ing|ation)|recrystall|d?[\s-]?limonene|naphtha|sodium\s+hydroxide|naoh|lye\s+pull|freeze\s+precipitat|pan\s+pull|grams?\s+of\s+root\s+bark|mhrb|mimosa\s+hostilis|acacia\s+confusa)\b.*\b(?:root\s+bark|first\s+pull|second\s+pull|third\s+pull|extra\s+pull|extraction\s+(?:method|procedure|yield|tek)|spice\s+(?:yield|extraction)|crystalliz(?:e|ed|ing|ation)|recrystall|naphtha|sodium\s+hydroxide|naoh|lye\s+pull|freeze\s+precipitat|pan\s+pull|grams?\s+of\s+root\s+bark|yield\s+(?:came|was|of)|mhrb|mimosa\s+hostilis|acacia\s+confusa)\b/i,
+  // V11.10 — Single-term extraction-yield signal that's strong enough
+  // on its own. "yield came to just about 1 gram" / "yield was 0.8g"
+  // — pure chemistry/yield reporting.
+  /\byield\s+(?:came\s+to|was\s+(?:just\s+about|approximately|roughly|around)?\s*\d|of\s+\d|came\s+in\s+at)/i,
 ];
 
 // V11 — patterns that run against ONLY the first 300 chars of the
@@ -232,6 +252,30 @@ export const DESCRIPTION_LEAD_PATTERNS = [
   // dingbats (U+2600-U+27BF) and the high-surrogate range for
   // supplementary-plane emoji (U+1F000-U+1FFFF).
   /^[\s\-*•]*(?:[☀-➿]|[\uD83C-\uD83E][\uDC00-\uDFFF])/,
+  // V11.10 — Essay / encyclopedia geographic-temporal opener. Smoke #9
+  // surfaced "In the West, Astral Projection is often debated as a
+  // neurological glitch…" — a structured essay, not an experience
+  // report. The geographic/temporal preamble ("In the West/East/past/
+  // modern world/ancient world/…") is the diagnostic.
+  /^\s*in\s+the\s+(?:west|east|north|south|past|present|future|modern\s+(?:world|era|age|times?)|ancient\s+(?:world|era|times?|past)|us|usa|uk|americas?|europe|asia|orient|occident|middle\s+ages?|nineteen\s+\w+ies?|twentieth\s+century|twenty[\s-]?first\s+century|early\s+\d{4}s|late\s+\d{4}s|\d{4}s|days?\s+(?:of|before|since)|history|literature|tradition|scriptures?)[,.]?\s+\w/i,
+  // V11.10 — Opinion markers / comment-reply openers. Smoke #9
+  // surfaced a love-spells thread cluster where commenters opened
+  // with "In my opinion, …", "First of all, there's no such thing…",
+  // "I'd say 99% of the time…", "Well, OP, you got your answer…".
+  // These are reply/commentary, not experience reports.
+  /^\s*in\s+(?:my|our|the\s+author'?s)\s+opinion[,.]?\s+/i,
+  /^\s*first\s+of\s+all[,.]?\s+/i,
+  /^\s*i'?d\s+say\s+\d+\s*%/i,
+  /^\s*well[,.]?\s+(?:op|y'?all|everyone|folks?)\b/i,
+  /^\s*well[,.]?\s+\w+[,.]?\s+(?:you|y'?all|op)\s+(?:got|asked|wanted|need)/i,
+  // V11.10 — Analogy explainer opener. "Magick is like water: it
+  // takes the path of least resistance." Same shape across topics
+  // (Magic / Energy / Consciousness / Reality / etc. + "is like").
+  /^\s*(?:magick?|magic|energy|consciousness|spirit|witchcraft|the\s+self|the\s+universe|reality|the\s+soul|karma|the\s+mind|the\s+ego|the\s+truth|love|faith|knowledge)\s+is\s+like\s+\w+/i,
+  // V11.10 — Declarative theory opener. "It explains how existence
+  // even works." / "We can prove it any way." Pure speculation.
+  /^\s*it\s+explains\s+(?:how|why|what|where|when)\b/i,
+  /^\s*we\s+can\s+prove\s+\w+/i,
 ];
 
 // Fiction markers - stories that are explicitly fictional
