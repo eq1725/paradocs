@@ -378,21 +378,36 @@ function extractProseRelative(
     return relativeResult(ref, -1, 'year', lastYear[0], minYear, maxYear, 'year')
   }
 
-  // 8. "<n> <unit>s ago" — supports word numbers ("three days ago") and digits ("3 days ago").
-  // "a few days ago" → 3 days. "a couple <unit>s ago" → 2.
-  const fewMatch = scan.match(/\ba\s+few\s+(days?|weeks?|months?|years?)\s+ago\b/i)
+  // 8. "<n> <unit>s ago/back" — supports word numbers ("three days ago"),
+  // digits ("3 days ago"), AND the "back" variant ("a few months back",
+  // "3 days back", "two weeks back"). V11.14 — added "back" because
+  // Chase flagged the pale-crawler report whose body said "a few months
+  // back" wasn't resolving; the post was created May 2026, so the
+  // event_date should land ~Feb 2026 with month precision.
+  //
+  // "a few <unit>s ago/back" → 3 units. "a couple <unit>s ago/back" → 2.
+  // "several <unit>s ago/back" → 5 (by convention).
+  const fewMatch = scan.match(/\ba\s+few\s+(days?|weeks?|months?|years?)\s+(?:ago|back)\b/i)
   if (fewMatch) {
     const unit = unitToCanonical(fewMatch[1])
     const precision: DatePrecision = unit === 'day' ? 'exact' : unit === 'month' ? 'month' : unit === 'year' ? 'year' : 'exact'
     return relativeResult(ref, -3, unit, fewMatch[0], minYear, maxYear, precision)
   }
-  const coupleMatch = scan.match(/\ba\s+couple\s+(?:of\s+)?(days?|weeks?|months?|years?)\s+ago\b/i)
+  const coupleMatch = scan.match(/\ba\s+couple\s+(?:of\s+)?(days?|weeks?|months?|years?)\s+(?:ago|back)\b/i)
   if (coupleMatch) {
     const unit = unitToCanonical(coupleMatch[1])
     const precision: DatePrecision = unit === 'day' ? 'exact' : unit === 'month' ? 'month' : unit === 'year' ? 'year' : 'exact'
     return relativeResult(ref, -2, unit, coupleMatch[0], minYear, maxYear, precision)
   }
-  const nAgo = scan.match(/\b(\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s+(days?|weeks?|months?|years?)\s+ago\b/i)
+  // V11.14 — "several" resolves to ~5 by convention. Precision stays
+  // appropriate to the unit (month/year units yield month/year precision).
+  const severalMatch = scan.match(/\bseveral\s+(days?|weeks?|months?|years?)\s+(?:ago|back)\b/i)
+  if (severalMatch) {
+    const unit = unitToCanonical(severalMatch[1])
+    const precision: DatePrecision = unit === 'day' ? 'exact' : unit === 'month' ? 'month' : unit === 'year' ? 'year' : 'exact'
+    return relativeResult(ref, -5, unit, severalMatch[0], minYear, maxYear, precision)
+  }
+  const nAgo = scan.match(/\b(\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s+(days?|weeks?|months?|years?)\s+(?:ago|back)\b/i)
   if (nAgo) {
     const raw = nAgo[1].toLowerCase()
     const n = /^\d+$/.test(raw) ? parseInt(raw, 10) : (WORD_NUMBERS[raw] ?? null)
