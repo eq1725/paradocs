@@ -665,7 +665,14 @@ export default function ReportLocationMap({
     inset: 0,
   }
 
-  if (!hasUsableCoords) {
+  // V11 — only fall back to the badge-only placeholder when we have
+  // NO usable coords AND no country/region bounds either. Country-
+  // precision reports (post-V11 synth-coord drop) have null lat/lng
+  // but DO have a syntheticBounds tuple from the country bbox lookup,
+  // so they should render the map zoomed to that country instead of
+  // a blank gradient. The map's downstream gates (showPin, showHalo)
+  // still correctly suppress a misleading focal dot.
+  if (!hasUsableCoords && !syntheticBounds) {
     return (
       <div
         className={'overflow-hidden bg-gradient-to-br from-gray-900 via-gray-950 to-gray-900 border-b border-gray-800 flex items-center justify-center ' + consumerClass}
