@@ -276,6 +276,27 @@ export const DESCRIPTION_LEAD_PATTERNS = [
   // even works." / "We can prove it any way." Pure speculation.
   /^\s*it\s+explains\s+(?:how|why|what|where|when)\b/i,
   /^\s*we\s+can\s+prove\s+\w+/i,
+  // V11.14 — Hypothetical / thought-experiment opener. Smoke run on
+  // r/cryptids surfaced "Eclipse Totality and the 37th Parallel
+  // Convergence" — title sounded like a witness claim but body was
+  // pure speculation ("If you think about it, eclipses could…").
+  // These are op-eds, not experiences. The title-side QUESTION_ONLY
+  // regex catches "What if X" / "hypothetically" / "if you/we/they"
+  // in titles; this set mirrors that on the body lead.
+  /^\s*if\s+you\s+(?:think\s+about\s+it|consider|imagine)\b/i,
+  /^\s*if\s+(?:we|you|one)\s+(?:assume|suppose|posit|grant|imagine)\b/i,
+  /^\s*imagine\s+(?:if|that|a|the|for\s+a|you|we)\b/i,
+  /^\s*what\s+if\s+\w+/i,
+  /^\s*hypothetically[,.]?\s+/i,
+  /^\s*think\s+about\s+it[,.]?\s+/i,
+  /^\s*consider\s+(?:this|the\s+following|a\s+scenario|for\s+a\s+moment)\b/i,
+  /^\s*hear\s+me\s+out[,.]?\s+/i,
+  /^\s*just\s+a\s+(?:thought|theory|hypothesis|hunch|wild\s+idea)\b/i,
+  // V11.14 — "What are the odds that X" / "Could it be that X" —
+  // speculation framed as rhetorical inquiry, not a witnessed event.
+  /^\s*what\s+(?:are|is)\s+the\s+(?:odds|chances|probability|likelihood)\s+(?:that|of)\b/i,
+  /^\s*could\s+(?:it\s+be|this\s+be|there\s+be|that\s+be)\s+that\b/i,
+  /^\s*is\s+it\s+(?:possible|conceivable|plausible)\s+that\b/i,
 ];
 
 // Fiction markers - stories that are explicitly fictional

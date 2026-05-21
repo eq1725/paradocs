@@ -185,6 +185,18 @@ async function processBatch(posts: ArcticShiftPost[]): Promise<ImportResult> {
       var qualityScore = qualityResult.qualityScore!
       var initialStatus = getStatusFromScore(qualityScore.total, report.source_type)
 
+      // V11.14 — Drop low-score-rejected reports BEFORE insert. The filter
+      // passed them (no hard-fail pattern matched), but the score binned
+      // them as 'rejected'. Inserting them would (a) waste a Haiku batch
+      // call on something the score already gave up on, and (b) clutter
+      // the admin queue with placeholder rows after the AI inevitably
+      // returns INSUFFICIENT. Treat as a soft-filter rejection.
+      if (initialStatus === 'rejected') {
+        result.filtered++
+        rejectionReasons['score_rejected'] = (rejectionReasons['score_rejected'] || 0) + 1
+        continue
+      }
+
       // 6. Smart re-eval for borderline scores (matches engine.ts)
       if (initialStatus === 'pending_review') {
         var reeval = smartReEvaluate(qualityScore, {

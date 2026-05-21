@@ -496,16 +496,41 @@ async function main() {
         await logBatchCost(supabase, reportId, msg, inTok, outTok, cWrite, costUsd, 'completed', null)
         stats.succeeded++
 
-        // V11.14 — Auto-promotion: if archive-import stamped
-        // metadata.score_status='approved' AND the AI populated both
-        // narrative + pull_quote, promote status to 'approved'. This
-        // is what unburdens the admin queue from receiving every
-        // ingested report. Borderline (score_status='pending_review')
-        // reports remain in admin queue; admin chooses each one.
+        // V11.14 — Status transition after AI completes:
+        //
+        //   A) AI returned INSUFFICIENT (model couldn't make sense of
+        //      the post) → status='rejected'. Don't pollute admin queue
+        //      with placeholder rows. This catches edge cases where
+        //      the quality filter let something through but the model
+        //      itself rejected it on substance.
+        //
+        //   B) metadata.score_status='approved' AND narrative + pull
+        //      quote populated → status='approved' (auto-publish). This
+        //      is the hot path: a clean ingestion lands on the public
+        //      site without admin involvement.
+        //
+        //   C) Otherwise (borderline score_status='pending_review')
+        //      stays at pending_review for admin curation.
         var scoreStatus = reportMetadata && reportMetadata.score_status
         var hasNarrative = !!(parsed.analysis && String(parsed.analysis).trim().length > 0 && parsed.analysis !== 'INSUFFICIENT')
         var hasPullQuote = !!(parsed.pull_quote && String(parsed.pull_quote).trim().length > 0 && parsed.pull_quote !== 'INSUFFICIENT')
-        if (scoreStatus === 'approved' && hasNarrative && hasPullQuote) {
+        var titleInsufficient = !!(parsed.title && String(parsed.title).trim().toUpperCase() === 'INSUFFICIENT')
+        var aiInsufficient = titleInsufficient || (!hasNarrative && !hasPullQuote)
+
+        if (aiInsufficient) {
+          // Path A — auto-reject
+          try {
+            var rejectRes = await (supabase.from('reports') as any)
+              .update({ status: 'rejected', updated_at: new Date().toISOString() })
+              .eq('id', reportId)
+            if (!rejectRes.error) {
+              console.log('  ↓ ' + reportId + ' auto-rejected (AI INSUFFICIENT)')
+            }
+          } catch (rejectErr: any) {
+            console.warn('  ! ' + reportId + ' auto-reject failed (left at pending_review): ' + (rejectErr?.message || rejectErr))
+          }
+        } else if (scoreStatus === 'approved' && hasNarrative && hasPullQuote) {
+          // Path B — auto-promote
           try {
             var promoteRes = await (supabase.from('reports') as any)
               .update({ status: 'approved', updated_at: new Date().toISOString() })
@@ -517,6 +542,7 @@ async function main() {
             console.warn('  ! ' + reportId + ' auto-promote failed (left at pending_review): ' + (promoteErr?.message || promoteErr))
           }
         }
+        // Path C — borderline; leave at pending_review.
       }
 
       console.log('\n=== Persistence summary ===')
