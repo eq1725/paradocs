@@ -665,8 +665,14 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
             status = 'approved';
             console.log('[Ingestion] Smart-promoted: "' + report.title.substring(0, 40) + '..." (' + reeval.reason + ')');
           } else {
-            pendingReview++;
-            console.log('[Ingestion] Kept pending: "' + report.title.substring(0, 40) + '..." (' + reeval.reason + ')');
+            // V11.14.7 — No more admin-queue landings from live ingest.
+            // If smartReEvaluate (now with date+location boost) didn't
+            // promote, the report is borderline-low without supporting
+            // signals; drop it rather than parking in the admin queue.
+            rejected++;
+            rejectedDetails.push({ title: report.title, reason: 'borderline_no_signals: ' + reeval.reason, descLength: (report.description || '').length });
+            console.log('[Ingestion] Dropped borderline (no promote signals): "' + report.title.substring(0, 40) + '..." (' + reeval.reason + ')');
+            continue;
           }
         }
 

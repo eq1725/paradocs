@@ -1066,6 +1066,22 @@ export function smartReEvaluate(
     reasons.push('Trusted source with partial metadata');
   }
 
+  // V11.14.7 — DATE + LOCATION STRUCTURAL BOOST (any source).
+  // Chase explicitly called this out: "reports with dates AND
+  // locations should be prioritized". Independent of source trust,
+  // a report that names a specific date AND a specific place is
+  // structurally a witness account with verifiable scaffolding.
+  // This is the single strongest signal we have outside of body text.
+  // Sized so a 35-49 borderline Reddit report (currently pending) gets
+  // promoted automatically if both metadata fields are populated.
+  if (qualityScore.breakdown.hasLocation && qualityScore.breakdown.hasDate) {
+    boostPoints += 10;
+    reasons.push('Has both date + location (structural witness signal)');
+  } else if (qualityScore.breakdown.hasLocation || qualityScore.breakdown.hasDate) {
+    boostPoints += 4;
+    reasons.push('Has ' + (qualityScore.breakdown.hasDate ? 'date' : 'location') + ' (partial metadata)');
+  }
+
   // 6. Sensory details — seeing, hearing, feeling — indicate real experience
   var sensoryPatterns = [
     /\b(bright|dim|glowing|flashing|pulsing|shimmering|luminous|lit up|illuminat)\b/i,

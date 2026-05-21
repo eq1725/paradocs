@@ -197,7 +197,22 @@ async function processBatch(posts: ArcticShiftPost[]): Promise<ImportResult> {
         continue
       }
 
-      // 6. Smart re-eval for borderline scores (matches engine.ts)
+      // 6. V11.14.7 — Borderline policy: NO admin queue at scale.
+      //
+      // Previously: `pending_review` reports stayed in pending_review even
+      // after smartReEvaluate promoted them, deferring admin review until
+      // narrative landed. At 10k scale that meant ~1500 reports queued,
+      // and at 100k it'd be ~15k. Untenable.
+      //
+      // New policy: every report inserted is either auto-approve-worthy
+      // (high score OR smartReEvaluate promotes via date+location/
+      // first-person/specificity signals) OR it's dropped at insert
+      // time. No more pending_review landings.
+      //
+      // The batch worker honors metadata.score_status: 'approved' →
+      // auto-promote post-AI; this preserves clean separation of "score
+      // good enough" from "AI returned usable output" (which can still
+      // auto-reject via INSUFFICIENT path).
       if (initialStatus === 'pending_review') {
         var reeval = smartReEvaluate(qualityScore, {
           title: report.title,
@@ -208,13 +223,16 @@ async function processBatch(posts: ArcticShiftPost[]): Promise<ImportResult> {
           category: report.category,
         })
         if (reeval.promote) {
-          initialStatus = 'pending_review'  // we don't auto-approve at archive stage
-          // Note: even if score is high, archive-imported reports stay
-          // pending_review until the batch worker populates AI fields.
-          // The original engine.ts can promote to 'approved' directly
-          // because it runs live AI immediately; archive import defers
-          // AI to a separate worker, so 'pending_review' is the right
-          // landing status.
+          // Promoted — write score_status='approved' so batch worker
+          // auto-publishes once AI completes.
+          initialStatus = 'approved'
+        } else {
+          // Borderline + no strong promote signals → drop. Don't burn
+          // an AI batch slot on something we'd reject anyway after
+          // manual review.
+          result.filtered++
+          rejectionReasons['score_borderline_no_signals'] = (rejectionReasons['score_borderline_no_signals'] || 0) + 1
+          continue
         }
       }
 
