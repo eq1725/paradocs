@@ -289,17 +289,32 @@ async function processBatch(posts: ArcticShiftPost[]): Promise<ImportResult> {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Auth — same pattern as report-review.ts
+  // V11.14 — Auth. Accepts either:
+  //   (a) Bearer <SUPABASE_SERVICE_ROLE_KEY> — for the bulk-import
+  //       script + any backend automation
+  //   (b) Bearer <user-session JWT> with admin email — for occasional
+  //       manual invocation from a browser console
+  //
+  // Note: the older pattern (authHeader.includes('service_role'))
+  // doesn't work because Supabase JWTs are base64-encoded — the literal
+  // text 'service_role' never appears in the encoded form. Direct
+  // string comparison against the env var is the correct check.
   var authHeader = req.headers.authorization || ''
-  var isServiceRole = authHeader.startsWith('Bearer ') && authHeader.includes('service_role')
+  if (!authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized — Bearer token required' })
+  }
+  var bearerToken = authHeader.replace('Bearer ', '').trim()
+  if (!bearerToken) {
+    return res.status(401).json({ error: 'Unauthorized — empty bearer token' })
+  }
+
+  var serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  var isServiceRole = bearerToken === serviceRoleKey
+
   if (!isServiceRole) {
-    var bearerToken = authHeader.replace('Bearer ', '')
-    if (!bearerToken) {
-      return res.status(401).json({ error: 'Unauthorized — bearer token required' })
-    }
     var userCheck = await supabaseAdmin.auth.getUser(bearerToken)
     if (!userCheck.data?.user || userCheck.data.user.email !== 'williamschaseh@gmail.com') {
-      return res.status(403).json({ error: 'Forbidden' })
+      return res.status(403).json({ error: 'Forbidden — service role key or admin session required' })
     }
   }
 
