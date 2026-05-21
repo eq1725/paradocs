@@ -209,6 +209,34 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse) {
     // Approve and the report goes live with full AI copy populated.
     var analysisStats = await runApprovalSonnetForBatch(reportIds)
 
+    // V11.12 — Trigger Next.js on-demand revalidation of each report's
+    // public page so Vercel's edge cache (which was holding a 404 from
+    // when the slug was pending_review) is invalidated immediately. We
+    // also revalidate /explore and /discover so any cached browse
+    // surfaces re-fetch the now-approved row. Best-effort: revalidate
+    // failure must NOT block the approval itself.
+    try {
+      var { data: slugRows } = await supabaseAdmin
+        .from('reports')
+        .select('slug')
+        .in('id', reportIds)
+      var slugs = (slugRows || []).map(function (r: any) { return r.slug }).filter(Boolean)
+      for (var i = 0; i < slugs.length; i++) {
+        try {
+          await (res as any).revalidate('/report/' + slugs[i])
+        } catch (revErr: any) {
+          console.log('[admin-approve] revalidate failed for /report/' + slugs[i] + ': ' + (revErr?.message || revErr))
+        }
+      }
+      // Browse / discover surfaces also need a re-render so the new
+      // row appears in the list without waiting for ISR.
+      try { await (res as any).revalidate('/explore') } catch (_e) {}
+      try { await (res as any).revalidate('/discover') } catch (_e) {}
+      console.log('[admin-approve] revalidated ' + slugs.length + ' report pages + /explore + /discover')
+    } catch (revBlockErr: any) {
+      console.log('[admin-approve] revalidation block failed (non-fatal): ' + (revBlockErr?.message || revBlockErr))
+    }
+
     return res.status(200).json({
       success: true,
       action: 'approved',

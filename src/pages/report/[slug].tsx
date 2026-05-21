@@ -168,7 +168,16 @@ export async function getStaticProps({ params }: { params: { slug: string } }) {
       .single()
 
     if (reportError || !reportData) {
-      return { notFound: true }
+      // V11.12 — Include `revalidate` on the notFound branch so Vercel
+      // doesn't cache the 404 indefinitely. When a report is later
+      // admin-approved (status pending_review → approved), the cached
+      // 404 was sticking around: subsequent visits would hit Vercel's
+      // edge cache and return 404 without re-running getStaticProps.
+      // With `revalidate: 60`, the page re-checks the DB every minute
+      // for blocked slugs, so newly-approved reports start rendering
+      // within ~1 minute of approval. The admin-approve endpoint also
+      // calls res.revalidate() for instant invalidation on its end.
+      return { notFound: true, revalidate: 60 }
     }
 
     const safeReport = scrubIndexReport(reportData)

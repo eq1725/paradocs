@@ -662,7 +662,7 @@ function ExploreBrowseMode() {
         // Latest 4 reports across all categories
         var latestRes = await supabase
           .from('reports')
-          .select('id,title,slug,summary,feed_hook,category,country,city,state_province,event_date,credibility,upvotes,view_count,comment_count,created_at,location_name,source_type,source_label,has_photo_video,has_physical_evidence')
+          .select('id,title,slug,summary,feed_hook,category,country,city,state_province,event_date,event_date_precision,credibility,upvotes,view_count,comment_count,created_at,location_name,source_type,source_label,has_photo_video,has_physical_evidence')
           .eq('status', 'approved')
           .order('created_at', { ascending: false })
           .limit(4)
@@ -823,7 +823,7 @@ function ExploreBrowseMode() {
         var reportIds = Array.from(new Set(linkRes.data.map(function(l: any) { return l.report_id })))
         var query = supabase
           .from('reports')
-          .select('id,title,slug,summary,feed_hook,category,country,city,state_province,event_date,credibility,upvotes,view_count,comment_count,has_photo_video,has_physical_evidence,featured,location_name,source_type,source_label,created_at')
+          .select('id,title,slug,summary,feed_hook,category,country,city,state_province,event_date,event_date_precision,credibility,upvotes,view_count,comment_count,has_photo_video,has_physical_evidence,featured,location_name,source_type,source_label,created_at')
           .in('id', reportIds)
           .eq('status', 'approved')
         if (category !== 'all') query = query.eq('category', category)
@@ -868,7 +868,7 @@ function ExploreBrowseMode() {
       } else {
         var q2 = supabase
           .from('reports')
-          .select('id,title,slug,summary,feed_hook,category,country,city,state_province,event_date,credibility,upvotes,view_count,comment_count,has_photo_video,has_physical_evidence,featured,location_name,source_type,source_label,created_at')
+          .select('id,title,slug,summary,feed_hook,category,country,city,state_province,event_date,event_date_precision,credibility,upvotes,view_count,comment_count,has_photo_video,has_physical_evidence,featured,location_name,source_type,source_label,created_at')
           .eq('status', 'approved')
         if (category !== 'all') q2 = q2.eq('category', category)
         if (selectedCategories.length > 0) q2 = q2.in('category', selectedCategories)
@@ -1516,17 +1516,13 @@ function ExploreBrowseMode() {
             </div>
           </div>
 
-          {/* Content Type Filter */}
-          <div className="mb-6 p-3 sm:p-4 glass-card">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <span className="text-sm text-gray-400 whitespace-nowrap">Show:</span>
-              <div className="flex flex-wrap gap-2">
-                <button onClick={function() { setContentType('primary'); setPage(1) }} className={classNames('px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5', contentType === 'primary' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10')}>Experiencer Reports</button>
-                <button onClick={function() { setContentType('all'); setPage(1) }} className={classNames('px-3 py-1.5 rounded-lg text-sm font-medium transition-all', contentType === 'all' ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30' : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10')}>All Content</button>
-                <button onClick={function() { setContentType('news_discussion' as any); setPage(1) }} className={classNames('px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5', contentType === 'news_discussion' ? 'bg-gray-500/20 text-gray-300 border border-gray-500/30' : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10')}>News & Discussion</button>
-              </div>
-            </div>
-          </div>
+          {/* V11.12 — Removed the "Show: Experiencer Reports / All
+              Content / News & Discussion" toggle per Chase. Paradocs is
+              experience-report only — news/discussion was a holdover
+              from an earlier multi-modal direction that no longer
+              applies. The contentType state stays pinned to 'primary'
+              (default) so the loadReports query still emits the
+              experiencer-report-only OR clause. */}
 
           <div className="mb-6">
             <CategoryFilter selected={category} onChange={function(cat: any) { setCategory(cat); setPage(1) }} />
