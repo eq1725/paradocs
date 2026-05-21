@@ -1230,21 +1230,37 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               // live even if it passed our regex pre-filters and score
               // gate. Admin can decide whether to manually approve or
               // reject from /admin/report-review.
+              //
+              // V11.8 — Extended the demotion check to also catch null
+              // paradocs_assessment.pull_quote. The pull-quote renders as
+              // the most prominent visual element above the narrative on
+              // the report page; if Sonnet's voice-corrective retry
+              // failed to produce a clean third-person pull_quote, the
+              // page ships with a missing hero element. Demoting to
+              // pending_review means we never publish a report that's
+              // visually incomplete. Admin can re-run analysis on the
+              // pending queue to retry generation with fresh budget.
               try {
                 var { data: postAnalysisRow } = await supabase
                   .from('reports')
-                  .select('paradocs_narrative')
+                  .select('paradocs_narrative, paradocs_assessment')
                   .eq('id', insertedReport.id)
                   .single();
                 var hasNarrative = !!(postAnalysisRow && postAnalysisRow.paradocs_narrative && postAnalysisRow.paradocs_narrative.trim().length > 0);
-                if (!hasNarrative) {
+                var assessment: any = postAnalysisRow ? postAnalysisRow.paradocs_assessment : null;
+                var pullQuoteRaw = assessment && typeof assessment === 'object' ? assessment.pull_quote : null;
+                var hasPullQuote = !!(pullQuoteRaw && typeof pullQuoteRaw === 'string' && pullQuoteRaw.trim().length > 0);
+                var demoteReason: string | null = null;
+                if (!hasNarrative) demoteReason = 'Sonnet narrative refusal';
+                else if (!hasPullQuote) demoteReason = 'Sonnet pull_quote empty after voice-corrective retry (V11.8)';
+                if (demoteReason) {
                   await supabase
                     .from('reports')
                     .update({ status: 'pending_review', updated_at: new Date().toISOString() })
                     .eq('id', insertedReport.id);
                   status = 'pending_review';
                   pendingReview++;
-                  console.log('[Ingestion] Demoted to pending_review (Sonnet narrative refusal): ' + slug);
+                  console.log('[Ingestion] Demoted to pending_review (' + demoteReason + '): ' + slug);
                 }
               } catch (demoteErr) {
                 // Demotion check is best-effort. If the re-query fails,

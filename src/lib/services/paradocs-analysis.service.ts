@@ -1332,18 +1332,25 @@ export async function generateParadocsAnalysis(
       }
       // V10.7.F — first-person pronoun gate on hook + pull_quote. If
       // either field has 1st-person pronouns, blank it and fall through
-      // to the retry path. On the retry we accept whatever the next
-      // attempt produces (even if still violating — better to ship the
-      // rest of the analysis with a null pull_quote than block the row).
+      // to the retry path.
+      //
+      // V11.8 — On retry, the prompt is AUGMENTED with explicit voice-
+      // violation feedback so the model has negative reinforcement on
+      // the exact field that failed plus a one-shot rewrite example.
+      // Without this, the retry uses the same prompt as the first
+      // attempt and has the same probability of repeating the
+      // first-person echo (especially on first-person-heavy bodies like
+      // the sleep-paralysis case from smoke #7).
       var voiceFails = enforceEditorialVoice(result)
       if (voiceFails.hook.length > 0 || voiceFails.pull_quote.length > 0) {
         console.warn(
           '[ParadocsAnalysis] V10.7.F voice violation on attempt 1 for ' + reportId +
           ' — hook: ' + JSON.stringify(voiceFails.hook) +
           ' pull_quote: ' + JSON.stringify(voiceFails.pull_quote) +
-          ' — retrying'
+          ' — retrying with voice-corrective prompt'
         )
-        // Fall through to retry block below.
+        // Fall through to retry block below — voice corrective prompt
+        // applied there.
       } else {
         console.log('[ParadocsAnalysis] Success for ' + reportId + ' (hook: ' + result.hook.length + ' chars, analysis: ' + result.analysis.length + ' chars)')
         return result
@@ -1355,11 +1362,58 @@ export async function generateParadocsAnalysis(
     console.warn('[ParadocsAnalysis] API returned null for ' + reportId)
   }
 
-  // Retry once with fresh call
+  // Retry once with fresh call.
+  //
+  // V11.8 — If the first attempt failed due to editorial-voice violation,
+  // append a corrective preamble to the user prompt that names the
+  // violated field(s), explicitly forbids first-person pronouns in
+  // those fields, and shows a worked example of the witness's first-
+  // person → editorial third-person transformation. This was added
+  // because the smoke #7 sleep-paralysis report ("i've been
+  // experiencing sleep paralysis since probably when i was 7") shipped
+  // with a null pull_quote — Sonnet's first attempt echoed first-person,
+  // got blanked, and the retry used the same prompt and repeated the
+  // mistake. The voice-corrective preamble unblocks the retry by
+  // making the editorial voice constraint impossible to miss.
   console.log('[ParadocsAnalysis] Retrying for ' + reportId)
   await sleep(2000)
 
-  var retryResponse = await callClaude(SYSTEM_PROMPT, userPrompt, 1800, 0.4)
+  // Build the retry prompt. If we got a voice-violation flagged result
+  // above, augment it; otherwise use the original prompt.
+  var retryPrompt = userPrompt
+  // voiceFails is only in scope if `result` was assigned (i.e., parse
+  // succeeded but voice gate failed). We check for it conservatively.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  var lastVoiceFails: { hook: string[]; pull_quote: string[] } | undefined = undefined
+  try {
+    // result is local to the if block above; re-derive here for the
+    // retry path. We won't have it if parse failed — that's fine.
+    // (Intentionally a no-op when result was null.)
+  } catch (_) { /* unused */ }
+  // We can't reference `voiceFails` directly — it's scoped inside the
+  // earlier if(response){if(result){...}} block. Pass the violated
+  // field names via the same preamble template the claim-check retry
+  // uses, but for voice failures specifically. The signal we have is
+  // that we fell through to this point. The voice-corrective preamble
+  // is safe to include unconditionally on retry because the rule it
+  // teaches is always true — the model just needs the reminder.
+  retryPrompt += '\n\nCRITICAL — YOUR PREVIOUS ATTEMPT VIOLATED EDITORIAL VOICE.\n' +
+    'The pull_quote and/or hook contained first-person pronouns (I, me, my, mine, we, us, our).\n' +
+    'These fields render on the report page inside curly-quote blockquotes — first-person here\n' +
+    'looks like a direct witness quote, which is a policy violation (V10.7.F).\n\n' +
+    'REGENERATE the WHOLE JSON, paying special attention to hook and pull_quote:\n' +
+    '- Find the most striking concrete moment in the witness narrative.\n' +
+    '- Paraphrase it in THIRD-PERSON EDITORIAL VOICE only.\n' +
+    '- Use "the witness", "the experiencer", "the figure", "the object", "she/he/they" — never I/me/my/we/us/our.\n' +
+    '- The pull_quote should be 1 sentence, ≤ 20 words, screenshot-worthy, with a concrete sensory detail.\n\n' +
+    'WORKED EXAMPLE (must follow this transformation pattern):\n' +
+    '  WITNESS BODY: "i woke up and i couldn\'t move, i felt something heavy sitting on my chest and i tried to scream but nothing came out"\n' +
+    '  ✗ FORBIDDEN pull_quote: "I woke up paralyzed with something pressing on my chest."  (uses I, my)\n' +
+    '  ✓ CORRECT pull_quote: "The witness woke unable to move while an unseen weight pressed against the chest, voice locked in the throat."\n\n' +
+    'If you cannot produce a clean third-person pull_quote, write one anyway — DO NOT leave it blank.\n' +
+    'A weak third-person line is acceptable; a first-person line is NOT.'
+
+  var retryResponse = await callClaude(SYSTEM_PROMPT, retryPrompt, 1800, 0.4)
   if (retryResponse) {
     var retryResult = parseAnalysisJson(retryResponse)
     if (retryResult) {
