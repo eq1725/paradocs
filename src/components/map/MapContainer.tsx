@@ -14,6 +14,7 @@ import Map, {
   MapRef,
   ViewStateChangeEvent,
   MapLayerMouseEvent,
+  Popup,
 } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
@@ -95,6 +96,23 @@ export default function MapContainer({
   }>(INITIAL_VIEW)
   const [mapLoaded, setMapLoaded] = useState(false)
   const hasFittedBounds = useRef(false)
+
+  // V11 — coincident-pin disaggregation popup.
+  //
+  // Supercluster's getClusterExpansionZoom returns the zoom level at
+  // which a cluster would split, but for points sharing EXACT
+  // coordinates (e.g. two reports both city-geocoded to Wichita, KS)
+  // the cluster never splits — zooming to maxZoom still shows "2".
+  //
+  // When the cluster click handler detects coincident leaves (within
+  // ~10m), it sets this state to render a Popup listing each report
+  // as a clickable row. Closes on row-click, X-click, or outside
+  // interaction.
+  const [coincidentCluster, setCoincidentCluster] = useState<{
+    lng: number
+    lat: number
+    reports: ReportProperties[]
+  } | null>(null)
 
   // ─── Build GeoJSON for the source ──────────────────────────
   const geojsonData = useMemo(
@@ -211,10 +229,35 @@ export default function MapContainer({
         return
       }
 
-      // Cluster click → zoom in
+      // Cluster click → zoom in, OR open coincident-pins list popup.
       if (props.cluster && supercluster) {
         const clusterId = props.cluster_id
         try {
+          // V11 — before zooming, check if all leaves share the same
+          // coordinates. If they do, zooming further is a no-op (the
+          // cluster never disaggregates). Render a list popup so the
+          // user can pick which report to open.
+          const leaves = supercluster.getLeaves(clusterId, Infinity) as Supercluster.PointFeature<ReportProperties>[]
+          if (leaves.length > 1) {
+            const COINCIDENT_EPSILON_DEG = 0.0001 // ~10 meters
+            const firstCoord = leaves[0].geometry.coordinates as [number, number]
+            const allCoincident = leaves.every(function (l) {
+              const c = l.geometry.coordinates as [number, number]
+              return (
+                Math.abs(c[0] - firstCoord[0]) < COINCIDENT_EPSILON_DEG &&
+                Math.abs(c[1] - firstCoord[1]) < COINCIDENT_EPSILON_DEG
+              )
+            })
+            if (allCoincident) {
+              setCoincidentCluster({
+                lng: firstCoord[0],
+                lat: firstCoord[1],
+                reports: leaves.map(function (l) { return l.properties }),
+              })
+              return
+            }
+          }
+
           const zoom = supercluster.getClusterExpansionZoom(clusterId)
           const geometry = feature.geometry as GeoJSON.Point
           mapRef.current?.flyTo({
@@ -506,6 +549,51 @@ export default function MapContainer({
           }}
         />
       </Source>
+
+      {/* V11 — coincident-pin disaggregation popup. Renders a small
+          list of reports when the user clicks a cluster whose leaves
+          all share the same coordinates (zooming won't disaggregate
+          them). Each row is keyboard- and pointer-accessible. */}
+      {coincidentCluster && (
+        <Popup
+          longitude={coincidentCluster.lng}
+          latitude={coincidentCluster.lat}
+          anchor="bottom"
+          closeOnClick={false}
+          onClose={() => setCoincidentCluster(null)}
+          className="paradocs-coincident-popup"
+          maxWidth="320px"
+        >
+          <div className="text-[11px] uppercase tracking-widest text-gray-400 font-semibold mb-1.5">
+            {coincidentCluster.reports.length} reports at this point
+          </div>
+          <ul className="space-y-1 max-h-[260px] overflow-y-auto">
+            {coincidentCluster.reports.map(function (r) {
+              return (
+                <li key={r.id}>
+                  <button
+                    type="button"
+                    onClick={function () {
+                      onSelectReport(r.id)
+                      setCoincidentCluster(null)
+                    }}
+                    className="block w-full text-left px-2 py-1.5 rounded hover:bg-white/8 focus:bg-white/8 focus:outline-none transition-colors"
+                  >
+                    <div className="text-sm text-gray-100 leading-snug line-clamp-2">
+                      {r.title || 'Untitled report'}
+                    </div>
+                    {r.location_name && (
+                      <div className="text-[11px] text-gray-500 mt-0.5">
+                        {r.location_name}
+                      </div>
+                    )}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </Popup>
+      )}
     </Map>
     </>
   )
