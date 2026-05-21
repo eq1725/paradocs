@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import { generateAndSaveParadocsAnalysis } from '@/lib/services/paradocs-analysis.service'
+import { generateAndSaveConsolidatedAI, isConsolidatedAIEnabled } from '@/lib/services/consolidated-ai.service'
 
 var supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -52,17 +53,28 @@ async function runApprovalSonnetForBatch(reportIds: string[]): Promise<{
   var failed = 0
   var errors: Array<{ id: string; error: string }> = []
 
+  // V11.14 — route through the consolidated AI path when
+  // USE_CONSOLIDATED_AI=true. Cuts cost from ~$0.012/report (multi-call)
+  // to ~$0.005/report (consolidated). Falls back to the multi-call
+  // service when the flag is off so behavior is unchanged for envs
+  // that haven't opted in.
+  var useConsolidated = isConsolidatedAIEnabled()
+
   // Simple chunked parallelism — process in groups of APPROVAL_SONNET_CONCURRENCY
   for (var i = 0; i < targets.length; i += APPROVAL_SONNET_CONCURRENCY) {
     var chunk = targets.slice(i, i + APPROVAL_SONNET_CONCURRENCY)
     var results = await Promise.all(chunk.map(function (id) {
-      return generateAndSaveParadocsAnalysis(id)
-        .then(function (ok: boolean) {
-          return { id: id, ok: ok, err: ok ? null : 'analysis returned false' }
-        })
-        .catch(function (e: any) {
-          return { id: id, ok: false, err: (e && e.message) || String(e) }
-        })
+      var generator = useConsolidated
+        ? generateAndSaveConsolidatedAI(id).then(function (r: any) {
+            return { id: id, ok: !!(r && r.success), err: r && r.success ? null : (r && r.error) || 'consolidated returned false' }
+          })
+        : generateAndSaveParadocsAnalysis(id)
+            .then(function (ok: boolean) {
+              return { id: id, ok: ok, err: ok ? null : 'analysis returned false' }
+            })
+      return generator.catch(function (e: any) {
+        return { id: id, ok: false, err: (e && e.message) || String(e) }
+      })
     }))
     for (var j = 0; j < results.length; j++) {
       var r = results[j]

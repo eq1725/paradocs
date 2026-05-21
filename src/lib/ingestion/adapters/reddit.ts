@@ -108,7 +108,7 @@ function categoryForSubreddit(sub: string): string | null {
 }
 
 // Arctic Shift post interface (matches Reddit's data structure)
-interface ArcticShiftPost {
+export interface ArcticShiftPost {
   id: string;
   title: string;
   selftext: string;
@@ -653,7 +653,10 @@ async function fetchPostComments(
 }
 
 // Parse a Reddit/Arctic Shift post into a ScrapedReport
-function parseRedditPost(post: ArcticShiftPost): ScrapedReport | null {
+// V11.14 — exported for archive-import endpoint reuse. Converts a raw
+// Arctic Shift post into a Paradocs ScrapedReport (or null if the post
+// fails baseline checks like non-self-post / too-short / deleted).
+export function parseRedditPost(post: ArcticShiftPost): ScrapedReport | null {
   // Arctic Shift might use different field names - handle both cases
   // Try selftext first, then self_text, then body
   const textContent = post.selftext || (post as any).self_text || (post as any).body || '';
