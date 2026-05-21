@@ -304,7 +304,21 @@ function formatDateForTitle(date: Date | string | null | undefined): string | nu
 
 // Third-person framing prefixes that the title-improver historically prepended
 // to phenomenon descriptors. Stripped when the underlying body is first-person.
-const THIRD_PERSON_FRAMING_PREFIX = /^(?:witness(?:es)?\s+(?:reports?|describes?|recounts?|sees?|saw|claims?|shares?|details?|struggles?)|(?:local|resident|user|reader|listener|viewer|practitioner|researcher|investigator|skeptic|believer|experiencer|patient|subject|student|tourist|traveler|visitor|medium|meditator|seeker|poster|anonymous)\s+(?:reports?|describes?|recounts?|sees?|saw|seeks?|encounters?|claims?|shares?|struggles?|wonders?|pursues?|finds?|gets?|receives?)|(?:man|woman|teen|teenager|girl|boy|child|family|hiker|driver|trucker|camper|hunter|officer|soldier|sailor|pilot|nurse|doctor|teacher|farmer|fisherman)\s+(?:reports?|describes?|recounts?|sees?|saw|seeks?|encounters?|claims?|shares?|struggles?|wonders?|pursues?|finds?|gets?|receives?))\s+/i;
+//
+// V11.7 — consolidated into one role-noun group + one verb-list to cover:
+//   - Optional adjective/modifier prefix (0-2 leading words like
+//     "Spiritual Student", "Christian Tulpamancer", "New Age Seeker").
+//     Smoke #6's slip-throughs included "Spiritual Student Questions
+//     Magic for Material Resolution" and "Christian Tulpamancer Questions
+//     Spirit Classification Doctrine" — the un-modified original regex
+//     missed both because of the leading adjective.
+//   - Expanded role list: tulpamancer, witch, magician, occultist, mystic,
+//     monk, devotee, channeler, empath, sensitive, lightworker,
+//     spiritualist, shaman.
+//   - Expanded verb list: questions, asks, ponders, debates, theorizes
+//     (UK: theorises). Catches "X Questions Y" headlines from Haiku
+//     that turn help-seek bodies into question-format headlines.
+const THIRD_PERSON_FRAMING_PREFIX = /^(?:[A-Za-z][A-Za-z'\-]+\s+){0,2}(?:witness(?:es)?|local|resident|user|reader|listener|viewer|practitioner|researcher|investigator|skeptic|believer|experiencer|patient|subject|student|tourist|traveler|visitor|medium|meditator|seeker|poster|anonymous|tulpamancer|witch|magician|occultist|mystic|monk|devotee|channeler|empath|sensitive|lightworker|spiritualist|shaman|man|woman|teen|teenager|girl|boy|child|family|hiker|driver|trucker|camper|hunter|officer|soldier|sailor|pilot|nurse|doctor|teacher|farmer|fisherman)\s+(?:reports?|describes?|recounts?|sees?|saw|seeks?|encounters?|claims?|shares?|details?|struggles?|wonders?|pursues?|finds?|gets?|receives?|questions?|asks?|ponders?|debates?|theori[sz]es?)\s+/i;
 
 /**
  * Strip leading "Witness Reports X" / "Researcher Struggles With X" style

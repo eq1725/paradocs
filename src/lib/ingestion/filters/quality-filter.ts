@@ -61,6 +61,16 @@ export const META_POST_PATTERNS = [
   /\b(how\s+can\s+i\s+(learn|start|begin|practice|develop|find))\b/i,
   /\b(im\s+trying\s+to|i\s+am\s+trying\s+to)\s+(learn|start|figure\s+out|master)\b/i,
   /\b(having\s+a\s+hard\s+time|having\s+trouble)\s+(with|figuring|learning|understanding)\b/i,
+  // V11.7 — Seeking-others / community-survey patterns. Smoke #6
+  // slipped through the "are there any other Christian tulpamancers
+  // out there?" post because it's framed as a community lookup, not
+  // a personal experience.
+  /\bare\s+there\s+any\s+(?:other|more)\b/i,
+  /\b(?:anyone|anybody)\s+(?:else|here|out\s+there)\s+(?:have|had|experienc|tried|practic)/i,
+  // V11.7 — Loosened "wondering" patterns. Existing patterns required a
+  // trailing question-word; "we kinda wonder", "we're just wondering",
+  // and "I'm wondering" (standalone) all need to match.
+  /\b(?:i'?m|we'?re|we|i)\s+(?:just\s+|kinda\s+|sort\s+of\s+|kind\s+of\s+|sorta\s+)?wonder(?:ing)?\b/i,
 ];
 
 // Art, merchandise, and promotional content
@@ -169,6 +179,40 @@ export const DESCRIPTION_LEAD_PATTERNS = [
   /^\s*\[\s*https?:\/\//i,
   /^\s*\[[^\]]{0,80}\]\s*\(https?:\/\//i,
   /^\s*https?:\/\//i,
+  // V11.7 — Explainer / encyclopedia opener. "Gematria is the concept of
+  // adding up letters…" — definition-led, not experience. Trailing
+  // `\s+of\b` prevents false positives on "Sleep paralysis is a
+  // phenomenon I've experienced for years" (no "of" follows phenomenon).
+  // Smoke #7 prep: catches the Gematria post that slipped through limit=100.
+  /^\s*\w+(?:\s+\w+){0,2}\s+is\s+(?:the\s+|a\s+|an\s+)?(?:concept|practice|tradition|study|art|technique|belief|theory|idea|doctrine|principle|notion|process|method|teaching|phenomenon|term|name|word)\s+of\b/i,
+  // V11.7 — Quote-sharing opener. Body opens with a quoted excerpt
+  // (≥30 chars between paired quote marks) or a markdown blockquote.
+  // Quote-share posts (often passages from books/teachers) are not
+  // experience reports. Smoke #7 prep: catches the Huxley
+  // "Perennial Philosophy" excerpt that slipped through limit=100.
+  /^\s*["“„][^"“”„]{30,}["”“„]/,
+  /^\s*>\s+\S/,
+  // V11.7 — Rhetorical / philosophical opener. "Why have people found
+  // it so easy to express their hate online?" — discussion prompt,
+  // not experience. Smoke #7 prep: catches the meditative-cleansing
+  // rant post.
+  /^\s*why\s+(?:have|has|do|does|are|is|would|did|don'?t|doesn'?t|can'?t|cant)\s+(?:people|we|you|so\s+many|everyone|anyone|humans?|society|the\s+world|they)\b/i,
+  // V11.7 — Self-labeled question post. "Ok. Ok, last question today."
+  // "Quick question for the group." OP literally labels their post a
+  // question rather than an experience. Smoke #7 prep: catches the
+  // Tulpa-question post that slipped through limit=100.
+  /^\s*(?:ok|okay)[.,!?]*\s+(?:ok|okay)?[.,!?]*\s*(?:last|first|another|one\s+more|quick)\s+question\b/i,
+  /^\s*(?:quick|just\s+a|one|a|another)\s+question\s+(?:for|to|about|regarding|y'?all|everyone|the)\b/i,
+  // V11.7 — Markdown heading or emoji-bullet chrome opener. Posts that
+  // open with structured markdown (## header, - 🗓️ Date: bullets) are
+  // personal symbol-system / journal content, not experiential narrative.
+  // Smoke #7 prep: catches the "Reverberation Node" post.
+  /^\s*\\?#{1,6}\s+\S/,
+  // Emoji-bullet opener (🗓️, 🧠, ⚡, etc.) — explicit unicode ranges so we
+  // don't need the /u flag (project targets pre-ES6 in tsc). Covers BMP
+  // dingbats (U+2600-U+27BF) and the high-surrogate range for
+  // supplementary-plane emoji (U+1F000-U+1FFFF).
+  /^[\s\-*•]*(?:[☀-➿]|[\uD83C-\uD83E][\uDC00-\uDFFF])/,
 ];
 
 // Fiction markers - stories that are explicitly fictional
@@ -274,6 +318,57 @@ export const LINK_HEAVY_PATTERNS = [
   /^.{0,50}https?:\/\/.{10,}$/i,  // Very short text followed by URL
   /^\[?https?:\/\/[^\]]+\]?\(?https?:\/\/[^\)]+\)?$/i,  // Just markdown links
 ];
+
+// ============================================================================
+// V11.7 — NON-ENGLISH CONTENT DETECTOR
+// ============================================================================
+//
+// Paradocs is English-only for the V1 launch. Posts in other languages (most
+// commonly Portuguese, Spanish, and French on the spiritual/esoteric subs)
+// reach the adapter pipeline and pass quality filters because the regex
+// patterns are English-tuned and don't fire on non-English text. They then
+// produce broken AI titles / narratives downstream. This detector catches
+// non-English text BEFORE Haiku/Sonnet ever runs.
+//
+// Two cheap heuristics on the first 1000 chars of the description:
+//   1. Diacritic frequency: Latin diacritic chars / total alphabetic chars
+//      > 2.5%. Catches Romance languages (Portuguese, Spanish, French,
+//      Italian) and most non-English Latin-script languages. English
+//      borrowed terms like "café" or "déjà vu" stay well under 1%.
+//   2. Non-English stopword density: counts ~50 common Romance/Germanic
+//      function words that almost never appear in English text. ≥3 hits
+//      with fewer English stopwords nearby → non-English.
+//
+// Returns true if the text appears non-English. Intentionally
+// false-positive-conservative.
+
+var NON_ENGLISH_STOPWORDS_RE = /\b(que|para|los|las|como|muy|porque|tambien|também|não|nao|muito|essa|esse|isso|uma|este|estos|estas|sou|estou|sei|isto|aqui|onde|qualquer|nosso|nossa|seus|suas|mesmo|mesma|todo|todos|nada|alguns|sempre|nunca|então|ainda|depois|antes|também|sobre|entre|dentro|fora|junto|menos|mais|bem|melhor|grande|pode|pude|sido|estar|temos|têm|tinha|será|foi|foram|fazer|disse|dizer|esto|esta|donde|cuando|hablar|hablo|estoy|tengo|hace|hacer|cuando|porque|allá|alli|c'est|n'est|nous|vous|ils|elles|cette|avec|sans|pour|alors|comme|peut|être|avoir|toute|toutes|leur|leurs|aussi|sehr|nicht|ich|du|er|sie|wir|ihr|ist|war|sind|werden|haben|hatte|kann|sein|seine|meine|deine|eine|einen|der|die|das|den|dem|des|und|oder|aber|weil|wenn|nach|vor|bei|von|mit|für|über|unter|durch|ohne|gegen|zwischen)\b/gi;
+
+var ENGLISH_STOPWORDS_RE = /\b(the|and|of|to|in|that|is|was|for|on|with|as|by|at|from|this|but|not|are|were|have|has|had|been|i'?m|i'?ve|i'?ll|we'?re|they'?re|it'?s|don'?t|didn'?t|can'?t|won'?t|shouldn'?t|wouldn'?t|couldn'?t|me|my|we|us|our|i)\b/gi;
+
+var LATIN_DIACRITIC_RE = /[áàâãäåéèêëíìîïóòôõöúùûüñçÁÀÂÃÄÅÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÑÇ]/g;
+var TOTAL_LATIN_LETTER_RE = /[A-Za-zÀ-ÿ]/g;
+
+export function isLikelyNonEnglish(text: string): boolean {
+  if (!text || text.length < 100) return false;
+  var head = text.substring(0, 1000);
+
+  // Heuristic 1: diacritic frequency
+  var diacritics = (head.match(LATIN_DIACRITIC_RE) || []).length;
+  var totalLetters = (head.match(TOTAL_LATIN_LETTER_RE) || []).length;
+  if (totalLetters > 0 && diacritics / totalLetters > 0.025) {
+    return true;
+  }
+
+  // Heuristic 2: non-English stopword density vs English stopwords
+  var nonEnglishHits = (head.match(NON_ENGLISH_STOPWORDS_RE) || []).length;
+  var englishHits = (head.match(ENGLISH_STOPWORDS_RE) || []).length;
+  if (nonEnglishHits >= 3 && englishHits < nonEnglishHits) {
+    return true;
+  }
+
+  return false;
+}
 
 // ============================================================================
 // QUALITY SCORING SYSTEM
@@ -505,6 +600,7 @@ export function filterContent(
     checkLowEffort?: boolean;
     checkSpam?: boolean;
     checkNonExperience?: boolean;
+    checkLanguage?: boolean;
     minLength?: number;
   }
 ): FilterResult {
@@ -514,6 +610,7 @@ export function filterContent(
     checkLowEffort: true,
     checkSpam: true,
     checkNonExperience: true,
+    checkLanguage: true,
     minLength: 100,
     ...options
   };
@@ -536,6 +633,15 @@ export function filterContent(
   // Check for deleted/removed content
   if (description === '[removed]' || description === '[deleted]') {
     return { passed: false, reason: 'Content was deleted or removed' };
+  }
+
+  // V11.7 — Non-English content gate. Paradocs is English-only for the
+  // V1 launch. Posts in Portuguese / Spanish / French would otherwise
+  // pass quality filters (they're English-tuned) and produce broken AI
+  // titles + narratives downstream. Catches them before Haiku/Sonnet
+  // ever runs. Skipped for curated sources via assessQuality wiring.
+  if (opts.checkLanguage && isLikelyNonEnglish(description)) {
+    return { passed: false, reason: 'Non-English content detected' };
   }
 
   // Check meta post patterns - ONLY for posts, not comments
@@ -658,7 +764,11 @@ export function assessQuality(
       minLength: thresholds.minDescLength,
       checkMeta: !isCuratedSource,
       checkLowEffort: !isCuratedSource,
-      checkNonExperience: !isCuratedSource
+      checkNonExperience: !isCuratedSource,
+      // Curated sources (NDERF/IANDS/OBERF/etc.) are English by curation;
+      // skip the language detector to avoid false positives on legitimate
+      // English text that happens to contain diacritics or borrowed terms.
+      checkLanguage: !isCuratedSource,
     }
   );
 
