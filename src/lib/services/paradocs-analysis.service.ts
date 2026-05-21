@@ -1378,26 +1378,15 @@ export async function generateParadocsAnalysis(
   console.log('[ParadocsAnalysis] Retrying for ' + reportId)
   await sleep(2000)
 
-  // Build the retry prompt. If we got a voice-violation flagged result
-  // above, augment it; otherwise use the original prompt.
-  var retryPrompt = userPrompt
-  // voiceFails is only in scope if `result` was assigned (i.e., parse
-  // succeeded but voice gate failed). We check for it conservatively.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  var lastVoiceFails: { hook: string[]; pull_quote: string[] } | undefined = undefined
-  try {
-    // result is local to the if block above; re-derive here for the
-    // retry path. We won't have it if parse failed — that's fine.
-    // (Intentionally a no-op when result was null.)
-  } catch (_) { /* unused */ }
-  // We can't reference `voiceFails` directly — it's scoped inside the
-  // earlier if(response){if(result){...}} block. Pass the violated
-  // field names via the same preamble template the claim-check retry
-  // uses, but for voice failures specifically. The signal we have is
-  // that we fell through to this point. The voice-corrective preamble
-  // is safe to include unconditionally on retry because the rule it
-  // teaches is always true — the model just needs the reminder.
-  retryPrompt += '\n\nCRITICAL — YOUR PREVIOUS ATTEMPT VIOLATED EDITORIAL VOICE.\n' +
+  // Build the retry prompt. The voice-corrective preamble is appended
+  // unconditionally on retry because the rule it teaches (no first-person
+  // pronouns in hook/pull_quote) is always true — the model just needs
+  // the reminder, and the V10.7.F constraint is impossible to over-state.
+  // The first-attempt voiceFails variable is scoped to the earlier
+  // if(response){if(result){…}} block so we can't reference it here, but
+  // we don't need to: the preamble is a no-op for a clean second attempt.
+  var retryPrompt = userPrompt +
+    '\n\nCRITICAL — YOUR PREVIOUS ATTEMPT VIOLATED EDITORIAL VOICE.\n' +
     'The pull_quote and/or hook contained first-person pronouns (I, me, my, mine, we, us, our).\n' +
     'These fields render on the report page inside curly-quote blockquotes — first-person here\n' +
     'looks like a direct witness quote, which is a policy violation (V10.7.F).\n\n' +
