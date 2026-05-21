@@ -1,0 +1,66 @@
+import { parseLocation } from '../src/lib/ingestion/utils/location-parser'
+
+interface Case { text: string; expected: { country?: string; international: boolean }; label: string }
+
+const CASES: Case[] = [
+  // Positives — these MUST match the relevant country
+  {
+    label: 'r/Ghosts Italy post (real failing case)',
+    text: 'Tldr; I went on a trip to Italy and got a room with a wardrobe blocking a tiny door. In high school late 2000s I had saved up all my money from summer jobs to afford a nice trip to Italy where I would study abroad for a bit. After hitting southern Italy we moved up north heading to Milan. The hotel was eerie.',
+    expected: { country: 'Italy', international: true },
+  },
+  {
+    label: 'rural northern Italy directional qualifier',
+    text: 'My family and I were in rural northern Italy when we saw something strange in the sky. We had been traveling for several weeks. It happened in the countryside outside a small village.',
+    expected: { country: 'Italy', international: true },
+  },
+  {
+    label: 'visiting Peru',
+    text: 'I was visiting Peru for an ayahuasca retreat in the Amazon. The shaman warned us not to step outside the circle.',
+    expected: { country: 'Peru', international: true },
+  },
+  {
+    label: 'moved to Germany',
+    text: 'We moved to Germany about ten years ago. Our apartment in Berlin has had strange occurrences ever since.',
+    expected: { country: 'Germany', international: true },
+  },
+  {
+    label: 'multi-mention India (no clear preposition)',
+    text: 'India was where this happened. My grandmother lived there her whole life. She told me stories about the spirits that visited her in India during the monsoon season. Every year in India the same thing would happen.',
+    expected: { country: 'India', international: true },
+  },
+  {
+    label: 'in Iceland (basic positive)',
+    text: 'This was in Iceland during a research trip. I was studying glacial formations near a remote outpost.',
+    expected: { country: 'Iceland', international: true },
+  },
+
+  // Negatives — these MUST NOT match (avoid false positives)
+  {
+    label: 'casual Italy reference, US setting',
+    text: 'I once had Italian food at a restaurant in Brooklyn. Anyway, the haunting started after I moved into a new apartment in New York. I never went to Italy.',
+    expected: { international: false },
+  },
+  {
+    label: 'short body should not trigger multi-mention',
+    text: 'India India',
+    expected: { international: false },
+  },
+]
+
+let passed = 0, failed = 0
+for (const c of CASES) {
+  const got = parseLocation(c.text)
+  const okIntl = got.isInternational === c.expected.international
+  const okCountry = c.expected.country ? got.country === c.expected.country : true
+  if (okIntl && okCountry) {
+    console.log('✓ ' + c.label + (got.country ? ' → ' + got.country : ''))
+    passed++
+  } else {
+    console.log('✗ ' + c.label + ' (got country=' + got.country + ' intl=' + got.isInternational + ', wanted country=' + (c.expected.country || '?') + ' intl=' + c.expected.international + ')')
+    failed++
+  }
+}
+console.log()
+console.log('Passed: ' + passed + '/' + CASES.length)
+process.exit(failed > 0 ? 1 : 0)

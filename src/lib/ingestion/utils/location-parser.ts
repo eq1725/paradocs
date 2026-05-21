@@ -302,14 +302,62 @@ export function parseLocation(text: string): ParsedLocation {
       }
     }
 
-    // Check for "in [Country]" pattern
-    const countryRegex = new RegExp(`\\b(in|from)\\s+${countryKey}\\b`, 'i');
-    if (countryRegex.test(lowerText) && countryKey !== 'georgia') {
+    // V11.14.4 — Expanded preposition + qualifier set. Previous regex
+    // only matched "(in|from) Italy" — missing "trip to Italy", "After
+    // hitting southern Italy", "near Italy", "across Italy", "northern
+    // Italy", "rural Italy", etc. Smoke spot-check (May 2026) surfaced
+    // a r/Ghosts post that mentions Italy 3 times — none of them with
+    // a preposition that hit the old regex — and the report shipped
+    // with country=null.
+    //
+    // Strategy: a single union regex covers prepositions ("(in|from|to|
+    // into|across|throughout|around|near|visiting|toured?|traveling|
+    // travelled|trip\s+to|study\s+in|studied\s+in|live(?:d|s)?\s+in|
+    // moved\s+to|outside)\s+Italy"), directional qualifiers ("northern|
+    // southern|eastern|western|central|rural|coastal|interior\s+Italy"),
+    // and declarative context ("Italy\s+(?:was|is|has)").
+    // (1) prepositions that don't normally appear in negations
+    // (2) specific verb+"to" / verb+"in" residence constructions
+    // (3) directional/regional qualifier
+    // (4) declarative country-first clause
+    //
+    // NOTE deliberately excluded: bare "to <Country>". That phrase
+    // matches "I never went to Italy" / "we couldn't fly to Italy" /
+    // etc. and creates false positives in long bodies that mention a
+    // country only in a hypothetical or negated context. Specific
+    // verb+to combinations ("trip to", "moved to", "traveled to")
+    // are positive enough to keep.
+    const countryContextRegex = new RegExp(
+      `\\b(?:in|from|into|across|throughout|around|near|visiting|toured?|traveling|travelled|outside|leaving|hitting)\\s+${countryKey}\\b`
+      + `|\\b(?:trip\\s+to|traveled\\s+to|travelled\\s+to|moved\\s+to|flew\\s+to|drove\\s+to|sailed\\s+to|return(?:ed|ing)?\\s+to|came\\s+to|back\\s+to|relocated\\s+to|emigrated\\s+to|immigrated\\s+to)\\s+${countryKey}\\b`
+      + `|\\b(?:study(?:ing)?\\s+in|studied\\s+in|live(?:d|s)?\\s+in|living\\s+in|stationed\\s+in|grew\\s+up\\s+in|raised\\s+in|born\\s+in|stayed\\s+in|staying\\s+in)\\s+${countryKey}\\b`
+      + `|\\b(?:northern|southern|eastern|western|central|rural|coastal|interior|mountainous|countryside\\s+of|all\\s+over|throughout|outskirts\\s+of)\\s+${countryKey}\\b`
+      + `|\\b${countryKey}\\s+(?:was|is|has|had|during\\s+the)\\b`,
+      'i'
+    );
+    if (countryContextRegex.test(lowerText) && countryKey !== 'georgia') {
       return {
         locationName: countryName,
         country: countryName,
         isInternational: true
       };
+    }
+
+    // V11.14.4 — Multi-mention fallback. If the country name appears
+    // 2+ times in the body with no preposition match, that's still a
+    // strong signal it's the locale (the title may use the adjectival
+    // form like "Italian" and the body keeps saying "Italy"). Use a
+    // global flag + length check to be conservative on short bodies.
+    if (countryKey !== 'georgia' && countryKey.length >= 4 && lowerText.length > 200) {
+      const wordBoundary = new RegExp('\\b' + countryKey + '\\b', 'gi');
+      const matches = lowerText.match(wordBoundary);
+      if (matches && matches.length >= 2) {
+        return {
+          locationName: countryName,
+          country: countryName,
+          isInternational: true
+        };
+      }
     }
   }
 
