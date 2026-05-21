@@ -279,6 +279,39 @@ export function parseLocation(text: string): ParsedLocation {
     }
   }
 
+  // V11.14.5 — Strip compound proper nouns BEFORE running the
+  // country-context regex below. Otherwise:
+  //   - "Haunted in New England" → "in England" → UK false positive
+  //   - "Little Britain Road" → "Britain" multi-mention → UK false positive
+  //   - "in New Mexico" → Mexico false positive
+  //   - "in North Carolina" → ... etc
+  // We replace the compound with a sentinel so the alias inside it
+  // doesn't survive to the regex check.
+  const COMPOUND_PROPER_NOUNS = [
+    /\bnew\s+england\b/gi,
+    /\bnew\s+mexico\b/gi,
+    /\bnew\s+zealand\s+(?:street|road|drive|avenue|way|lane|highway)\b/gi,
+    /\b(?:little|great|old|new|north|south|east|west|royal|king|queen|prince|princess)\s+(?:britain|england|scotland|wales|ireland|france|germany|spain|italy|china|japan|india|russia|mexico|peru|brazil|portugal|holland|sweden|norway|finland|poland|austria|hungary|greece|turkey|egypt|kenya|morocco|argentina|colombia)\s+(?:road|street|drive|avenue|way|lane|highway|park|square|circle|court|terrace|place|boulevard|crescent)\b/gi,
+    // Bare "Little Britain" / "Great Britain" appear as proper nouns in
+    // many road/place names; only Great Britain as a country deserves
+    // matching, and we already match it via the "great britain"
+    // COUNTRY_NAMES key further down — so safe to strip here.
+    /\blittle\s+britain\b/gi,
+    /\bnew\s+england\s+(?:patriots|revolution|aquarium|conservatory)\b/gi,
+  ]
+  let strippedLowerText = lowerText
+  for (const pat of COMPOUND_PROPER_NOUNS) {
+    strippedLowerText = strippedLowerText.replace(pat, '___strip___')
+  }
+
+  // Aliases that are heavily polluted by ordinary English usage in
+  // non-location contexts. For these, we require an explicit
+  // preposition match — skip the multi-mention fallback entirely.
+  const HIGH_FP_ALIASES = new Set([
+    'britain', 'england', 'scotland', 'wales', 'northern ireland',
+    'great britain', 'uk', 'ireland',  // Ireland sometimes appears as a person's surname
+  ])
+
   // Check for explicit country mentions (not US states)
   for (const [countryKey, countryName] of Object.entries(COUNTRY_NAMES)) {
     // Special handling for "Georgia" - check context
@@ -335,7 +368,7 @@ export function parseLocation(text: string): ParsedLocation {
       + `|\\b${countryKey}\\s+(?:was|is|has|had|during\\s+the)\\b`,
       'i'
     );
-    if (countryContextRegex.test(lowerText) && countryKey !== 'georgia') {
+    if (countryContextRegex.test(strippedLowerText) && countryKey !== 'georgia') {
       return {
         locationName: countryName,
         country: countryName,
@@ -346,11 +379,21 @@ export function parseLocation(text: string): ParsedLocation {
     // V11.14.4 — Multi-mention fallback. If the country name appears
     // 2+ times in the body with no preposition match, that's still a
     // strong signal it's the locale (the title may use the adjectival
-    // form like "Italian" and the body keeps saying "Italy"). Use a
-    // global flag + length check to be conservative on short bodies.
-    if (countryKey !== 'georgia' && countryKey.length >= 4 && lowerText.length > 200) {
+    // form like "Italian" and the body keeps saying "Italy").
+    //
+    // V11.14.5 — Skip this fallback for HIGH_FP aliases (UK pieces +
+    // Ireland). Those are too commonly used in road names ("Little
+    // Britain Road"), surnames ("Mr. Ireland"), TV show titles
+    // ("Haunted in New England"), and historical references to be
+    // safely inferred from frequency alone.
+    if (
+      countryKey !== 'georgia'
+      && !HIGH_FP_ALIASES.has(countryKey)
+      && countryKey.length >= 4
+      && strippedLowerText.length > 200
+    ) {
       const wordBoundary = new RegExp('\\b' + countryKey + '\\b', 'gi');
-      const matches = lowerText.match(wordBoundary);
+      const matches = strippedLowerText.match(wordBoundary);
       if (matches && matches.length >= 2) {
         return {
           locationName: countryName,

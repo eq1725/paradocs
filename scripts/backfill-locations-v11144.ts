@@ -37,20 +37,32 @@ async function main() {
   console.log('=== V11.14.4 Location backfill ===')
   console.log('Mode: ' + (dryRun ? 'DRY RUN (no writes)' : 'APPLYING UPDATES'))
 
-  // Find candidates: approved/pending_review/rejected with country IS NULL,
-  // ingested (not user_submission), with at least some body text.
-  var { data: rows, error } = await sb
-    .from('reports')
-    .select('id, slug, title, description, status, source_type, country, location_name')
-    .in('status', ['approved', 'pending_review'])
-    .is('country', null)
-    .neq('source_type', 'user_submission')
-    .not('description', 'is', null)
-  if (error) {
-    console.error('Query failed:', error.message)
-    process.exit(1)
+  // Find candidates — paginate around Supabase's 5000-row PostgREST cap.
+  var rows: any[] = []
+  var pageSize = 1000
+  var fetchedThisPage = pageSize
+  var offset = 0
+  while (fetchedThisPage === pageSize) {
+    var page = await sb
+      .from('reports')
+      .select('id, slug, title, description, status, source_type, country, location_name')
+      .in('status', ['approved', 'pending_review'])
+      .is('country', null)
+      .neq('source_type', 'user_submission')
+      .not('description', 'is', null)
+      .order('created_at', { ascending: true })
+      .range(offset, offset + pageSize - 1)
+    if (page.error) {
+      console.error('Query failed:', page.error.message)
+      process.exit(1)
+    }
+    var pageRows = page.data || []
+    rows.push.apply(rows, pageRows)
+    fetchedThisPage = pageRows.length
+    offset += pageSize
+    if (offset > 100000) break  // safety cap
   }
-  console.log('Candidates: ' + (rows?.length || 0))
+  console.log('Candidates (all pages): ' + rows.length)
 
   var stats = {
     matched: 0,
@@ -62,11 +74,25 @@ async function main() {
 
   var cache = makeSupabaseGeocodeCache(sb)
 
+  var skippedUS = 0
   for (var i = 0; i < (rows || []).length; i++) {
     var row = rows![i]
     var text = (row.title || '') + '\n\n' + (row.description || '')
     var parsed = parseLocation(text)
     if (!parsed.country) {
+      stats.no_match++
+      continue
+    }
+    // V11.14.4 — Backfill is scoped to INTERNATIONAL country matches
+    // only. The US-state extractor in parseLocation has a pre-existing
+    // loose city regex that picks up garbage like "In West" from
+    // "In West Virginia" — which is fine during fresh ingest (paired
+    // with the strict report-enricher US-state extractor) but produces
+    // junk values when applied retroactively to long bodies that the
+    // strict extractor already rejected. International countries are
+    // what V11.14.4 was actually built to catch.
+    if (parsed.country === 'United States') {
+      skippedUS++
       stats.no_match++
       continue
     }
@@ -125,9 +151,10 @@ async function main() {
 
   console.log('')
   console.log('=== Summary ===')
-  console.log('Matched (parseLocation found something): ' + stats.matched)
+  console.log('Matched (international):                  ' + stats.matched)
   console.log('Updated:                                  ' + stats.updated)
-  console.log('No match:                                 ' + stats.no_match)
+  console.log('Skipped (US match — noisy, out of scope): ' + skippedUS)
+  console.log('No match:                                 ' + (stats.no_match - skippedUS))
   console.log('Geocode fail:                             ' + stats.geocode_fail)
   console.log('Update fail:                              ' + stats.update_fail)
 }

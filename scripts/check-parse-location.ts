@@ -46,6 +46,21 @@ const CASES: Case[] = [
     text: 'India India',
     expected: { international: false },
   },
+  {
+    label: 'V11.14.5: "Haunted in New England" must NOT match UK',
+    text: 'Knox Mansion is in Johnstown NY. Haunted in New England did a investigation of the Knox Mansion on Oct 31, 2023. Eric Perry founder of Haunted in New England led the team. The mansion has long been a fixture of New York paranormal lore.',
+    expected: { international: false },
+  },
+  {
+    label: 'V11.14.5: "Little Britain Road" must NOT match UK',
+    text: 'On our way through the Kawartha Lakes tonight, my BF and I were driving east on Little Britain Road around 9:40pm. It was just starting to get dark, and I was approaching a tractor riding on the shoulder of Little Britain Road. Something blocked out the right side of my headlight beam.',
+    expected: { international: false },
+  },
+  {
+    label: 'V11.14.5: "in New Mexico" must NOT match Mexico',
+    text: 'I grew up in New Mexico, near the Sandia mountains. My family had stories about strange lights in the desert. We were in New Mexico for over thirty years before we moved away.',
+    expected: { international: false },
+  },
 ]
 
 let passed = 0, failed = 0
