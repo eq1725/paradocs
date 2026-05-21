@@ -53,7 +53,11 @@ export const META_POST_PATTERNS = [
   /\b(haven'?t\s+got\s+(the\s+)?courage|don'?t\s+have\s+(the\s+)?courage)\b/i,
   /\b(any\s+(tips?|advice|recommendations?|pointers?|suggestions?))\b/i,
   /\b(how\s+do\s+(you|i|y'?all|u(?:\s+guys)?|you\s+guys|anyone))\b/i,
-  /\b(i\s+(want\s+to|hope\s+to|need\s+to)\s+(learn|figure\s+out|understand|start|try|begin))\b/i,
+  // V11 — allow adverbs between "i" and the seeking verb so "I really
+  // want to start meditating" matches. Smoke 4 surface: a meditation-
+  // teacher-seeker post slipped through because the previous pattern
+  // required "i want to" with no intervening word.
+  /\bi\s+(?:really\s+|just\s+|finally\s+|truly\s+|so\s+|honestly\s+)?(?:want\s+to|hope\s+to|need\s+to|wish\s+to|would\s+like\s+to)\s+(learn|figure\s+out|understand|start|try|begin|do|find|meditate|practice|develop)\b/i,
   /\b(how\s+can\s+i\s+(learn|start|begin|practice|develop|find))\b/i,
   /\b(im\s+trying\s+to|i\s+am\s+trying\s+to)\s+(learn|start|figure\s+out|master)\b/i,
   /\b(having\s+a\s+hard\s+time|having\s+trouble)\s+(with|figuring|learning|understanding)\b/i,
@@ -123,17 +127,45 @@ export const NON_EXPERIENCE_PATTERNS = [
   /\b(if anybody|if anyone)\s+(knows|can|practices)\b/i,
   // V11 — declarative theorizing. "Shadow people are X" is a theory, not
   // an experience report. Distinguishes from "I saw shadow people" type.
-  /^shadow\s+people\s+are\b/i,
-  /^(cryptids?|ufos?|aliens?|ghosts?|spirits?|demons?)\s+are\b/i,
+  // (NOTE: anchored patterns moved to DESCRIPTION_LEAD_PATTERNS below
+  // because META/NON_EXPERIENCE checks run against combinedText where the
+  // title precedes the description and `^` never matches.)
   /\b(my\s+theory\s+is|i\s+think\s+(they'?re|they\s+are|its|it'?s))\b/i,
   /\b(explanation\s+for|theory\s+(about|of)\s+|theories\s+(about|on))\b/i,
   /\b(are\s+(just|simply|merely|nothing\s+more\s+than|basically))\s+\w+/i,
   /\b(let\s+me\s+(explain|tell\s+you\s+about))\b/i,
-  // V11 — body begins with a URL or markdown link, or is >40% URL content.
-  // Caught a r/Synchronicity post whose body started with
-  // "[http://51.81.253.114:9000/...]" and was mostly external linking.
-  /^\s*\[?\s*https?:\/\//i,
+  // V11 — self-promotion of platforms / tools / apps / sites the OP built.
+  // Caught "Created a public reporting platform where people can submit
+  // UFO sightings..." that slipped through smoke 4.
+  /\b(created|built|launched|made|started|developed|designed|published|releasing)\s+(a|an|the|this|my|our)\s+(public|new|free|simple)?\s*(platform|app|website|site|tool|reporting\s+tool|database|directory|tracker|service|dashboard|aggregator)\b/i,
+  /\b(submit\s+(your|a|an)\s+(report|sighting|experience))\b/i,
+  /\bhttps?:\/\/\S+\s+(check|visit|see)\b/i,
+];
+
+// V11 — patterns that run against ONLY the first 300 chars of the
+// description body, NOT combined title+description. Anchored patterns
+// (`^`) live here because META_POST_PATTERNS / NON_EXPERIENCE_PATTERNS
+// are tested against `<title>\n<description>` and the `^` anchor
+// would only match the very start of that combined string, which is
+// always the title.
+//
+// Use this set for "lead of body" disqualifiers — things the body
+// opens with that signal "not an experience report" regardless of
+// what the title says.
+export const DESCRIPTION_LEAD_PATTERNS = [
+  // Body opens with "Shadow people are…" / "Cryptids are…" theorizing.
+  /^\s*shadow\s+people\s+are\b/i,
+  /^\s*(cryptids?|ufos?|aliens?|ghosts?|spirits?|demons?|orbs?|entities|shadow\s+(figures?|beings?|entities))\s+are\b/i,
+  // Body opens with "My thoughts are…" / "I honestly go with the X theory"
+  // — declarative position-statement about other people's experiences.
+  /^\s*my\s+thoughts\s+(are|on)\b/i,
+  /^\s*i\s+(honestly|personally)\s+(go\s+with|believe|think|subscribe\s+to)\b/i,
+  // Body opens with a markdown link or bare URL. Catches:
+  //   "[http://51.81.253.114:9000/...](http://51.81.253.114:9000/...)"
+  //   "https://www.youtube.com/watch?v=… You should check this out…"
+  /^\s*\[\s*https?:\/\//i,
   /^\s*\[[^\]]{0,80}\]\s*\(https?:\/\//i,
+  /^\s*https?:\/\//i,
 ];
 
 // Fiction markers - stories that are explicitly fictional
@@ -533,6 +565,17 @@ export function filterContent(
     for (const pattern of NON_EXPERIENCE_PATTERNS) {
       if (pattern.test(combinedText)) {
         return { passed: false, reason: `Non-experience content: ${pattern.source.substring(0, 30)}...` };
+      }
+    }
+    // V11 — description-lead anchors. These patterns use `^` to detect
+    // posts that OPEN with a theory, position-statement, or URL-drop.
+    // They run against the first 300 chars of description ONLY, not the
+    // combined title+description (where the leading `^` would only ever
+    // match the start of the title).
+    var descLead = (description || '').substring(0, 300);
+    for (const pattern of DESCRIPTION_LEAD_PATTERNS) {
+      if (pattern.test(descLead)) {
+        return { passed: false, reason: `Non-experience lead: ${pattern.source.substring(0, 30)}...` };
       }
     }
   }

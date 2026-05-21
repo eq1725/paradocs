@@ -1215,6 +1215,40 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                 console.log('[Ingestion] Paradocs Analysis exception for ' + slug + ':', analysisError);
               }
 
+              // V11 (Path C — Sonnet-refusal demotion) — re-read the row
+              // after Paradocs Analysis. If paradocs_narrative is still null
+              // or empty after the retry orchestrator, that's Sonnet
+              // signaling it couldn't paraphrase the content as an
+              // experience report (theorizing posts, help-requests,
+              // self-promotion, link-drops, structured non-narrative
+              // formats). Demote the status from 'approved' to
+              // 'pending_review' so non-experience content never goes
+              // live even if it passed our regex pre-filters and score
+              // gate. Admin can decide whether to manually approve or
+              // reject from /admin/report-review.
+              try {
+                var { data: postAnalysisRow } = await supabase
+                  .from('reports')
+                  .select('paradocs_narrative')
+                  .eq('id', insertedReport.id)
+                  .single();
+                var hasNarrative = !!(postAnalysisRow && postAnalysisRow.paradocs_narrative && postAnalysisRow.paradocs_narrative.trim().length > 0);
+                if (!hasNarrative) {
+                  await supabase
+                    .from('reports')
+                    .update({ status: 'pending_review', updated_at: new Date().toISOString() })
+                    .eq('id', insertedReport.id);
+                  status = 'pending_review';
+                  pendingReview++;
+                  console.log('[Ingestion] Demoted to pending_review (Sonnet narrative refusal): ' + slug);
+                }
+              } catch (demoteErr) {
+                // Demotion check is best-effort. If the re-query fails,
+                // leave the report as approved — manual review can clean
+                // it up.
+                console.log('[Ingestion] Sonnet-refusal demotion check failed (non-fatal) for ' + slug + ':', demoteErr);
+              }
+
               // V10.4 Phase 1.6 — answer_line (one-sentence faithful summary)
               // for the new mobile-first report page. Generated through the
               // unified rewrite-pipeline so it goes through anti-fabrication
