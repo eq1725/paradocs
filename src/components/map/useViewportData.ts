@@ -97,11 +97,26 @@ export function useViewportData(
 
       try {
         // V10.9.A — pin layer fetches PRECISE-COORD reports only.
-        // Synthetic-coord reports (country/state centroid fallbacks)
-        // are excluded here so they don't pile up at shared centroids
-        // and create misleading clusters (the "57 at Kansas" bug).
-        // Those reports surface as honest aggregate counts via
-        // /api/map/region-counts → regionBuckets below.
+        // V11.14 — REVERSED the V11 exclusion of synthetic-coord
+        // reports. The original concern was that 50+ country-centroid
+        // pins piling up at the same point would look like a real
+        // cluster. But:
+        //   1. With V11.10+ filters + first-class admin curation, the
+        //      "57 at Kansas" defaulting bug is impossible — country
+        //      defaults were removed in V11.8 and bogus locations are
+        //      structurally nulled in V11.11. Synthetic coords now
+        //      only appear when the source genuinely points to a
+        //      country with no city/state signal.
+        //   2. The map's fuzzy-halo layer (location_precision='country'
+        //      / 'state') renders synthetic-coord reports at lower
+        //      opacity + larger radius — visually distinct from
+        //      precise pins, so users can tell.
+        //   3. The V11.11 coincident-pin popup handles the rare case
+        //      of multiple country-precision reports at the same
+        //      centroid by showing a list.
+        // Net: country-precision reports now show as halos on the
+        // map (Italy, India, etc.). Both choropleth + halo paths
+        // are populated.
         const { data, error: dbError } = await supabase
           .from('reports')
           .select(
@@ -110,7 +125,6 @@ export function useViewportData(
           .not('latitude', 'is', null)
           .not('longitude', 'is', null)
           .eq('status', 'approved')
-          .or('coords_synthetic.is.null,coords_synthetic.eq.false')
           .order('created_at', { ascending: false })
           .limit(50000)
 

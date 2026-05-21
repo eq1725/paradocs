@@ -455,21 +455,27 @@ async function main() {
           outTok / 1e6 * HAIKU_OUTPUT_USD_PER_M_BATCH
         stats.totalCost += costUsd
 
-        // Fetch report (needed for fallback title + category if parsed missing them)
+        // Fetch report (needed for fallback title + category + V11.14
+        // auto-promote check via metadata.score_status)
         var existing = submittedReports.get(reportId)
         var reportCategory: string | null = null
         var fallbackTitle: string | null = null
+        var reportMetadata: any = null
         if (existing) {
           reportCategory = existing.category
           fallbackTitle = existing.title
-        } else {
-          // Resume mode: fetch from DB
-          var f = await (supabase.from('reports') as any).select('category, title').eq('id', reportId).single()
-          if (f.data) {
-            reportCategory = f.data.category
-            fallbackTitle = f.data.title
-          }
+          reportMetadata = (existing as any).metadata
         }
+        // Always re-fetch metadata from DB — submittedReports cache
+        // doesn't carry it.
+        try {
+          var f = await (supabase.from('reports') as any).select('category, title, metadata').eq('id', reportId).single()
+          if (f.data) {
+            if (!reportCategory) reportCategory = f.data.category
+            if (!fallbackTitle) fallbackTitle = f.data.title
+            reportMetadata = f.data.metadata
+          }
+        } catch (_e) { /* non-fatal — fall back to whatever we had */ }
 
         // Persist via shared helper
         var saved = await persistConsolidatedResult(
@@ -490,12 +496,27 @@ async function main() {
         await logBatchCost(supabase, reportId, msg, inTok, outTok, cWrite, costUsd, 'completed', null)
         stats.succeeded++
 
-        // V11.8 demotion gate equivalent: if narrative or pull_quote
-        // is null/empty post-persist, the report is incomplete. We
-        // could demote here, but for backfill mode the source rows
-        // are already at status=pending_review — they stay there if
-        // the result is incomplete. (For approved-status reverts we'd
-        // need explicit logic; not in this iteration.)
+        // V11.14 — Auto-promotion: if archive-import stamped
+        // metadata.score_status='approved' AND the AI populated both
+        // narrative + pull_quote, promote status to 'approved'. This
+        // is what unburdens the admin queue from receiving every
+        // ingested report. Borderline (score_status='pending_review')
+        // reports remain in admin queue; admin chooses each one.
+        var scoreStatus = reportMetadata && reportMetadata.score_status
+        var hasNarrative = !!(parsed.analysis && String(parsed.analysis).trim().length > 0 && parsed.analysis !== 'INSUFFICIENT')
+        var hasPullQuote = !!(parsed.pull_quote && String(parsed.pull_quote).trim().length > 0 && parsed.pull_quote !== 'INSUFFICIENT')
+        if (scoreStatus === 'approved' && hasNarrative && hasPullQuote) {
+          try {
+            var promoteRes = await (supabase.from('reports') as any)
+              .update({ status: 'approved', updated_at: new Date().toISOString() })
+              .eq('id', reportId)
+            if (!promoteRes.error) {
+              console.log('  ↑ ' + reportId + ' auto-promoted to approved')
+            }
+          } catch (promoteErr: any) {
+            console.warn('  ! ' + reportId + ' auto-promote failed (left at pending_review): ' + (promoteErr?.message || promoteErr))
+          }
+        }
       }
 
       console.log('\n=== Persistence summary ===')

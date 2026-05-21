@@ -304,16 +304,28 @@ export async function normalizeLocation(
     coordsSynthetic = true
   }
 
-  // 3d. Country-only resolution. We INTENTIONALLY do not synthesize a
-  // country-centroid lat/lng here — three reports rendering at the
-  // same point (e.g. 39.78 / -100.45 for "United States") creates a
-  // visible clump on the map. Country-precision reports surface via
-  // the country-list rail instead, so we keep country/country_code/
-  // location_name populated but leave coords null. (Prior behavior
-  // wrote synthetic centroid coords + coords_synthetic=true.)
+  // 3d. Country-only resolution. V11.14 — reversed the V11 decision
+  // to leave country-only reports with null coords. The original
+  // concern was clumping ("57 reports at Kansas centroid") — but
+  // V11.11's coincident-pin popup explicitly handles multiple reports
+  // at the same coords by rendering a list when the user clicks.
+  // Combined with the map's existing distinction between pins (exact
+  // coords, non-synthetic) and halos (country/region/synthetic), the
+  // user can see country-only reports without them being mistaken
+  // for precise sightings.
+  //
+  // Without this synthesis, country-only reports were invisible on
+  // /explore?mode=map (no pin, no halo) — Chase's complaint when
+  // Italy and India reports approved cleanly but never appeared.
+  // Now: country-only → country-centroid coords + coords_synthetic=true
+  // + precision='country', rendered as a halo at the centroid. The
+  // coincident-pin popup picks up overlaps.
   if (latitude === null && countryCode && COUNTRY_BY_CODE[countryCode]) {
+    const c = COUNTRY_BY_CODE[countryCode]
+    latitude = c.lat
+    longitude = c.lng
     precision = 'country'
-    coordsSynthetic = false
+    coordsSynthetic = true
   }
 
   // ── 4. Range / sanity gates ──────────────────────────────────────

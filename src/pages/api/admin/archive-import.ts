@@ -47,6 +47,11 @@ import {
   isObviouslyLowQuality,
   smartReEvaluate,
 } from '@/lib/ingestion/filters'
+import {
+  normalizeLocation,
+  geocodeWithFallback,
+  makeSupabaseGeocodeCache,
+} from '@/lib/ingestion/utils/normalize-location'
 
 var supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -210,7 +215,54 @@ async function processBatch(posts: ArcticShiftPost[]): Promise<ImportResult> {
         report.location_name = null as any
       }
 
-      // 8. Build insert payload (matches engine.ts shape exactly)
+      // 8. V11.14 — normalizeLocation: fold country aliases, look up
+      //    country_code (Italy → IT, India → IN, etc.), set
+      //    location_precision based on what fields we have
+      //    (city → 'exact', state → 'region', country only →
+      //    'country', nothing → 'unknown'). Runs MapTiler/Nominatim
+      //    geocode when city+state+country combo allows it. This
+      //    was missing from my initial endpoint — caused Italy
+      //    reports to have country_code=null + precision='exact'
+      //    + no coords, which broke the map view.
+      var normalizedLocation: any = null
+      try {
+        normalizedLocation = await normalizeLocation(
+          {
+            city: report.city || null,
+            state_province: report.state_province || null,
+            country: report.country || null,
+            country_code: (report as any).country_code || null,
+            location_name: locName || null,
+            latitude: typeof report.latitude === 'number' ? report.latitude : null,
+            longitude: typeof report.longitude === 'number' ? report.longitude : null,
+          },
+          {
+            geocoder: 'maptiler',
+            geocodeFn: geocodeWithFallback,
+            cache: makeSupabaseGeocodeCache(supabaseAdmin),
+          },
+        )
+      } catch (normErr) {
+        console.log('[archive-import] normalizeLocation error (non-fatal): ' + (normErr as any)?.message)
+      }
+
+      // 9. V11.14 — Status flow for archive-import path:
+      //   - All inserts land at status='pending_review' (no live AI
+      //     yet; can't promote to 'approved' until narrative +
+      //     pull_quote populate).
+      //   - The quality-score decision is stored on metadata.score
+      //     so the batch worker knows whether to AUTO-promote after
+      //     AI succeeds.
+      //     -  metadata.score_status='approved' → batch worker
+      //        promotes to 'approved' when AI completes
+      //     -  metadata.score_status='pending_review' → stays
+      //        pending_review even after AI; admin review needed
+      //   - This means the admin queue only gets borderline-score
+      //     reports, not everything. Reports that scored cleanly
+      //     auto-publish once their AI content lands.
+      var scoreStatus = initialStatus  // 'approved' | 'pending_review'
+
+      // 10. Build insert payload (matches engine.ts shape)
       var slug = generateSlug(report.title || 'untitled', report.original_report_id || null, report.source_type || 'reddit')
       var insertData: Record<string, any> = {
         title: report.title,
@@ -218,21 +270,19 @@ async function processBatch(posts: ArcticShiftPost[]): Promise<ImportResult> {
         summary: report.summary,
         description: report.description,
         category: report.category,
-        location_name: locName,
-        country: report.country || null,
-        state_province: report.state_province,
-        city: report.city,
-        latitude: report.latitude,
-        longitude: report.longitude,
+        location_name: normalizedLocation ? normalizedLocation.location_name : locName,
+        country: normalizedLocation ? normalizedLocation.country : (report.country || null),
+        country_code: normalizedLocation ? normalizedLocation.country_code : (report as any).country_code || null,
+        state_province: normalizedLocation ? normalizedLocation.state_province : report.state_province,
+        city: normalizedLocation ? normalizedLocation.city : report.city,
+        latitude: normalizedLocation ? normalizedLocation.latitude : report.latitude,
+        longitude: normalizedLocation ? normalizedLocation.longitude : report.longitude,
+        coords_synthetic: normalizedLocation ? !!normalizedLocation.coords_synthetic : false,
         event_date: report.event_date,
         event_date_precision: report.event_date_precision || 'unknown',
         credibility: report.credibility || 'medium',
         source_type: report.source_type,
         original_report_id: report.original_report_id,
-        // V11.14 — Archive imports ALWAYS land at pending_review
-        // because we haven't run AI yet. The batch worker promotes
-        // to 'approved' when it successfully populates narrative +
-        // pull_quote (via the same demotion-gate logic, inverted).
         status: 'pending_review',
         tags: report.tags || [],
         source_label: report.source_label || 'reddit',
@@ -240,6 +290,14 @@ async function processBatch(posts: ArcticShiftPost[]): Promise<ImportResult> {
         upvotes: 0,
         view_count: 0,
         report_type: 'ingested',
+        metadata: {
+          location_precision: normalizedLocation ? normalizedLocation.location_precision : (report.location_precision || 'unknown'),
+          // V11.14 — stored so the batch worker knows whether to
+          // auto-promote to 'approved' after AI completes, or keep
+          // at 'pending_review' for admin curation.
+          score_status: scoreStatus,
+          quality_score: qualityScore.total,
+        },
       }
       if ((report as any).event_date_extracted_from) insertData.event_date_extracted_from = (report as any).event_date_extracted_from
       if ((report as any).source_published_at) insertData.source_published_at = (report as any).source_published_at
