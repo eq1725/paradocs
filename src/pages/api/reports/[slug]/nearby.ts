@@ -101,7 +101,7 @@ export default async function handler(
     // (capped at maxLimit which is itself capped at 50).
     const ids = rows.map(r => r.id)
     const { data: enrich } = (await (supabase.from('reports') as any)
-      .select('id, location_name, event_date, summary')
+      .select('id, location_name, event_date, event_date_precision, summary')
       .in('id', ids)) as { data: any[] | null }
 
     const enrichById = new Map<string, any>(

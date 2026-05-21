@@ -227,7 +227,7 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
               {report.event_date && (
                 <span className="flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
-                  {formatDate(report.event_date)}
+                  {formatEventDate(report.event_date, (report as any).event_date_precision) || formatDate(report.event_date)}
                 </span>
               )}
               <span className="flex items-center gap-1">

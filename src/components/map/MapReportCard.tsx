@@ -7,7 +7,7 @@ import React from 'react'
 import Link from 'next/link'
 import { X, MapPin, Calendar, Users, ExternalLink, Shield } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatEventDate } from '@/lib/utils'
 import { ReportProperties } from './mapStyles'
 import { CategoryIcon } from '@/components/ui/CategoryIcon'
 import SourceBadge from '@/components/SourceBadge'
@@ -69,7 +69,7 @@ export default function MapReportCard({ report, onClose, compact = false }: MapR
         {report.event_date && (
           <div className="flex items-center gap-2 text-xs text-gray-400">
             <Calendar size={13} className="text-gray-500 flex-shrink-0" />
-            <span>{formatDate(report.event_date)}</span>
+            <span>{formatEventDate(report.event_date, (report as any).event_date_precision) || formatDate(report.event_date)}</span>
           </div>
         )}
         {report.witness_count && report.witness_count > 0 && (

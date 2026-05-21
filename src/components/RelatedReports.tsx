@@ -6,7 +6,7 @@ import { Layers, ArrowRight, Sparkles, ChevronDown, LinkIcon } from 'lucide-reac
 import { supabase } from '@/lib/supabase'
 import { Report, PhenomenonCategory, PhenomenonType, ReportLinkType } from '@/lib/database.types'
 import { CATEGORY_CONFIG } from '@/lib/constants'
-import { classNames, formatDate } from '@/lib/utils'
+import { classNames, formatDate, formatEventDate } from '@/lib/utils'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 
 interface RelatedReportsProps {
@@ -292,7 +292,7 @@ export default function RelatedReports({
                     <>
                       <span className="text-gray-600 text-[10px]">·</span>
                       <span className="text-[11px] text-gray-500 whitespace-nowrap">
-                        {formatDate(report.event_date, 'MMM yyyy')}
+                        {formatEventDate(report.event_date, (report as any).event_date_precision) || formatDate(report.event_date, 'MMM yyyy')}
                       </span>
                     </>
                   )}

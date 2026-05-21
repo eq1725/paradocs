@@ -105,7 +105,7 @@ export function useViewportData(
         const { data, error: dbError } = await supabase
           .from('reports')
           .select(
-            'id,title,slug,summary,category,latitude,longitude,location_name,country,country_code,event_date,credibility,witness_count,has_physical_evidence,has_photo_video,coords_synthetic,metadata'
+            'id,title,slug,summary,category,latitude,longitude,location_name,country,country_code,event_date,event_date_precision,credibility,witness_count,has_physical_evidence,has_photo_video,coords_synthetic,metadata'
           )
           .not('latitude', 'is', null)
           .not('longitude', 'is', null)
@@ -136,6 +136,7 @@ export function useViewportData(
               location_name: r.location_name,
               country: r.country,
               event_date: r.event_date,
+              event_date_precision: r.event_date_precision,
               witness_count: r.witness_count,
               has_physical_evidence: r.has_physical_evidence || false,
               has_photo_video: r.has_photo_video || false,

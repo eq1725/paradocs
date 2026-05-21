@@ -108,6 +108,11 @@ export interface ReportProperties {
   location_name: string | null
   country: string | null
   event_date: string | null
+  // V11.14 — precision drives precision-aware date rendering on map
+  // card popovers. Falls back to formatDate for legacy rows where
+  // precision wasn't backfilled. Values: 'exact' | 'month' | 'year' |
+  // 'decade' | 'estimated' | 'unknown'.
+  event_date_precision: string | null
   witness_count: number | null
   has_physical_evidence: boolean
   has_photo_video: boolean
