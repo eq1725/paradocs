@@ -388,11 +388,16 @@ async function main() {
       continue
     }
     var counts = status.request_counts
-    if (!lastCounts || JSON.stringify(counts) !== JSON.stringify(lastCounts)) {
-      var elapsed = Math.round((Date.now() - startTime) / 1000)
-      console.log('  [+' + elapsed + 's] status=' + status.processing_status + '  processing=' + counts.processing + '  succeeded=' + counts.succeeded + '  errored=' + counts.errored)
-      lastCounts = counts
-    }
+    var elapsed = Math.round((Date.now() - startTime) / 1000)
+    // V11.14.5 — Always print a heartbeat each poll cycle, with a
+    // (no change) tag when counts didn't move. Anthropic batches
+    // typically sit at "all processing" for the first 5-15 min,
+    // during which the old code printed nothing and the terminal
+    // looked dead. Heartbeat gives the user confidence the worker
+    // is alive.
+    var changed = !lastCounts || JSON.stringify(counts) !== JSON.stringify(lastCounts)
+    console.log('  [+' + elapsed + 's] status=' + status.processing_status + '  processing=' + counts.processing + '  succeeded=' + counts.succeeded + '  errored=' + counts.errored + (changed ? '' : '  (no change)'))
+    lastCounts = counts
     if (status.processing_status === 'ended') {
       console.log('\nBatch complete!')
       console.log('  succeeded: ' + counts.succeeded)
