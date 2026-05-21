@@ -241,10 +241,29 @@ export default function ReportLocationMap({
     // initial flashes the world before snapping to the target — looks
     // janky. Start at the right zoom; the framing useEffect can still
     // refine center / zoom (or animate in for precise-coord rows).
-    const initialZoom = hasUsableCoords
-      ? (syntheticBounds ? Math.max(targetZoom - 0.5, 5) : Math.max(2, targetZoom - 4))
-      : 1.5
-    const center: [number, number] = hasUsableCoords ? [longitude!, latitude!] : [0, 20]
+    //
+    // V11 — when lat/lng are null (country-precision reports after the
+    // V11 synth-coord drop) we still want to show a useful map. If we
+    // have country bounds, compute the bbox center and an appropriate
+    // country-fit zoom (~3.5) instead of the old [0, 20] mid-Atlantic
+    // fallback which rendered as a black/ocean void. The fitBounds
+    // effect below will frame the country properly once the map's
+    // ready; this just gets us a sensible initial paint.
+    let initialZoom: number
+    let center: [number, number]
+    if (hasUsableCoords) {
+      initialZoom = syntheticBounds ? Math.max(targetZoom - 0.5, 5) : Math.max(2, targetZoom - 4)
+      center = [longitude!, latitude!]
+    } else if (syntheticBounds) {
+      // syntheticBounds = [west, south, east, north]
+      const [w, s, e, n] = syntheticBounds
+      center = [(w + e) / 2, (s + n) / 2]
+      initialZoom = precisionDefaultZoom // country = 3.5, region = 5
+    } else {
+      // No usable coords AND no country bbox — last-resort world view.
+      center = [0, 20]
+      initialZoom = 1.5
+    }
 
     const map = new maplibregl.Map({
       container: containerRef.current,
@@ -405,7 +424,13 @@ export default function ReportLocationMap({
   // halo.
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !hasUsableCoords) return
+    if (!map) return
+    // V11 — allow the framing pass to run when we have syntheticBounds
+    // even if lat/lng are null. Country-precision reports (post-V11
+    // synth-coord drop) have null coords but a valid country bbox; we
+    // still want to fitBounds to the country instead of leaving the
+    // map at its [0, 20] world-view fallback.
+    if (!hasUsableCoords && !syntheticBounds) return
 
     let cancelled = false
     function doFrame() {
