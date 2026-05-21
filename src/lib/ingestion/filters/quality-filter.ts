@@ -135,9 +135,12 @@ export const NON_EXPERIENCE_PATTERNS = [
   /\b(are\s+(just|simply|merely|nothing\s+more\s+than|basically))\s+\w+/i,
   /\b(let\s+me\s+(explain|tell\s+you\s+about))\b/i,
   // V11 — self-promotion of platforms / tools / apps / sites the OP built.
-  // Caught "Created a public reporting platform where people can submit
-  // UFO sightings..." that slipped through smoke 4.
-  /\b(created|built|launched|made|started|developed|designed|published|releasing)\s+(a|an|the|this|my|our)\s+(public|new|free|simple)?\s*(platform|app|website|site|tool|reporting\s+tool|database|directory|tracker|service|dashboard|aggregator)\b/i,
+  // Allow up to 3 intermediate adjective/noun words between "a/an/etc"
+  // and the noun ("Created a public reporting platform" → "public
+  // reporting" between "a" and "platform"). Smoke 5 surfaced the
+  // "Public Reporting Platform Maps State-By-State UFO Sightings"
+  // post slipping through the stricter v1 pattern.
+  /\b(created|built|launched|made|started|developed|designed|published|releasing)\s+(a|an|the|this|my|our)\s+(?:[\w\-]+\s+){0,3}(platform|app|website|site|tool|database|directory|tracker|service|dashboard|aggregator|reporter|submission\s+form|repository|archive)\b/i,
   /\b(submit\s+(your|a|an)\s+(report|sighting|experience))\b/i,
   /\bhttps?:\/\/\S+\s+(check|visit|see)\b/i,
 ];

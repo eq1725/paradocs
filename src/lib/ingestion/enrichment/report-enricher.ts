@@ -319,6 +319,22 @@ export async function geocodeReport(report: ScrapedReport): Promise<{ latitude: 
     return null;
   }
 
+  // V11 — when the report's location is country-only (no city, no state),
+  // skip the geocoder entirely. The geocoder would return a country
+  // centroid (e.g. "United States" → 39.78/-100.45) that piles all
+  // country-precision reports on a single point, creating a misleading
+  // map cluster. Country-precision reports surface as honest aggregate
+  // counts via the RegionTotalsPanel; they don't need a synthesized pin.
+  //
+  // The condition: city is null AND state_province is null. If either
+  // is present, the geocoder can return a real region/city centroid
+  // that's worth pinning.
+  var hasCity = !!(report.city && String(report.city).trim());
+  var hasState = !!(report.state_province && String(report.state_province).trim());
+  if (!hasCity && !hasState) {
+    return null;
+  }
+
   // Build location query from available fields
   var locationQuery = buildLocationQuery({
     city: report.city,
