@@ -705,11 +705,12 @@ function parseRedditPost(post: ArcticShiftPost): ScrapedReport | null {
     }
   }
 
-  // Default to United States for Reddit posts since Reddit is predominantly US-based
-  // This improves geographic analytics accuracy
-  if (!country) {
-    country = 'United States';
-  }
+  // V11.8 — DO NOT default country to "United States" when no explicit
+  // location signal exists in the post. The previous behavior mislabeled
+  // every non-US Reddit report (e.g. an Auckland sighting) as US, which
+  // both pollutes the map and breaks the country-precision UX work in
+  // V11. Country stays undefined when the description doesn't yield a
+  // US state match — downstream (engine.ts) preserves null.
 
   // V10.8.B.2 — post created_utc is the Reddit submission timestamp, not the
   // event date. Move it to source_published_at and run extractDate over the

@@ -919,7 +919,11 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               description: report.description,
               category: report.category,
               location_name: report.location_name,
-              country: report.country || 'United States',
+              // V11.8 — country stays null when the adapter/enricher couldn't
+              // resolve one. Previous `|| 'United States'` silently mislabeled
+              // every non-US ingested report (and every report with no
+              // location signal at all) as US, polluting the map.
+              country: report.country || null,
               state_province: report.state_province,
               city: report.city,
               latitude: report.latitude,

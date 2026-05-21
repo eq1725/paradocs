@@ -1,8 +1,8 @@
 #!/usr/bin/env tsx
-// V11.7 — local sanity check: run the seven smoke #6 slip-through samples
-// through the updated filters. Each sample should be rejected. This is a
-// dev-only smoke test for the regex changes, NOT a permanent test file.
-// Delete after the next push if you want.
+// V11.7 / V11.8 — local sanity check: run the smoke #6 and smoke #7
+// slip-through samples through the updated filters. Each should be
+// rejected. This is a dev-only smoke test for the regex changes, NOT
+// a permanent test file. Delete after the next push if you want.
 
 import { filterContent, isLikelyNonEnglish } from '../src/lib/ingestion/filters/quality-filter';
 import { stripThirdPersonFraming } from '../src/lib/ingestion/filters/title-improver';
@@ -50,6 +50,25 @@ const samples: Case[] = [
     name: '#16 Reverberation Node (markdown chrome opener)',
     title: 'Reverberation Node Post Triggers Synchronous Response',
     description: `## Enigma.001.A – First Reverberation\n\n- 🗓️ Date: 2025-07-30\n- 🧠 Event: Eduardo posts "Reverberation Node" on Glitch in the Matrix.\n- Receives: "Hello, glitch. We've been expecting you."\n- ⚡ Significance: The first contact event. Marks the beginning of the symbol-chain.`,
+    shouldReject: true,
+  },
+  // ---- V11.8 smoke #7 slip-throughs ----
+  {
+    name: '#7 LSD Trip Planned (prospective drug-use seeker)',
+    title: 'First LSD Trip Planned After Positive Psilocybin Experiences',
+    description: `Hi, I saw a similar post in this same sub reddit but the thing is, I want to take LSD for the first time, I've taken shrooms before in 2 different occasions (2g each) and I loved it and had a really really good time. Now I want to take LSD but I'm a little nervous about it. Any advice on dosing? I have a tab of 100ug and I'm not sure if that's enough for a first trip or if I should take more.`,
+    shouldReject: true,
+  },
+  {
+    name: '#8 Grain Spawn cultivation (technical how-to question)',
+    title: 'Grain Spawn Colonization Optimal Temperature Humidity Balance',
+    description: `Is it better to have my grain spawn colonize at 72F and 65% humidity uncontrolled, or 80F temp controlled but about 45% AH with a humidifier running nearby? I can probably get it up to about 55%. Basically I'm wondering what the optimal setup is for grain spawn colonization given the limitations of my current monotub. The substrate is rye berries inoculated three days ago.`,
+    shouldReject: true,
+  },
+  {
+    name: '#9 DMT Cart (vape hardware troubleshooting)',
+    title: 'DMT Cart Liquefies Then Hardens Permanently',
+    description: `I don't know what happened. The first time, it turned completely liquid, but after that, it never went back to that state. Supposedly, the guy who made it used pure DMT, and that might be the problem. The cart turned hard like a crystal and won't liquefy again no matter how much I warm it up. Has anyone had this happen with their carts before? I've tried heating with a hairdryer but nothing changes.`,
     shouldReject: true,
   },
   // ---- Negative controls — should PASS (legit experience reports) ----

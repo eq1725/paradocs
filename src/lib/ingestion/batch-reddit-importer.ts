@@ -724,7 +724,7 @@ async function processBatch(
           description: report.description,
           category: report.category,
           location_name: report.location_name,
-          country: report.country || 'United States',
+          country: report.country || null,  // V11.8 — no US default; see engine.ts
           state_province: report.state_province,
           city: report.city,
           latitude: report.latitude,

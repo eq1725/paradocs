@@ -57,7 +57,12 @@ export const META_POST_PATTERNS = [
   // want to start meditating" matches. Smoke 4 surface: a meditation-
   // teacher-seeker post slipped through because the previous pattern
   // required "i want to" with no intervening word.
-  /\bi\s+(?:really\s+|just\s+|finally\s+|truly\s+|so\s+|honestly\s+)?(?:want\s+to|hope\s+to|need\s+to|wish\s+to|would\s+like\s+to)\s+(learn|figure\s+out|understand|start|try|begin|do|find|meditate|practice|develop)\b/i,
+  //
+  // V11.8 — broadened verb list to include "take/attempt/trip/use/try
+  // out" so prospective drug-use posts ("I want to take LSD for the
+  // first time…") get rejected. Smoke #7 surface: an LSD-trip-planning
+  // post slipped through the previous (learn|figure out|…) list.
+  /\bi\s+(?:really\s+|just\s+|finally\s+|truly\s+|so\s+|honestly\s+)?(?:want\s+to|hope\s+to|need\s+to|wish\s+to|would\s+like\s+to|plan\s+to|planning\s+to|gonna|am\s+going\s+to)\s+(learn|figure\s+out|understand|start|try|begin|do|find|meditate|practice|develop|take|attempt|experience|use|trip|try\s+out|dose|microdose|smoke|drop|ingest)\b/i,
   /\b(how\s+can\s+i\s+(learn|start|begin|practice|develop|find))\b/i,
   /\b(im\s+trying\s+to|i\s+am\s+trying\s+to)\s+(learn|start|figure\s+out|master)\b/i,
   /\b(having\s+a\s+hard\s+time|having\s+trouble)\s+(with|figuring|learning|understanding)\b/i,
@@ -153,6 +158,20 @@ export const NON_EXPERIENCE_PATTERNS = [
   /\b(created|built|launched|made|started|developed|designed|published|releasing)\s+(a|an|the|this|my|our)\s+(?:[\w\-]+\s+){0,3}(platform|app|website|site|tool|database|directory|tracker|service|dashboard|aggregator|reporter|submission\s+form|repository|archive)\b/i,
   /\b(submit\s+(your|a|an)\s+(report|sighting|experience))\b/i,
   /\bhttps?:\/\/\S+\s+(check|visit|see)\b/i,
+  // V11.8 — Product / equipment troubleshooting (cultivation, vapes,
+  // tinctures, mycology setups). Phenomenon-shaped openers ("I don't
+  // know what happened. The first time it turned completely liquid…")
+  // can fool the existing filters because they read narrative; the
+  // tell is the noun phrase. Smoke #7 surface: a DMT vape-cart
+  // hardware-diagnosis post and a grain-spawn humidity question both
+  // slipped through and were given phenomenon-y AI headlines.
+  /\b(?:my|the|this|a)\s+(?:cart(?:ridge)?|vape|pen|jar|substrate|grain\s+spawn|mycelium|spore\s+syringe|syringe|tincture|extract|crystals?|dab)\s+(?:turned|stopped|started|won'?t|wouldn'?t|broke|leaked|melted|hardened|crystalliz|liquefi|spotted|moldy|contaminated|colonized?|sprouted|fruited)\b/i,
+  // V11.8 — Cultivation / mycology technical vocabulary cluster. The
+  // existence of multiple cultivation-specific terms together is a
+  // strong signal the post is a how-to, not an experience. Three or
+  // more of these tokens in the title+description triggers rejection
+  // via the META_POST flow (handled separately below).
+  /\b(?:grain\s+spawn|colonize|colonization|spawn\s+bag|fruiting\s+chamber|monotub|substrate|mycelium|spore\s+print|spore\s+syringe|inoculate|humidifier|absolute\s+humidity|temp\s+controlled)\b.*\b(?:grain\s+spawn|colonize|colonization|spawn\s+bag|fruiting\s+chamber|monotub|substrate|mycelium|spore\s+print|spore\s+syringe|inoculate|humidifier|absolute\s+humidity|temp\s+controlled)\b/i,
 ];
 
 // V11 — patterns that run against ONLY the first 300 chars of the
@@ -275,6 +294,13 @@ export const QUESTION_ONLY_PATTERNS = [
   // Definition/explanation seeking
   /^what (?:exactly )?(?:is|are) (?:a |an |the )?(?:\w+\s?){1,4}\??$/i,  // "What is a UFO?" "What are cryptids?"
   /^(explain|define|eli5|tldr)\b/i,
+  // V11.8 — "Is it better/safer/possible/ok to X?" comparison-question
+  // opener. Smoke #7 surface: a grain-spawn cultivation question
+  // ("Is it better to have my grain spawn colonize at 72F…") slipped
+  // through because the previous patterns required a wh-word lead.
+  /^is\s+it\s+(?:better|safer|worse|fine|ok|okay|good|bad|possible|wise|smart|stupid|normal|common|weird|strange)\b/i,
+  // V11.8 — "Should I X?" how-to opener.
+  /^should\s+i\s+(?:use|do|try|wait|change|adjust|increase|decrease|run|set|put|switch|stop|start|continue|buy|sell|sell|take|smoke|drop)\b/i,
 ];
 
 // Spam URL patterns
