@@ -8,6 +8,7 @@
 
 import { ScrapedReport } from '../types';
 import { geocodeLocation, buildLocationQuery } from '../../services/geocoding.service';
+import { parseLocation } from '../utils/location-parser';
 
 // ============================================================================
 // TYPES
@@ -414,6 +415,7 @@ export async function enrichReport(report: ScrapedReport, options?: { skipGeocod
   // Only if adapter didn't provide location data
   var hasLocation = report.city || report.state_province || report.location_name;
   if (!hasLocation) {
+    // 3a. Strict US-state pass first (LOCATION_PATTERNS in this file).
     var locResult = extractLocationFromText(text);
     if (locResult) {
       if (locResult.city && !report.city) {
@@ -436,6 +438,35 @@ export async function enrichReport(report: ScrapedReport, options?: { skipGeocod
       log.locationExtracted = true;
       log.locationSource = locResult.source;
       console.log('[Enrichment] Extracted location: ' + (locResult.location_name || locResult.state || '') + ' from: "' + locResult.source + '"');
+    } else {
+      // 3b. V11.11 — International fallback via parseLocation. The
+      // US-state pass returned nothing, so attempt the broader
+      // location-parser that checks INTERNATIONAL_CITIES (Auckland,
+      // Ibiza, Cusco, Rishikesh, …) and COUNTRY_NAMES (Japan, India,
+      // New Zealand, …). Resolves the smoke #10 cases where Reddit
+      // bodies said "in Ibiza" / "in a Temple in India" but the
+      // strict US regex couldn't match, leaving the post with no
+      // location → no map. parseLocation returns structured
+      // (city, country) so the downstream geocoder (step 4) can
+      // produce real coordinates via MapTiler.
+      var intl = parseLocation(text);
+      if (intl.isInternational && (intl.city || intl.country)) {
+        if (intl.city && !report.city) {
+          report.city = intl.city;
+          log.fieldsEnriched.push('city');
+        }
+        if (intl.country && !report.country) {
+          report.country = intl.country;
+          log.fieldsEnriched.push('country');
+        }
+        if (intl.locationName && !report.location_name) {
+          report.location_name = intl.locationName;
+          log.fieldsEnriched.push('location_name');
+        }
+        log.locationExtracted = true;
+        log.locationSource = intl.locationName || intl.country || 'international';
+        console.log('[Enrichment] International location extracted: ' + (intl.locationName || intl.country));
+      }
     }
   }
 

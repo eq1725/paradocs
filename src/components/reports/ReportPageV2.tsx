@@ -44,7 +44,9 @@ import dynamic from 'next/dynamic'
 import { type LocationPrecision } from './ReportLocationMap'
 const ReportLocationMap = dynamic(() => import('./ReportLocationMap'), { ssr: false })
 import ReportMeta from './ReportMeta'
-import IngestedBadge, { isIngested } from '@/components/IngestedBadge'
+// V11.11 — IngestedBadge header variant removed (was redundant with
+// the SourceBlock under the narrative). Import kept-out so no dead
+// reference remains.
 import ReportEngagementStrip from './ReportEngagementStrip'
 import ReportPullQuote from './ReportPullQuote'
 import ReportRelatedReports from './ReportRelatedReports'
@@ -566,23 +568,14 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
                 indexed year, which is strictly more information than
                 the kicker had. Showing both was duplicate. */}
 
-            {/* B0.3 — IngestedBadge (header variant) when this report
-                was indexed from an external source. Renders above the
-                title so the provenance is visible before the user
-                reads the headline. Tone: "Indexed from [source] →"
-                with a link to the canonical source URL. */}
-            {isIngested(report) && (
-              <div className="mb-3">
-                <IngestedBadge
-                  variant="header"
-                  source_type={report?.source_type}
-                  original_report_id={report?.original_report_id}
-                  source_url={report?.source_url}
-                  source_label={report?.source_label}
-                  metadata={report?.metadata}
-                />
-              </div>
-            )}
+            {/* V11.11 — REMOVED the IngestedBadge (header variant)
+                above the title. The SourceBlock rendered immediately
+                after the "What happened" paragraph already attributes
+                the source ("Originally published at r/X / Read
+                original →") — showing both was duplicate, and the
+                header badge stole visual weight from the headline.
+                Per Chase: keep the SourceBlock under the narrative as
+                the single source attribution. */}
 
             {/* ── 2. Title ────────────────────────────────────── */}
             <h1 className="text-2xl sm:text-3xl font-bold text-white leading-tight mb-3">

@@ -665,23 +665,19 @@ export default function ReportLocationMap({
     inset: 0,
   }
 
-  // V11 — only fall back to the badge-only placeholder when we have
-  // NO usable coords AND no country/region bounds either. Country-
-  // precision reports (post-V11 synth-coord drop) have null lat/lng
-  // but DO have a syntheticBounds tuple from the country bbox lookup,
-  // so they should render the map zoomed to that country instead of
-  // a blank gradient. The map's downstream gates (showPin, showHalo)
-  // still correctly suppress a misleading focal dot.
-  if (!hasUsableCoords && !syntheticBounds) {
-    return (
-      <div
-        className={'overflow-hidden bg-gradient-to-br from-gray-900 via-gray-950 to-gray-900 border-b border-gray-800 flex items-center justify-center ' + consumerClass}
-        style={wrapperStyle}
-      >
-        <RegionBadge label={regionLabel || 'Location unknown'} />
-      </div>
-    )
-  }
+  // V11.11 — Per Chase's review of smoke #10 reports without location
+  // data: the prior early-return rendered a flat gradient + "Location
+  // unknown" badge when both coords AND country bounds were missing.
+  // That made map-less report pages feel broken. Replaced with a
+  // world-view map (init logic at line ~262 already handles this by
+  // centering at [0, 20] with zoom 1.5). The RegionBadge label still
+  // shows "Location unknown" in the top-left corner so the user has
+  // visual confirmation that no specific place is known.
+  //
+  // Country-precision reports (post-V11 synth-coord drop) continue to
+  // render with country-bbox framing via syntheticBounds; the map's
+  // downstream gates (showPin, showHalo) still correctly suppress a
+  // misleading focal dot.
 
   if (!MAPTILER_KEY) {
     return (

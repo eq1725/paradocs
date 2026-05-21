@@ -687,30 +687,20 @@ function parseRedditPost(post: ArcticShiftPost): ScrapedReport | null {
     ? description.substring(0, 197) + '...'
     : description;
 
-  // Extract potential location from text
-  const locationMatch = description.match(
-    /(?:in|at|near|from)\s+([A-Z][a-zA-Z]+(?:,?\s+[A-Z]{2})?(?:,?\s+(?:USA|US|United States|Canada|UK))?)/
-  );
-  const locationName = locationMatch ? locationMatch[1] : undefined;
-
-  // Extract state/country if found
-  let stateProvince: string | undefined;
-  let country: string | undefined;
-
-  if (locationName) {
-    const stateMatch = locationName.match(/,?\s*([A-Z]{2})(?:,|\s|$)/);
-    if (stateMatch) {
-      stateProvince = stateMatch[1];
-      country = 'United States';
-    }
-  }
-
-  // V11.8 — DO NOT default country to "United States" when no explicit
-  // location signal exists in the post. The previous behavior mislabeled
-  // every non-US Reddit report (e.g. an Auckland sighting) as US, which
-  // both pollutes the map and breaks the country-precision UX work in
-  // V11. Country stays undefined when the description doesn't yield a
-  // US state match — downstream (engine.ts) preserves null.
+  // V11.11 — REMOVED naive location regex. The previous regex
+  //   /(?:in|at|near|from)\s+([A-Z][a-zA-Z]+(?:,?\s+[A-Z]{2})?…)/
+  // grabbed any capitalized word after "in/at/near/from" and stored
+  // it as location_name. Smoke #10 surfaced "Mary" (from "in Mary's
+  // house") and "Bad" (from "in Bad or good ways") as location values
+  // on live report pages. Letting the strict report-enricher pipeline
+  // (utils/normalize-location.ts via report-enricher.ts) handle
+  // location extraction — its regex only matches against an actual US
+  // state name list, so it can't produce nonsense like "Mary" or "Bad".
+  // Reports without an enricher-resolvable location stay null, which
+  // the ReportLocationMap component renders as a world view (V11.11).
+  const locationName: string | undefined = undefined;
+  const stateProvince: string | undefined = undefined;
+  const country: string | undefined = undefined;
 
   // V10.8.B.2 — post created_utc is the Reddit submission timestamp, not the
   // event date. Move it to source_published_at and run extractDate over the

@@ -933,6 +933,24 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
           // Insert new report with quality-based status
           const slug = generateSlug(finalTitle, report.original_report_id, report.source_type);
 
+          // V11.11 — Structural location-quality check. A real place
+          // will have AT LEAST one of (city, state_province, country,
+          // latitude) populated alongside location_name. If location_name
+          // is set but every structured field is null, the location is
+          // the output of a naive adapter regex grabbing a capitalized
+          // word out of context (smoke #10 surfaced "Mary" from "in
+          // Mary's house" and "Bad" from "in Bad or good ways"). Null
+          // it out so the report renders with a world-view map rather
+          // than a misleading chip with nothing behind it.
+          var locName = report.location_name;
+          var hasStructuredGeo = !!(report.city || report.state_province || report.country ||
+            (typeof report.latitude === 'number' && typeof report.longitude === 'number'));
+          if (locName && !hasStructuredGeo) {
+            console.log('[Ingestion] Dropping bogus location_name "' + locName + '" (no structured geo): ' + slug);
+            locName = null as any;
+            report.location_name = null as any;
+          }
+
           // Build insert data with optional structured fields
           const insertData: Record<string, any> = {
               title: finalTitle,
@@ -940,7 +958,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               summary: report.summary,
               description: report.description,
               category: report.category,
-              location_name: report.location_name,
+              location_name: locName,
               // V11.8 — country stays null when the adapter/enricher couldn't
               // resolve one. Previous `|| 'United States'` silently mislabeled
               // every non-US ingested report (and every report with no
