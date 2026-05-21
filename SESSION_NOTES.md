@@ -1,11 +1,93 @@
 # Paradocs — Session Notes & Dev Continuity
 
-**Last updated:** May 14, 2026 (V10.9.D — Region Totals icon+popover + mobile double-padding fix)
+**Last updated:** May 20-21, 2026 (V11 — Mass-ingestion pipeline hardening, pre-100-smoke)
 **Purpose:** Comprehensive session notes so any new Claude session can pick up exactly where we left off.
 
 ---
 
-## Most Recent Session — V10.9.D RegionTotals redesign + mobile spacing (May 14, 2026, late night)
+## Most Recent Session — V11 Mass-ingestion pipeline hardening (May 20-21, 2026)
+
+Goal: Get the auto-ingestion pipeline to ≥95% quality auto-approval so reports surface live on the site without manual review at scale. Five iterative smoke runs (limit=5, 25, 25, 25, 25) drove filter + scoring + AI-prompt tuning. Final smoke (#6) hit 87.5–100% quality bar — cleared for limit=100 next.
+
+### Schema reconciliation
+- **Dropped `combination` and `biological_factors` categories** — both removed from `PhenomenonCategory` TS union (`database.types.ts`), the materialized view, the encyclopedia, and all UI lookup tables (~31 files). Migration `20260520_drop_biological_and_combination.sql`. 9 categories remain (ufos_aliens, cryptids, ghosts_hauntings, psychic_phenomena, consciousness_practices, psychological_experiences, perception_sensory, religion_mythology, esoteric_practices).
+- **Esoteric_practices routing wired** — Reddit witch/wicca/occult/magick/askawitch/tarot/ouija subs now correctly map to `esoteric_practices` (previously incorrectly bucketed in consciousness_practices).
+
+### Reddit + YouTube adapter expansion
+- **Reddit data_source expanded to 53 subreddits** covering all 9 schema buckets including dedicated plant-medicine subs (DMT, Ayahuasca, shrooms, Psychedelics, Psychonaut). New subs: AngelEncounters, Possession, Exorcism, ChristianMysticism, Synchronicity, Tarot, Ouija, shamanism, Meditation, and more.
+- **Adapter per-sub over-fetch math fixed** — was `Math.ceil(limit/N)` giving 1-per-sub at limit=25 across 53 subs. Now `Math.max(MIN_PER_SUB=3, min(MAX_PER_SUB=25, Math.ceil(limit*3/N)))` so we actually pull ~150+ candidates at limit=25.
+- **YouTube switched to search-driven discovery** — DEFAULT_SEARCH_QUERIES expanded from 5 to 20 covering every schema bucket. `includeSearch: true` on the YouTube data_source. Explicitly NOT adding more channels per Chase's guidance ("most of the really good comments will be under really popular videos").
+
+### Universal Tier-3 source attribution (no embeds)
+Panel-reviewed decision: third-party source embeds (YouTube, Vimeo, Reddit, Imgur, TikTok, Instagram, Substack, Wikipedia, X, Archive.org) no longer render on report pages. Reasons: editorial voice consistency, comprehension > engagement, comment-harvest confusion, trust/safety, future-fragility. Paradocs-native user-submitted videos (InlineVideoPlayer path) unaffected. `oembed.ts` resolver returns Tier 3 for all platforms via `forceTier3: true` flag.
+
+### Pipeline fixes (cascade from smoke runs)
+- **Relative-date resolution** (`extract-date.ts`) — new `prose-relative` cascade layer for "yesterday/last week/X days ago" forms, resolved against `referenceDate` (the Reddit post's `created_utc`).
+- **Country-precision coord drop** — broke down across multiple layers: `normalize-location.ts` accuracy translation includes 'country' → null coords; `enrichment/report-enricher.ts` `geocodeReport` early-returns when both city AND state are null (was filling synthetic country-centroid coords downstream of normalize); `ReportLocationMap.tsx` init centers on country bbox + framing useEffect + early-return guard all updated to render USA map for country-precision reports without a misleading pin.
+- **First-person title voicing** — Haiku `SYSTEM_PROMPT` in `compelling-title.service.ts` rewritten to forbid third-person framing ("Witness Reports X" → "Pale Crawler Appears at Bedroom Window"); defensive `stripThirdPersonFraming()` helper applied to Haiku output in `engine.ts`; THIRD_PERSON_FRAMING_PREFIX regex extended (medium, meditator, seeker, poster, anonymous, researcher, practitioner, etc. + verbs pursues, finds, gets, receives, struggles, wonders).
+- **Title/filter collision** — title-improver now appends source context when its output would be name-only ("Consciousness Experience in r/DMT, Year Unknown" rather than bare "Consciousness Experience" that the downstream filter rejects).
+
+### Quality filter expansion
+- Auto-approve thresholds lowered for Reddit/YouTube from 70/45 → 55/35 (NDE-source parity, justified because the pre-scoring pattern filters already reject the obvious junk).
+- **META_POST_PATTERNS** new patterns: weekly/monthly/daily X thread/request, seeker/process posts (I want to learn, any tips/advice, how do you, I'm trying to, having a hard time).
+- **NON_EXPERIENCE_PATTERNS** new patterns: help-request (seeks help/exorcism/medium/cleansing), theorizing (my theory is, they are just/simply/merely), self-promotion (created/built a platform/app/tool/website/dashboard with up to 3 intermediate adjectives), link-followed-by-action.
+- **NEW `DESCRIPTION_LEAD_PATTERNS`** — `^`-anchored patterns that run against `description.substring(0, 300)` only, because META/NON_EXPERIENCE check against `combinedText` where the title precedes the body and `^` never matches. Catches body openers like "Shadow people are X" (theorizing), "My thoughts are that...", "I honestly go with the X theory", body opening with `[http://...]` markdown link or bare URL.
+
+### Path C — Sonnet-refusal demotion
+Engine now re-reads `paradocs_narrative` after `generateAndSaveParadocsAnalysis` runs. If null/empty (Sonnet refused to paraphrase non-experience content), demotes `status` from 'approved' to 'pending_review'. This catches semantic non-experience cases regex misses. Acts as a free second-pass quality gate (no extra LLM cost — Sonnet was running anyway).
+
+### Admin-approve Sonnet trigger
+`/api/admin/report-review.ts` admin-approve action now fires `generateAndSaveParadocsAnalysis` for each approved report missing narrative (chunked Promise.all, errors surface in response). Closes the gap where admin promotion from pending → approved would leave AI fields null.
+
+### Map UX
+- **Region totals view broadened** — `report_region_counts` materialized view WHERE clause now includes `coords_synthetic = TRUE OR (latitude IS NULL AND longitude IS NULL)` so the V11 null-coord country-precision reports are counted. Migration `20260521_v11_region_counts_null_coords.sql` (Chase applied manually in Supabase SQL editor).
+- **Coincident-pin list popup** — when supercluster's `getLeaves(clusterId)` returns multiple points within ~10m (e.g. 2 user-submitted reports city-geocoded to same coords), show a Popup listing each report instead of `flyTo` (which is a no-op at infinite zoom). Implemented in `MapContainer.tsx`. Will scale to N coincident reports.
+- **Report-page map header** — country-precision reports now render USA-zoomed country outline with no pin (previously showed blank gradient + United States badge). Three layers of fix: init center on country bbox, framing useEffect runs when syntheticBounds exists, drop premature early-return when only syntheticBounds is available.
+
+### Smoke run results
+| # | Limit | Found | Inserted | Quality |
+|---|---|---|---|---|
+| 1 | 5 | 5 | 3 | All pending, no Sonnet copy |
+| 2 | 25 | 8 | 5 | ~40%, US-center clump, header voice off |
+| 3 | 25 | 25 | 18 | ~44%, third-person headlines everywhere, seeker/theorizing slipped through |
+| 4 | 25 | 25 | 14 | ~57%, theorizing rejection added, headline prompt fixed |
+| 5 | 25 | 25 | 9 | ~89%, description-lead patterns added, Sonnet-refusal demotion |
+| 6 | 25 | 25 | 8 | **87.5–100%** — all coords clean, self-promo caught, headlines phenomenon-led |
+
+### Files touched in this session (high level)
+- `src/lib/ingestion/adapters/reddit.ts` — SUBREDDIT_CATEGORIES expanded, over-fetch math, title strip integration
+- `src/lib/ingestion/adapters/reddit-v2.ts` — null fallback instead of 'combination'
+- `src/lib/ingestion/adapters/youtube.ts` — 20 search queries, null fallback, expanded keyword routing
+- `src/lib/ingestion/adapters/news.ts` — null fallback, expanded keyword routing
+- `src/lib/ingestion/filters/quality-filter.ts` — META/NON-EXPERIENCE expansions, new DESCRIPTION_LEAD_PATTERNS, threshold drops
+- `src/lib/ingestion/filters/title-improver.ts` — first-person preservation, name-only guard, framing prefix regex expansion, exported stripThirdPersonFraming
+- `src/lib/ingestion/filters/index.ts` — re-export
+- `src/lib/ingestion/engine.ts` — Sonnet-refusal demotion, Haiku output strip
+- `src/lib/ingestion/types.ts` — `category` widened to `string | null`, prose-relative source
+- `src/lib/ingestion/enrichment/report-enricher.ts` — skip geocode when city+state null
+- `src/lib/ingestion/utils/extract-date.ts` — prose-relative layer, referenceDate option
+- `src/lib/ingestion/utils/normalize-location.ts` — country accuracy → null coords
+- `src/lib/services/compelling-title.service.ts` — phenomenon-first headline prompt
+- `src/lib/media/oembed.ts` — universal Tier 3 (all platforms `forceTier3: true`)
+- `src/lib/database.types.ts` — PhenomenonCategory dropped 2 values
+- `src/pages/api/admin/report-review.ts` — Sonnet trigger on admin approve
+- `src/components/reports/ReportLocationMap.tsx` — country-bbox init, early-return guard
+- `src/components/map/MapContainer.tsx` — coincident-pin popup
+- ~31 UI files cleaned of `combination` / `biological_factors` references (lookup-map entries removed, fallbacks rerouted to psychological_experiences)
+- 3 migrations: `20260520_drop_biological_and_combination.sql`, `20260521_v11_region_counts_null_coords.sql` (Chase applied both manually in Supabase SQL editor)
+
+### What's next
+1. Wipe ingested reports (keep user_submission/editorial/curated).
+2. Run smoke at limit=100: `npx tsx scripts/b15-smoke-test.ts 924530e3-5595-4019-8f15-3589eb260a8d 100`
+3. QA the live site at scale (category distribution, sub representation, Sonnet-refusal demotion firing correctly).
+4. If quality holds → mass ingestion → enable daily cron via `INGESTION_ENABLED=true` env var on Vercel.
+
+### Open follow-ups
+- B0.1.exec.0.k — Investigate Sonnet narrative-refusal pattern (some clean first-person reports still get null narrative; the Ouija case in smoke 2). Currently demoted to pending_review, but worth understanding the refusal trigger.
+
+---
+
+## Earlier Session — V10.9.D RegionTotals redesign + mobile spacing (May 14, 2026, late night)
 
 Two QA items after V10.9.C deployed.
 
