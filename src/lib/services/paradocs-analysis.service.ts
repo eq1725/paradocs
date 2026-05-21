@@ -72,12 +72,27 @@ async function getTodaysParadocsSpend(supabase: any): Promise<number> {
  * (Sonnet) return 0 here because they're paid for elsewhere
  * (your-signal-ai.service.ts owns its own pricing).
  */
-function computeHaikuCost(model: string | null, inputTokens: number, outputTokens: number): number {
+function computeHaikuCost(
+  model: string | null,
+  inputTokens: number,
+  outputTokens: number,
+  // V11.13 — split out cache-write and cache-read input tokens so the
+  // cost log reflects the prompt-caching savings. The Anthropic API
+  // returns these as `cache_creation_input_tokens` (1.25× input rate)
+  // and `cache_read_input_tokens` (0.10× input rate); regular
+  // `inputTokens` covers everything else (fresh user prompt, etc.).
+  cacheCreationTokens?: number,
+  cacheReadTokens?: number,
+): number {
   if (!model) return 0
   var mLower = String(model).toLowerCase()
   if (mLower.indexOf('haiku') < 0) return 0
+  var ccTokens = cacheCreationTokens || 0
+  var crTokens = cacheReadTokens || 0
   return (
     (inputTokens / 1_000_000) * HAIKU_INPUT_USD_PER_M +
+    (ccTokens / 1_000_000) * HAIKU_INPUT_USD_PER_M * 1.25 +
+    (crTokens / 1_000_000) * HAIKU_INPUT_USD_PER_M * 0.10 +
     (outputTokens / 1_000_000) * HAIKU_OUTPUT_USD_PER_M
   )
 }
@@ -755,10 +770,32 @@ async function callClaudeOnce(
   var timeoutId = setTimeout(function() { controller.abort() }, REQUEST_TIMEOUT_MS)
 
   try {
+    // V11.13 — Anthropic prompt caching on the system prompt. The
+    // SYSTEM_PROMPT is ~6-8k tokens of editorial rules, anti-fabrication
+    // preamble, voice rules, banned phrases, beat sequences, gender
+    // rules. It's identical across every report — perfect cache target.
+    //
+    // Cost effect (Haiku 4.5):
+    //   Without caching: 8k input × $1.00/MTok = $0.008 per call
+    //   With caching (5-min TTL):
+    //     - First call (cache WRITE): $1.25/MTok = $0.010 (one-time)
+    //     - Subsequent calls (cache READ): $0.10/MTok = $0.0008 (10x cheaper)
+    //   At mass-ingestion rates (>1 call per 5 min), amortized: ~$0.0008
+    //
+    // Implementation: switch the `system` field from a bare string to
+    // an array of one content block with `cache_control: ephemeral`.
+    // The Anthropic API takes care of the rest. Schema-compatible with
+    // pre-caching SDK clients.
     var bodyObj = {
       model: modelName,
       max_tokens: maxTokens,
-      system: systemPrompt,
+      system: [
+        {
+          type: 'text',
+          text: systemPrompt,
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
       messages: [{ role: 'user', content: userPrompt }],
       temperature: temperature
     }
@@ -792,11 +829,23 @@ async function callClaudeOnce(
     if (data.content && data.content.length > 0 && data.content[0].text) {
       var inputTokens = data.usage ? data.usage.input_tokens : 0
       var outputTokens = data.usage ? data.usage.output_tokens : 0
-      console.log('[ParadocsAnalysis] OK from ' + modelName + ' (' + data.content[0].text.length + ' chars, ' + outputTokens + ' tokens)')
+      // V11.13 — capture cache hit/miss telemetry from the response.
+      // Anthropic returns cache_creation_input_tokens (1.25× rate) on
+      // the first call that primes the cache, and
+      // cache_read_input_tokens (0.10× rate) on every subsequent call
+      // within the 5-minute TTL.
+      var cacheCreation = (data.usage && data.usage.cache_creation_input_tokens) || 0
+      var cacheRead = (data.usage && data.usage.cache_read_input_tokens) || 0
+      console.log(
+        '[ParadocsAnalysis] OK from ' + modelName +
+        ' (' + data.content[0].text.length + ' chars, ' +
+        'in=' + inputTokens + ' out=' + outputTokens +
+        ' cache_w=' + cacheCreation + ' cache_r=' + cacheRead + ')'
+      )
 
       // B0.7 — log per-call cost so the daily cap can sum it. Best-
       // effort; never block on logging failure.
-      var costUsd = computeHaikuCost(modelName, inputTokens, outputTokens)
+      var costUsd = computeHaikuCost(modelName, inputTokens, outputTokens, cacheCreation, cacheRead)
       try {
         var supabaseLog = createServerClient()
         await logParadocsCost(supabaseLog, {
