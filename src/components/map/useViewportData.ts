@@ -218,16 +218,28 @@ export function useViewportData(
     return () => { cancelled = true }
   }, [fetchKey])
 
-  // ─── V10.9.A — fetch region totals for synthetic-coord reports ────
+  // ─── V10.9.A / V11.15.1 — fetch region totals for choropleth ──────
   //
   // Hits /api/map/region-counts which reads the report_region_counts
   // materialized view. Server-side aggregation so this scales cleanly
   // to 1M+ reports during mass ingest. Cached at the edge for 5 min.
+  //
+  // V11.15.1 — Filter-aware choropleth. When the user has an active
+  // category filter, refetch region counts with ?category= so the
+  // choropleth re-tints to show per-country density FOR THAT CATEGORY
+  // (e.g. cryptid hotspots show Mexico+Brazil prominently while UFO
+  // hotspots show the US). Per SME panel Persona B (Data Viz): the
+  // choropleth should reflect what the user is currently looking at,
+  // not a static total.
   useEffect(() => {
     let cancelled = false
     async function fetchRegionCounts() {
       try {
-        const resp = await fetch('/api/map/region-counts?level=country')
+        let url = '/api/map/region-counts?level=country'
+        if (filters.category) {
+          url += '&category=' + encodeURIComponent(filters.category)
+        }
+        const resp = await fetch(url)
         if (!resp.ok) {
           if (!cancelled) setRegionBuckets([])
           return
@@ -240,7 +252,7 @@ export function useViewportData(
     }
     fetchRegionCounts()
     return () => { cancelled = true }
-  }, [fetchKey])
+  }, [fetchKey, filters.category])
 
   // ─── Filter reports ──────────────────────────────────────
   const filteredReports = useMemo(() => {
