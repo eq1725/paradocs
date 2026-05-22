@@ -53,10 +53,23 @@ function parseBBox(raw: string | undefined): BBox | null {
   if (!raw) return null
   const parts = raw.split(',').map((s) => parseFloat(s))
   if (parts.length !== 4) return null
-  const [west, south, east, north] = parts
   if (parts.some((n) => isNaN(n))) return null
-  if (west >= east || south >= north) return null
-  if (west < -180 || east > 180 || south < -90 || north > 90) return null
+  let [west, south, east, north] = parts
+  // V11.15.1 — Clamp instead of reject. MapLibre's getBounds() can
+  // return values outside [-180,180] when the user pans past world
+  // edges or zooms way out (the map can "show" more than a single
+  // world wrap). Rejecting with 400 made the map fail to load pins
+  // in those states. Clamp west/east to [-180, 180] and south/north
+  // to [-85, 85] (Web Mercator effective limit) so any viewport
+  // resolves to a valid query.
+  west = Math.max(-180, Math.min(180, west))
+  east = Math.max(-180, Math.min(180, east))
+  south = Math.max(-90, Math.min(90, south))
+  north = Math.max(-90, Math.min(90, north))
+  // After clamping, west >= east means the user panned beyond a
+  // single world; treat as worldwide. Same for collapsed lat range.
+  if (west >= east) { west = -180; east = 180 }
+  if (south >= north) { south = -85; north = 85 }
   return { west, south, east, north }
 }
 

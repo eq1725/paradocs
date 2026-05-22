@@ -174,13 +174,26 @@ export function useChoroplethData(
       const idx = Math.floor((withData.length - 1) * p)
       return withData[idx]
     }
-    return [
+    const raw = [
       percentile(0.2),
       percentile(0.4),
       percentile(0.6),
       percentile(0.8),
       withData[withData.length - 1],  // max
     ]
+    // V11.15.1 — Strictly-increasing dedup. When data is narrow (e.g.
+    // category filter shrinks to ~1500 reports and most countries
+    // have count=3), the percentile thresholds collapse to identical
+    // values like [3,3,3,3,3]. MapLibre's step expression breaks on
+    // duplicate stops, and the legend renders nonsensical "4-3" tiers.
+    // Walk the array, force each subsequent value to be strictly
+    // greater than the previous (incrementing by 1 when collapsed).
+    // Net: degraded but rendering-safe gradient when the distribution
+    // is narrow.
+    for (let i = 1; i < raw.length; i++) {
+      if (raw[i] <= raw[i - 1]) raw[i] = raw[i - 1] + 1
+    }
+    return raw
   }, [buckets])
 
   return {
