@@ -119,7 +119,7 @@ export default function ChoroplethLegend({ quantiles, visible, title }: Chorople
           (expanded ? 'ring-1 ring-cyan-400/40' : '')
         }
         aria-expanded={expanded}
-        aria-label={(title || 'Reports per country') + ': legend with 5 tiers from ' + formatNum(buckets[0].lo) + ' to ' + formatNum(buckets[4].hi) + ' reports. Tap to expand.'}
+        aria-label={(title || 'Reports per country') + ': legend with ' + buckets.length + ' tiers from ' + formatNum(buckets[0].lo) + ' to ' + formatNum(buckets[buckets.length - 1].hi) + ' reports. Tap to expand.'}
       >
         <span className="hidden sm:inline text-gray-400 font-medium">
           {title || 'Reports'}
@@ -137,7 +137,7 @@ export default function ChoroplethLegend({ quantiles, visible, title }: Chorople
           })}
         </span>
         <span className="tabular-nums text-gray-400 text-[10px]">
-          {formatNum(buckets[0].lo)}–{formatNum(buckets[4].hi)}
+          {formatNum(buckets[0].lo)}–{formatNum(buckets[buckets.length - 1].hi)}
         </span>
         <ChevronDown
           size={12}
