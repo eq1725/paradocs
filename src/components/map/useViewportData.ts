@@ -119,15 +119,56 @@ export function useViewportData(
         // are populated.
         // V11.15.0 — Paginate around Supabase's PostgREST 5000-row
         // cap. Previously `.limit(50000)` silently returned only the
-        // first 5,000 rows, which explained the "5,000 sightings"
-        // ceiling visible on the map. We now walk via .range() in
-        // pages of 1000 until either the cap (50000) is reached or
-        // a page returns fewer rows than requested.
-        let allData: any[] = []
-        let dbError: any = null
+        // first 5,000 rows.
+        //
+        // V11.15.0.1 — PROGRESSIVE loading. The first version of
+        // pagination waited for ALL pages to finish before flipping
+        // loading=false, which meant ~4-10s of "Loading map data"
+        // before any pins showed. Now each page commits to state as
+        // it arrives so pins stream in incrementally:
+        //   - First page (1000 newest reports) flips loading=false
+        //     and the map becomes interactive immediately.
+        //   - Subsequent pages append to allReports — the map
+        //     re-renders with more pins as each lands.
+        //   - The choropleth + region totals are already on screen
+        //     during this phase (they load from a separate fast API).
         const PAGE_SIZE = 1000
         const HARD_CAP = 50000
+
+        // Helper: convert a page of raw DB rows to ReportPoints.
+        const reportMap = new Map<string, ReportProperties>()
+        const rowToPoint = (r: any): ReportPoint | null => {
+          if (!r.latitude || !r.longitude) return null
+          const props: ReportProperties = {
+            id: r.id,
+            title: r.title,
+            slug: r.slug,
+            summary: r.summary,
+            category: r.category,
+            credibility: r.credibility || 'unverified',
+            location_name: r.location_name,
+            country: r.country,
+            event_date: r.event_date,
+            event_date_precision: r.event_date_precision,
+            witness_count: r.witness_count,
+            has_physical_evidence: r.has_physical_evidence || false,
+            has_photo_video: r.has_photo_video || false,
+            source_type: r.source_type || null,
+            location_precision: (r.metadata && r.metadata.location_precision) || null,
+          }
+          reportMap.set(r.id, props)
+          return {
+            type: 'Feature' as const,
+            geometry: {
+              type: 'Point' as const,
+              coordinates: [parseFloat(r.longitude), parseFloat(r.latitude)],
+            },
+            properties: props,
+          }
+        }
+
         let pageStart = 0
+        let isFirstPage = true
         while (pageStart < HARD_CAP) {
           const pageEnd = Math.min(pageStart + PAGE_SIZE - 1, HARD_CAP - 1)
           const res = await supabase
@@ -142,62 +183,34 @@ export function useViewportData(
             .range(pageStart, pageEnd)
           if (cancelled) return
           if (res.error) {
-            dbError = res.error
-            break
+            setError(res.error.message)
+            if (!cancelled) setLoading(false)
+            return
           }
           const rows = res.data || []
-          allData = allData.concat(rows)
+          const pagePoints: ReportPoint[] = []
+          for (const r of rows) {
+            const p = rowToPoint(r)
+            if (p) pagePoints.push(p)
+          }
+          reportMapRef.current = reportMap
+          // Append to state. setAllReports with a function form means
+          // React batches updates correctly across awaits.
+          if (isFirstPage) {
+            setAllReports(pagePoints)
+            setLoading(false)  // Map becomes interactive after first page
+            isFirstPage = false
+          } else {
+            setAllReports(prev => prev.concat(pagePoints))
+          }
           if (rows.length < PAGE_SIZE) break  // exhausted
           pageStart += PAGE_SIZE
         }
-        const data = allData
-
-        if (dbError) {
-          setError(dbError.message)
-          setLoading(false)
-          return
-        }
-
-        const reportMap = new Map<string, ReportProperties>()
-        const points: ReportPoint[] = (data || [])
-          .filter((r: any) => r.latitude && r.longitude)
-          .map((r: any) => {
-            const props: ReportProperties = {
-              id: r.id,
-              title: r.title,
-              slug: r.slug,
-              summary: r.summary,
-              category: r.category,
-              credibility: r.credibility || 'unverified',
-              location_name: r.location_name,
-              country: r.country,
-              event_date: r.event_date,
-              event_date_precision: r.event_date_precision,
-              witness_count: r.witness_count,
-              has_physical_evidence: r.has_physical_evidence || false,
-              has_photo_video: r.has_photo_video || false,
-              source_type: r.source_type || null,
-              location_precision: (r.metadata && r.metadata.location_precision) || null,
-            }
-            reportMap.set(r.id, props)
-            return {
-              type: 'Feature' as const,
-              geometry: {
-                type: 'Point' as const,
-                coordinates: [parseFloat(r.longitude), parseFloat(r.latitude)],
-              },
-              properties: props,
-            }
-          })
-
-        reportMapRef.current = reportMap
-        setAllReports(points)
       } catch (err: any) {
         if (!cancelled) {
           setError(err.message || 'Failed to load map data')
+          setLoading(false)
         }
-      } finally {
-        if (!cancelled) setLoading(false)
       }
     }
 
