@@ -198,8 +198,13 @@ export function useViewportData(
       cancelled = true
       if (timer) clearTimeout(timer)
     }
+    // V11.15.1 — Use a serialized bounds string as a single dep so
+    // the dep array shape is stable across renders. Prior code did
+    // `bounds && bounds[0]` etc. which changed value type (null vs
+    // number) between renders — React tolerates this but it's a
+    // smell and may interact badly with future changes.
   }, [
-    bounds && bounds[0], bounds && bounds[1], bounds && bounds[2], bounds && bounds[3],
+    bounds ? bounds.join(',') : null,
     filters.category, filters.country, filters.dateFrom, filters.dateTo,
     filters.hasEvidence, filters.searchQuery,
     fetchKey,
