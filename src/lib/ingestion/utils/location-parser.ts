@@ -328,6 +328,35 @@ export function parseLocation(text: string): ParsedLocation {
     'great britain', 'uk', 'ireland',  // Ireland sometimes appears as a person's surname
   ])
 
+  // V11.14.8 — US-state preposition check runs BEFORE the COUNTRY_NAMES
+  // loop. Surfaced via the "Disembodied Head in Texas" report whose body
+  // said "I'm 37m from Ireland and my Wife is 35F from Texas". Both
+  // "from Ireland" and "from Texas" matched their respective regexes,
+  // but COUNTRY_NAMES was checked first so Ireland won — even though
+  // the EVENT happened in San Antonio, Texas (where the wife's family
+  // home was). Rule: when a US state is mentioned with the same
+  // preposition shapes we accept for international countries, prefer
+  // the US state. Witness origin is less location-relevant than event
+  // location for our use case, and US state names are a stronger
+  // event-location signal in mixed bodies.
+  for (const [stateName, stateCode] of Object.entries(US_STATE_NAMES)) {
+    const stateContextRegex = new RegExp(
+      `\\b(?:in|from|into|across|near|to|throughout|around)\\s+${stateName}\\b`
+      + `|\\b(?:trip\\s+to|traveled\\s+to|travelled\\s+to|moved\\s+to|flew\\s+to|drove\\s+to|return(?:ed|ing)?\\s+to|came\\s+to|back\\s+to|relocated\\s+to)\\s+${stateName}\\b`
+      + `|\\b(?:live(?:d|s)?\\s+in|living\\s+in|stationed\\s+in|grew\\s+up\\s+in|raised\\s+in|born\\s+in|stayed\\s+in|staying\\s+in)\\s+${stateName}\\b`
+      + `|\\b(?:northern|southern|eastern|western|central|rural|coastal)\\s+${stateName}\\b`,
+      'i'
+    )
+    if (stateContextRegex.test(strippedLowerText)) {
+      return {
+        locationName: stateName.charAt(0).toUpperCase() + stateName.slice(1),
+        stateProvince: stateCode,
+        country: 'United States',
+        isInternational: false,
+      }
+    }
+  }
+
   // Check for explicit country mentions (not US states)
   for (const [countryKey, countryName] of Object.entries(COUNTRY_NAMES)) {
     // Special handling for "Georgia" - check context

@@ -76,6 +76,16 @@ const CASES: Case[] = [
     text: 'I am French but I grew up in California. The haunting happened after I moved to a new apartment in Los Angeles. The shadow figure appeared three nights in a row.',
     expected: { international: false },
   },
+  {
+    label: 'V11.14.8: Irish witness + Texas event — should pick Texas, not Ireland',
+    text: "Hey, I'm 37m from Ireland and my Wife is 35F from Texas, I have an interest in horror movies and scary stories. My wife had told me about experiencing paranormal encounters in her family home which I shrugged off as I have slept in buildings a thousand years old and experienced nothing. We went to visit her family one Thanksgiving and stayed in her childhood bedroom.",
+    expected: { country: 'United States', international: false },
+  },
+  {
+    label: 'V11.14.8: "in California" alone matches United States',
+    text: 'I grew up in California, near San Francisco. The house had several incidents over the years. We were living in California for over twenty years before we moved.',
+    expected: { country: 'United States', international: false },
+  },
 ]
 
 let passed = 0, failed = 0

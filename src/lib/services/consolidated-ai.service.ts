@@ -678,11 +678,77 @@ export async function persistConsolidatedResult(
 
   // Build witness profile JSONB
   var wp = p.witness_profile || {}
+  // V11.14.8 — normalizeAgeRange: Haiku occasionally returns the raw
+  // age ("16", "37 ", "thirties") instead of bucketing to the enum.
+  // The WitnessProfilePill component only renders chips for valid enum
+  // keys, so the literal age silently drops from the UI. Defensive
+  // mapping covers all the common breakdowns we've seen.
+  function normalizeAgeRange(raw: any): string {
+    if (typeof raw !== 'string') return 'unspecified'
+    var trimmed = raw.trim().toLowerCase()
+    var VALID = ['child', 'teen', '18-29', '30-49', '50-69', '70+', 'unspecified']
+    if (VALID.indexOf(trimmed) !== -1) return trimmed
+    // Numeric age: "16" / "16 " / "16f" / "16m"
+    var numMatch = trimmed.match(/^(\d{1,3})(?:\s*[fm]|\s*y(?:ears?)?|\s*old)?$/)
+    if (numMatch) {
+      var n = parseInt(numMatch[1], 10)
+      if (n >= 0 && n <= 12) return 'child'
+      if (n >= 13 && n <= 17) return 'teen'
+      if (n >= 18 && n <= 29) return '18-29'
+      if (n >= 30 && n <= 49) return '30-49'
+      if (n >= 50 && n <= 69) return '50-69'
+      if (n >= 70 && n <= 120) return '70+'
+    }
+    // Range: "16-20" / "30s" / "early 40s"
+    var rangeMatch = trimmed.match(/(\d{1,3})\s*(?:s|-|to|–)/)
+    if (rangeMatch) {
+      var rn = parseInt(rangeMatch[1], 10)
+      if (rn >= 0 && rn <= 12) return 'child'
+      if (rn >= 13 && rn <= 17) return 'teen'
+      if (rn >= 18 && rn <= 29) return '18-29'
+      if (rn >= 30 && rn <= 49) return '30-49'
+      if (rn >= 50 && rn <= 69) return '50-69'
+      if (rn >= 70) return '70+'
+    }
+    // Word descriptors
+    if (/\b(kid|child|toddler|infant|baby|preschool|elementary)\b/.test(trimmed)) return 'child'
+    if (/\b(teen|teenager|adolescent|high\s+school|middle\s+school)\b/.test(trimmed)) return 'teen'
+    if (/\b(twent|college|young\s+adult)\b/.test(trimmed)) return '18-29'
+    if (/\b(thirt|fort)\b/.test(trimmed)) return '30-49'
+    if (/\b(fift|sixt)\b/.test(trimmed)) return '50-69'
+    if (/\b(senior|elder|retir|old\s+age|sevent|eight|ninet|nonagenarian)\b/.test(trimmed)) return '70+'
+    return 'unspecified'
+  }
+  // Likewise sanitize gender / state_at_event so out-of-band Haiku
+  // strings ("37m", "drowsy") still land on valid enum values.
+  function normalizeGender(raw: any): string {
+    if (typeof raw !== 'string') return 'unspecified'
+    var t = raw.trim().toLowerCase()
+    if (t === 'male' || t === 'female' || t === 'nonbinary' || t === 'unspecified') return t
+    if (/^\d+\s*m$/.test(t) || t === 'm' || t === 'man' || t === 'boy' || t === 'masculine') return 'male'
+    if (/^\d+\s*f$/.test(t) || t === 'f' || t === 'woman' || t === 'girl' || t === 'feminine') return 'female'
+    if (t === 'nb' || t === 'non-binary' || t === 'non binary') return 'nonbinary'
+    return 'unspecified'
+  }
+  function normalizeState(raw: any): string {
+    if (typeof raw !== 'string') return 'unspecified'
+    var t = raw.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z_]/g, '')
+    var VALID = ['awake_alert', 'meditation', 'drowsy_falling_asleep', 'sleeping', 'driving', 'physical_activity', 'intoxicated', 'unspecified']
+    if (VALID.indexOf(t) !== -1) return t
+    if (/awake/.test(t)) return 'awake_alert'
+    if (/medit/.test(t)) return 'meditation'
+    if (/drows|tired|falling/.test(t)) return 'drowsy_falling_asleep'
+    if (/sleep|asleep|dream/.test(t)) return 'sleeping'
+    if (/driv|car|highway/.test(t)) return 'driving'
+    if (/exercis|workout|hiking|running|active/.test(t)) return 'physical_activity'
+    if (/drunk|high|intoxic|psyched|trip/.test(t)) return 'intoxicated'
+    return 'unspecified'
+  }
   var witnessProfile: Record<string, any> = {
-    gender: wp.gender || 'unspecified',
-    age_range: wp.age_range || 'unspecified',
+    gender: normalizeGender(wp.gender),
+    age_range: normalizeAgeRange(wp.age_range),
     occupation_category: wp.occupation_category || 'unspecified',
-    state_at_event: wp.state_at_event || 'unspecified',
+    state_at_event: normalizeState(wp.state_at_event),
     with_others: wp.with_others === undefined ? null : wp.with_others,
     prior_similar_experience: wp.prior_similar_experience === undefined ? null : wp.prior_similar_experience,
     confidence: typeof wp.confidence === 'number' ? wp.confidence : 0.5,
