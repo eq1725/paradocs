@@ -229,7 +229,16 @@ export default function ExplorePage() {
     if (!hasCompletedUnifiedOnboarding()) setShowWelcome(true)
   }, [])
 
-  // Parse mode from URL on mount
+  // V11.14.7 — Parse mode from URL on mount AND on subsequent
+  // navigation. Previously the effect depended only on router.isReady,
+  // so navigating /explore → /explore?mode=map via a <Link> (e.g. a
+  // Map Spotlight card click) updated the URL but never re-fired this
+  // effect — leaving mode at its previous value while useMapState
+  // (which uses useMemo on router.query) saw the new filters. The
+  // result: discover feed kept rendering while map filters churned,
+  // producing visible "glitch" without ever switching to map view.
+  // Adding router.query.mode to deps means a mode query-param change
+  // re-syncs the React state on every shallow navigation.
   useEffect(function() {
     if (!router.isReady) return
     var modeParam = router.query.mode
@@ -237,7 +246,7 @@ export default function ExplorePage() {
       setMode(modeParam)
     }
     setInitialized(true)
-  }, [router.isReady])
+  }, [router.isReady, router.query.mode])
 
   // Update URL when mode changes (shallow routing, no page reload)
   var handleModeChange = useCallback(function(newMode: ExploreMode) {
