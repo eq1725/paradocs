@@ -223,11 +223,14 @@ async function backfillLocation(sb: any): Promise<void> {
       continue
     }
 
-    // Run normalizeLocation. V11.14.9 — geocoder: 'none' skips MapTiler
-    // entirely and falls back to state/country centroids (precision=
-    // 'region' / 'country', coords_synthetic=true). The backfill
-    // doesn't need city-level precision; state-level is sufficient for
-    // map rendering. Avoids depending on MapTiler API quota.
+    // Run normalizeLocation with MapTiler enabled (uses the new
+    // paradocs-server key with UA restriction, set up V11.14.9). When
+    // the parser captured a clean city+state combo, MapTiler returns
+    // city-precision coords (e.g. Pittsburgh lat/lng instead of the
+    // generic Pennsylvania centroid). The supabase geocode cache
+    // dedupes repeat lookups. If MapTiler fails for any reason,
+    // geocodeWithFallback drops to Nominatim, then to state/country
+    // centroids — never a hard failure.
     var norm: any = null
     try {
       norm = await normalizeLocation(
@@ -240,7 +243,7 @@ async function backfillLocation(sb: any): Promise<void> {
           latitude: null,
           longitude: null,
         },
-        { geocoder: 'none' },
+        { geocoder: 'maptiler', geocodeFn: geocodeWithFallback, cache: cache },
       )
     } catch (e: any) {
       stats.geocode_fail++
