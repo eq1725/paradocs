@@ -1,32 +1,44 @@
 /**
  * MapSpotlightRow — Horizontal-scroll row of curated map view cards
  *
- * Each card deep-links to /map with pre-set filters and bounds.
+ * Each card deep-links to /explore?mode=map with pre-set filters.
  * Renders on the Explore Discover feed to draw users into the map.
  *
- * ⚠️  PLACEHOLDER DATA — These cards are hardcoded examples built before
- * mass data ingestion. After ingestion, replace with dynamically generated
- * spotlight cards based on actual cluster density, recent activity hotspots,
- * and user-relevant geographic areas. See HANDOFF_MAP.md Phase 3 notes.
+ * V11.14.7 — Counts now fetched live from Supabase on mount instead of
+ * hardcoded. URL params aligned with useMapState (heatmap=true, not
+ * heat=true). Clicking a card applies the filter correctly because
+ * useMapState is URL-driven.
  */
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Map, Flame, Compass, ChevronLeft, ChevronRight } from 'lucide-react'
 import { CategoryIcon } from '@/components/ui/CategoryIcon'
+import { supabase } from '@/lib/supabase'
 
 interface SpotlightCard {
   id: string
   title: string
   subtitle: string
   icon: React.ReactNode
-  gradient: string // tailwind gradient classes
-  accentColor: string // border hover color
-  href: string // deep-link to /map with query params
-  reportCount?: number
+  gradient: string
+  accentColor: string
+  href: string
+  // Function that, given the live count map, returns the count for this card.
+  countFor: (counts: SpotlightCounts) => number | undefined
 }
 
-// ⚠️  PLACEHOLDER — Replace with dynamic data post-ingestion
+interface SpotlightCounts {
+  total: number
+  ufos_aliens: number
+  ufos_aliens_us: number
+  cryptids: number
+  ghosts_hauntings: number
+  preModern: number
+}
+
+// V11.14.7 — Card defs. `countFor` resolves against the live counts map
+// fetched on mount.
 var SPOTLIGHT_CARDS: SpotlightCard[] = [
   {
     id: 'ufo-hotspots-us',
@@ -36,7 +48,7 @@ var SPOTLIGHT_CARDS: SpotlightCard[] = [
     gradient: 'from-green-900/60 via-green-950/40 to-gray-950',
     accentColor: 'hover:border-green-500/40',
     href: '/explore?mode=map&category=ufos_aliens&country=United+States',
-    reportCount: 308,
+    countFor: function(c) { return c.ufos_aliens_us },
   },
   {
     id: 'cryptid-sightings',
@@ -46,7 +58,7 @@ var SPOTLIGHT_CARDS: SpotlightCard[] = [
     gradient: 'from-amber-900/60 via-amber-950/40 to-gray-950',
     accentColor: 'hover:border-amber-500/40',
     href: '/explore?mode=map&category=cryptids',
-    reportCount: 2,
+    countFor: function(c) { return c.cryptids },
   },
   {
     id: 'ghost-hauntings',
@@ -56,7 +68,7 @@ var SPOTLIGHT_CARDS: SpotlightCard[] = [
     gradient: 'from-purple-900/60 via-purple-950/40 to-gray-950',
     accentColor: 'hover:border-purple-500/40',
     href: '/explore?mode=map&category=ghosts_hauntings',
-    reportCount: 1,
+    countFor: function(c) { return c.ghosts_hauntings },
   },
   {
     id: 'heatmap-global',
@@ -65,7 +77,9 @@ var SPOTLIGHT_CARDS: SpotlightCard[] = [
     icon: <Flame className="w-7 h-7" />,
     gradient: 'from-red-900/60 via-red-950/40 to-gray-950',
     accentColor: 'hover:border-red-500/40',
-    href: '/explore?mode=map&heat=true',
+    // V11.14.7 — was 'heat=true' which useMapState ignores.
+    href: '/explore?mode=map&heatmap=true',
+    countFor: function(c) { return c.total },
   },
   {
     id: 'pre-modern',
@@ -75,6 +89,7 @@ var SPOTLIGHT_CARDS: SpotlightCard[] = [
     gradient: 'from-indigo-900/60 via-indigo-950/40 to-gray-950',
     accentColor: 'hover:border-indigo-500/40',
     href: '/explore?mode=map&dateTo=1899',
+    countFor: function(c) { return c.preModern },
   },
 ]
 
@@ -83,7 +98,43 @@ function scrollRow(direction: 'left' | 'right') {
   if (el) el.scrollBy({ left: direction === 'left' ? -280 : 280, behavior: 'smooth' })
 }
 
+// Fetch all six count buckets in parallel. Each is a HEAD count query
+// against approved reports, so DB returns just a number, not rows.
+async function fetchSpotlightCounts(): Promise<SpotlightCounts> {
+  function approvedHead() {
+    return supabase.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'approved')
+  }
+  var queries = [
+    approvedHead(),
+    approvedHead().eq('category', 'ufos_aliens'),
+    approvedHead().eq('category', 'ufos_aliens').eq('country', 'United States'),
+    approvedHead().eq('category', 'cryptids'),
+    approvedHead().eq('category', 'ghosts_hauntings'),
+    approvedHead().lt('event_date', '1900-01-01'),
+  ]
+  var results = await Promise.all(queries)
+  return {
+    total: results[0].count || 0,
+    ufos_aliens: results[1].count || 0,
+    ufos_aliens_us: results[2].count || 0,
+    cryptids: results[3].count || 0,
+    ghosts_hauntings: results[4].count || 0,
+    preModern: results[5].count || 0,
+  }
+}
+
 export default function MapSpotlightRow() {
+  var [counts, setCounts] = useState<SpotlightCounts | null>(null)
+  var [loading, setLoading] = useState(true)
+
+  useEffect(function() {
+    var cancelled = false
+    fetchSpotlightCounts()
+      .then(function(c) { if (!cancelled) { setCounts(c); setLoading(false) } })
+      .catch(function(_e) { if (!cancelled) setLoading(false) })
+    return function() { cancelled = true }
+  }, [])
+
   return (
     <div className="group/section">
       {/* Header */}
@@ -112,6 +163,7 @@ export default function MapSpotlightRow() {
           className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory pr-8"
         >
           {SPOTLIGHT_CARDS.map(function(card) {
+            var liveCount = counts ? card.countFor(counts) : undefined
             return (
               <Link
                 key={card.id}
@@ -130,11 +182,18 @@ export default function MapSpotlightRow() {
                     <div className="p-2 rounded-lg bg-white/10 text-white/80 group-hover/card:text-white transition-colors">
                       {card.icon}
                     </div>
-                    {card.reportCount != null && (
-                      <span className="text-[10px] font-medium text-gray-400 bg-white/5 px-2 py-0.5 rounded-full tabular-nums">
-                        {card.reportCount.toLocaleString()} reports
+                    {/* V11.14.7 — Live count from DB. Skeleton bar while
+                        loading; absent if the bucket genuinely has 0
+                        (don't show "0 reports" — that's a bad signal). */}
+                    {loading ? (
+                      <span className="text-[10px] font-medium text-gray-500 bg-white/5 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                        <span className="inline-block w-8 h-2 bg-white/10 rounded animate-pulse" />
                       </span>
-                    )}
+                    ) : liveCount != null && liveCount > 0 ? (
+                      <span className="text-[10px] font-medium text-gray-400 bg-white/5 px-2 py-0.5 rounded-full tabular-nums">
+                        {liveCount.toLocaleString()} {liveCount === 1 ? 'report' : 'reports'}
+                      </span>
+                    ) : null}
                   </div>
                   <div>
                     <h3 className="text-sm sm:text-base font-semibold text-white group-hover/card:text-white/90 mb-0.5">

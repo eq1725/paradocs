@@ -80,7 +80,7 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
                   report.source_type && report.source_type !== 'user' && (
                     <SourceBadge
                       sourceType={report.source_type}
-                      sourceLabel={report.source_label || undefined}
+                      sourceLabel={undefined /* V11.14.7 — hide r/X on card; surfaces on report page */}
                       variant="minimal"
                     />
                   )
@@ -144,7 +144,7 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
                 {report.source_type && report.source_type !== 'user' && (
                   <SourceBadge
                     sourceType={report.source_type}
-                    sourceLabel={report.source_label || undefined}
+                    sourceLabel={undefined /* V11.14.7 — hide r/X on card; surfaces on report page */}
                     variant="compact"
                   />
                 )}
@@ -253,7 +253,7 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
                 report.source_type && report.source_type !== 'user' && (
                   <SourceBadge
                     sourceType={report.source_type}
-                    sourceLabel={report.source_label || undefined}
+                    sourceLabel={undefined /* V11.14.7 — hide r/X on card; surfaces on report page */}
                     variant="minimal"
                   />
                 )

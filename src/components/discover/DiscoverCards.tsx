@@ -900,7 +900,8 @@ export function TextReportCard(props: {
   metaParts.push(locationStr || 'Unknown location')
   var prettyDate = formatReportDate(item.event_date, item.event_date_precision)
   if (prettyDate) metaParts.push(prettyDate)
-  if (item.source_label) metaParts.push(item.source_label)
+  // V11.14.7 — Source label (r/X) removed from feed card meta row.
+  // Subreddit detail still surfaces on the report page itself.
   if (item.phenomenon_type) metaParts.push(item.phenomenon_type.name)
 
   // Credibility pills (Low/Medium/High credibility labels are intentionally
@@ -929,17 +930,19 @@ export function TextReportCard(props: {
     if (item.anchor_witness) anchorFacts.push({ label: 'Who', value: item.anchor_witness })
   }
 
-  // V9.0 — Type kicker. Editorials get a Pen icon + ANALYSIS · PARADOCS;
-  // everything else (BFRO, NUFORC, NDERF, OBERF, Reddit, etc.) is treated
-  // as eyewitness with a FileText icon + EYEWITNESS · {source_label}.
+  // V11.14.7 — Source-stripped kicker. Earlier versions surfaced the
+  // subreddit (e.g. "EYEWITNESS · r/GHOSTS") on Today feed cards;
+  // Chase removed this to keep the feed surface clean. Source detail
+  // still appears on the report page itself for users who want to
+  // verify provenance.
   var isEditorial = item.source_type === 'editorial' || item.source_type === 'curated'
   var kickerLabel: string
   var KickerIcon: typeof FileText
   if (isEditorial) {
-    kickerLabel = 'ANALYSIS · ' + (item.source_label || 'PARADOCS').toUpperCase()
+    kickerLabel = 'ANALYSIS'
     KickerIcon = Pen
   } else {
-    kickerLabel = 'EYEWITNESS · ' + (item.source_label || 'REPORT').toUpperCase()
+    kickerLabel = 'EYEWITNESS'
     KickerIcon = FileText
   }
 
