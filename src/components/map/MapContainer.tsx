@@ -212,8 +212,29 @@ export default function MapContainer({
   // ─── Click handling ────────────────────────────────────────
   const handleClick = useCallback(
     (e: MapLayerMouseEvent) => {
-      const feature = e.features?.[0]
-      if (!feature) return
+      const features = e.features || []
+      if (features.length === 0) return
+
+      // V11.14.8 — Cluster-priority resolution. e.features is in
+      // MapLibre's z-order, but cluster pins and country polygons can
+      // both match the same click point (when a cluster sits over a
+      // tinted country at low zoom). Picking features[0] was hitting
+      // the polygon underneath, toggling the country filter and
+      // making other clusters vanish — looked like a glitch. Force
+      // pins/clusters to always win; fall through to choropleth only
+      // when there's no pin at the click point.
+      let feature: any = features[0]
+      const clusterOrPin = features.find(function (f: any) {
+        return f.source === 'reports-source'
+      })
+      const choroplethHit = features.find(function (f: any) {
+        return f.source === 'choropleth-source'
+      })
+      if (clusterOrPin) {
+        feature = clusterOrPin
+      } else if (choroplethHit) {
+        feature = choroplethHit
+      }
 
       const props = feature.properties
       if (!props) return
