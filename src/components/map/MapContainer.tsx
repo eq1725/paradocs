@@ -357,6 +357,14 @@ export default function MapContainer({
           <Layer
             id="choropleth-fill"
             type="fill"
+            // V11.15.1 — beforeId pins this layer below the cluster
+            // pins in the layer stack. Without this, toggling the
+            // choropleth off and back on caused MapLibre to re-add
+            // the fill at the END of the stack (on top of the
+            // clusters), which made cluster numbers appear behind
+            // the country tint. beforeId is honored across remounts,
+            // so the choropleth always stays below clusters.
+            beforeId="clusters"
             paint={{
               // V11.15.0 — Hue separation: choropleth uses a TEAL/INDIGO
               // ramp (cool) so it visually decouples from cluster pins
@@ -404,6 +412,8 @@ export default function MapContainer({
           <Layer
             id="choropleth-stroke"
             type="line"
+            // V11.15.1 — same layer-order pin as choropleth-fill.
+            beforeId="clusters"
             paint={{
               'line-color': '#41b6c4', // matches mid-tier fill
               'line-width': [
