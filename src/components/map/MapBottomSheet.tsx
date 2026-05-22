@@ -530,7 +530,7 @@ export default function MapBottomSheet({
 
         {/* Full state: filters */}
         {snap === 'full' && (
-          <div className="pb-8">
+          <div className="pb-8 h-full">
             <MapFilterPanel
               filters={filters}
               onFilterChange={onFilterChange}
@@ -538,6 +538,7 @@ export default function MapBottomSheet({
               filteredCount={filteredCount}
               totalCount={totalCount}
               inline
+              rankedCountries={regionBuckets}
             />
           </div>
         )}

@@ -47,6 +47,7 @@ import { useChoroplethData } from '@/components/map/useChoroplethData'
 import RegionTotalsPanel from '@/components/map/RegionTotalsPanel'
 import ChoroplethLegend from '@/components/map/ChoroplethLegend'
 import MapEmptyState from '@/components/map/MapEmptyState'
+import OnboardingHint from '@/components/map/OnboardingHint'
 import { ReportProperties } from '@/components/map/mapStyles'
 import MapControls, { BasemapStyle } from '@/components/map/MapControls'
 import MapFilterPanel from '@/components/map/MapFilterPanel'
@@ -539,6 +540,7 @@ function ExploreMapMode() {
             filteredCount={filteredCount}
             totalCount={totalReports}
             onClose={function() { setFilterPanelOpen(false) }}
+            rankedCountries={regionBuckets}
           />
         </div>
       )}
@@ -610,6 +612,11 @@ function ExploreMapMode() {
         regionBuckets={regionBuckets}
         regionTotalCount={regionTotalCount}
       />
+
+      {/* V11.15.1 — First-visit onboarding toast. Auto-dismisses after
+          8s OR on first map interaction. localStorage flag prevents
+          re-display for returning users. */}
+      <OnboardingHint />
     </div>
   )
 }

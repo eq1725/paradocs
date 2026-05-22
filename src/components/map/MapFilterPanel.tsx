@@ -10,6 +10,7 @@ import { CATEGORY_CONFIG, COUNTRIES } from '@/lib/constants'
 import { PhenomenonCategory } from '@/lib/database.types'
 import { MapFilters, DEFAULT_FILTERS } from './mapStyles'
 import { CategoryIcon } from '@/components/ui/CategoryIcon'
+import CountryTypeahead from './CountryTypeahead'
 
 interface MapFilterPanelProps {
   filters: MapFilters
@@ -20,6 +21,9 @@ interface MapFilterPanelProps {
   /** If true, renders inline (for bottom sheet). If false, renders as drawer. */
   inline?: boolean
   onClose?: () => void
+  /** V11.15.1 — Top countries by report count (for CountryTypeahead's
+   *  default suggestions). Optional; falls back to alphabetical. */
+  rankedCountries?: Array<{ code?: string; name: string; total: number }>
 }
 
 const categories = Object.entries(CATEGORY_CONFIG) as [PhenomenonCategory, typeof CATEGORY_CONFIG[PhenomenonCategory]][]
@@ -32,10 +36,17 @@ export default function MapFilterPanel({
   totalCount,
   inline = false,
   onClose,
+  rankedCountries,
 }: MapFilterPanelProps) {
   const hasActiveFilters = JSON.stringify(filters) !== JSON.stringify(DEFAULT_FILTERS)
 
-  const content = (
+  // V11.15.1 — Restructured layout:
+  //   - Scrollable middle: filter controls (search/categories/country/checkbox)
+  //   - Sticky footer: Reset button + filter count (always visible, no
+  //     scroll-to-find). Per SME panel Persona C (mobile UX): sticky
+  //     bottom Reset is the Airbnb/Zillow pattern; bottom-pinned action
+  //     bars don't move and don't compete with content scroll.
+  const filterControls = (
     <div className="space-y-5">
       {/* Search */}
       <div>
@@ -92,23 +103,18 @@ export default function MapFilterPanel({
         </div>
       </div>
 
-      {/* Country */}
+      {/* Country (V11.15.1 — searchable typeahead replacing 200-option select) */}
       <div>
         <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
           Country
         </label>
-        <select
-          value={filters.country || ''}
-          onChange={(e) => onFilterChange('country', e.target.value || null)}
-          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700/50 rounded-lg text-sm text-white focus:outline-none focus:border-purple-500/50"
-        >
-          <option value="">All countries</option>
-          {COUNTRIES.map((country: string) => (
-            <option key={country} value={country}>
-              {country}
-            </option>
-          ))}
-        </select>
+        <CountryTypeahead
+          value={filters.country}
+          onChange={(name) => onFilterChange('country', name)}
+          allCountries={COUNTRIES}
+          rankedCountries={rankedCountries}
+          placeholder="Search countries..."
+        />
       </div>
 
       {/* Has Evidence */}
@@ -124,28 +130,46 @@ export default function MapFilterPanel({
         </span>
       </label>
 
-      {/* Reset */}
-      {hasActiveFilters && (
-        <button
-          onClick={onReset}
-          className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white transition-colors"
-        >
-          <RotateCcw size={12} />
-          Reset filters
-        </button>
-      )}
+    </div>
+  )
 
-      {/* Count */}
-      <div className="text-xs text-gray-500 pt-1">
+  // V11.15.1 — Sticky footer with Reset button + count. Shows below
+  // the scrollable filter list in both inline (bottom sheet) and
+  // drawer (desktop) modes. Always visible regardless of scroll.
+  const stickyFooter = (
+    <div className="flex-shrink-0 border-t border-white/10 bg-gray-950/95 backdrop-blur-md px-4 py-3 space-y-2">
+      <button
+        onClick={onReset}
+        disabled={!hasActiveFilters}
+        className={
+          'w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ' +
+          (hasActiveFilters
+            ? 'bg-purple-500/20 hover:bg-purple-500/30 active:bg-purple-500/40 text-purple-100 hover:text-white'
+            : 'bg-white/5 text-gray-600 cursor-not-allowed')
+        }
+      >
+        <RotateCcw size={14} />
+        {hasActiveFilters ? 'Reset all filters' : 'No filters active'}
+      </button>
+      <div className="text-xs text-gray-500 text-center tabular-nums">
         {filteredCount === totalCount
-          ? `${totalCount.toLocaleString()} locations mapped`
-          : `${filteredCount.toLocaleString()} of ${totalCount.toLocaleString()} shown`}
+          ? totalCount.toLocaleString() + ' locations mapped'
+          : filteredCount.toLocaleString() + ' of ' + totalCount.toLocaleString() + ' shown'}
       </div>
     </div>
   )
 
-  // Inline mode: just return content (for bottom sheet)
-  if (inline) return content
+  // Inline mode: filter controls + sticky footer (for bottom sheet)
+  if (inline) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex-1 overflow-y-auto px-4 py-4">
+          {filterControls}
+        </div>
+        {stickyFooter}
+      </div>
+    )
+  }
 
   // Drawer mode: wrap in a panel
   return (
@@ -161,10 +185,12 @@ export default function MapFilterPanel({
           <ChevronLeft size={18} />
         </button>
       </div>
-      {/* Drawer body */}
+      {/* Drawer body (scrollable) */}
       <div className="flex-1 overflow-y-auto px-4 py-4 scrollbar-thin">
-        {content}
+        {filterControls}
       </div>
+      {/* Sticky footer */}
+      {stickyFooter}
     </div>
   )
 }
