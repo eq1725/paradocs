@@ -394,9 +394,16 @@ export const maptilerGeocoder: MapTilerGeocodeFn = async function (query, countr
   url.searchParams.set('limit', '1')
   if (countryCode) url.searchParams.set('country', countryCode.toLowerCase())
 
+  // V11.14.9 — Send a distinctive User-Agent so the MapTiler key can
+  // be configured with an Allowed-User-Agent restriction. This is the
+  // server-side equivalent of the Origin/Referrer restriction the
+  // browser key uses — anyone scraping a leaked key would need to
+  // know our exact UA string to actually use it.
   let resp: Response
   try {
-    resp = await fetch(url.toString())
+    resp = await fetch(url.toString(), {
+      headers: { 'User-Agent': 'Paradocs-Server/1.0 (https://www.discoverparadocs.com)' },
+    })
   } catch (e: any) {
     console.warn('[geocode] MapTiler fetch threw:', e?.message || String(e))
     return null

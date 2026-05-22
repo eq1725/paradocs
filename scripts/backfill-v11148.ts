@@ -119,17 +119,35 @@ async function paginateAll(sb: any, selectCols: string, extraFilter?: (q: any) =
   var offset = 0
   var fetched = pageSize
   while (fetched === pageSize) {
-    var q = sb
-      .from('reports')
-      .select(selectCols)
-      .in('status', ['approved', 'pending_review'])
-      .neq('source_type', 'user_submission')
-      .order('created_at', { ascending: true })
-      .range(offset, offset + pageSize - 1)
-    if (extraFilter) q = extraFilter(q)
-    var res = await q
-    if (res.error) {
-      console.error('Query failed (offset=' + offset + '): ' + res.error.message)
+    // V11.14.8 — retry-with-backoff on transient fetch failures.
+    // Supabase occasionally returns "TypeError: fetch failed" mid-sweep
+    // (network blip). Retry the same page up to 5 times before giving up.
+    var attempt = 0
+    var maxAttempts = 5
+    var res: any = null
+    while (attempt < maxAttempts) {
+      attempt++
+      try {
+        var q = sb
+          .from('reports')
+          .select(selectCols)
+          .in('status', ['approved', 'pending_review'])
+          .neq('source_type', 'user_submission')
+          .order('created_at', { ascending: true })
+          .range(offset, offset + pageSize - 1)
+        if (extraFilter) q = extraFilter(q)
+        res = await q
+        if (!res.error) break
+        console.warn('  [retry] page offset=' + offset + ' attempt ' + attempt + '/' + maxAttempts + ' error: ' + res.error.message)
+      } catch (e: any) {
+        console.warn('  [retry] page offset=' + offset + ' attempt ' + attempt + '/' + maxAttempts + ' threw: ' + (e.message || e))
+      }
+      if (attempt < maxAttempts) {
+        await new Promise(function (r) { setTimeout(r, 2000 * attempt) })  // 2s, 4s, 6s, 8s backoff
+      }
+    }
+    if (!res || res.error) {
+      console.error('Query failed (offset=' + offset + ') after ' + maxAttempts + ' attempts')
       process.exit(1)
     }
     var pageRows = (res.data || []) as any[]
@@ -205,7 +223,11 @@ async function backfillLocation(sb: any): Promise<void> {
       continue
     }
 
-    // Run normalizeLocation
+    // Run normalizeLocation. V11.14.9 — geocoder: 'none' skips MapTiler
+    // entirely and falls back to state/country centroids (precision=
+    // 'region' / 'country', coords_synthetic=true). The backfill
+    // doesn't need city-level precision; state-level is sufficient for
+    // map rendering. Avoids depending on MapTiler API quota.
     var norm: any = null
     try {
       norm = await normalizeLocation(
@@ -218,7 +240,7 @@ async function backfillLocation(sb: any): Promise<void> {
           latitude: null,
           longitude: null,
         },
-        { geocoder: 'maptiler', geocodeFn: geocodeWithFallback, cache: cache },
+        { geocoder: 'none' },
       )
     } catch (e: any) {
       stats.geocode_fail++

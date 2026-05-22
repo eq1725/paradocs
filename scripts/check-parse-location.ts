@@ -86,6 +86,21 @@ const CASES: Case[] = [
     text: 'I grew up in California, near San Francisco. The house had several incidents over the years. We were living in California for over twenty years before we moved.',
     expected: { country: 'United States', international: false },
   },
+  {
+    label: 'V11.14.9: clean city+state ("in Pittsburgh, Pennsylvania")',
+    text: 'I lived in Pittsburgh, Pennsylvania when this happened. The old house had a basement that no one would go into alone.',
+    expected: { country: 'United States', international: false },
+  },
+  {
+    label: 'V11.14.9: clean city+state code ("in Austin, TX")',
+    text: 'We moved to Austin, TX in 2018 and the house had a strange room nobody used. The previous owners left a journal.',
+    expected: { country: 'United States', international: false },
+  },
+  {
+    label: 'V11.14.9: garbage prefix "specifically, Pennsylvania" must NOT capture as city',
+    text: 'It was in a small town in Pennsylvania, specifically, Pennsylvania state north region. My grandfather lived there for thirty years.',
+    expected: { country: 'United States', international: false },
+  },
 ]
 
 let passed = 0, failed = 0

@@ -474,39 +474,58 @@ export function parseLocation(text: string): ParsedLocation {
     }
   }
 
-  // Standard US location extraction
-  // Look for [City], [State] or [City], [ST] patterns
-  const usLocationMatch = text.match(
-    /(?:in|at|near|from)\s+([A-Z][a-zA-Z\s]+),?\s*([A-Z]{2})(?:,?\s*(?:USA|US|United States))?/
-  );
+  // V11.14.9 — Standard US location extraction (TIGHTENED).
+  //
+  // Old regex captured ANY word(s) before the state as the "city".
+  // That produced garbage like:
+  //   "specifically, Pennsylvania"   -> city="specifically"
+  //   "Was in college at university of, Maine" -> city="Was in college..."
+  //   "the part of, Illinois" -> city="the part of"
+  //
+  // Tighter rule: city must be 1-3 ALL-CAPITALIZED-WORD tokens
+  // immediately following a movement/residence preposition. No
+  // lowercase connector words like "of" / "at" / "in" inside the
+  // capture, no sentence fragments. This drops a few legit cases
+  // ("the City of Boston" → won't match) but eliminates the entire
+  // garbage-city class.
+  const CITY_TOKEN = '[A-Z][a-zA-Z]+(?:[\\s-][A-Z][a-zA-Z]+){0,2}'  // 1-3 cap words
+  const CITY_PREP = '(?:in|at|near|from|to|outside|throughout|across|around)'
 
+  // [City], [ST] pattern (state code)
+  const usCityStateCodeRegex = new RegExp(
+    `\\b${CITY_PREP}\\s+(${CITY_TOKEN}),?\\s*([A-Z]{2})(?:,?\\s*(?:USA|US|United States))?\\b`
+  )
+  const usLocationMatch = text.match(usCityStateCodeRegex)
   if (usLocationMatch) {
-    const city = usLocationMatch[1].trim();
-    const stateCode = usLocationMatch[2].toUpperCase();
-
+    const city = usLocationMatch[1].trim()
+    const stateCode = usLocationMatch[2].toUpperCase()
     if (US_STATE_CODES.has(stateCode)) {
       return {
         locationName: `${city}, ${stateCode}`,
         city: city,
         stateProvince: stateCode,
         country: 'United States',
-        isInternational: false
-      };
+        isInternational: false,
+      }
     }
   }
 
-  // Check for full state names
+  // [City], [State Full Name] pattern (e.g., "Pittsburgh, Pennsylvania")
+  // Same tight CITY_TOKEN + CITY_PREP rules.
   for (const [stateName, stateCode] of Object.entries(US_STATE_NAMES)) {
-    const stateRegex = new RegExp(`\\b([A-Z][a-zA-Z\\s]+),?\\s*${stateName}\\b`, 'i');
-    const match = text.match(stateRegex);
+    const stateRegex = new RegExp(
+      `\\b${CITY_PREP}\\s+(${CITY_TOKEN}),?\\s+${stateName}\\b`,
+      'i'
+    )
+    const match = text.match(stateRegex)
     if (match) {
       return {
         locationName: `${match[1].trim()}, ${stateCode}`,
         city: match[1].trim(),
         stateProvince: stateCode,
         country: 'United States',
-        isInternational: false
-      };
+        isInternational: false,
+      }
     }
   }
 
