@@ -581,18 +581,14 @@ function ExploreMapMode() {
         <Filter size={18} />
       </button>
 
-      {/* Mobile: Stat bar */}
-      {!loading && (
-        <div className="lg:hidden absolute top-4 left-4 right-16 z-20">
-          <div className="px-3 py-1.5 bg-gray-900/80 backdrop-blur-sm rounded-lg border border-gray-700/50">
-            <span className="text-xs text-gray-300">
-              {filteredCount === totalReports
-                ? totalReports.toLocaleString() + ' sightings'
-                : filteredCount.toLocaleString() + ' of ' + totalReports.toLocaleString()}
-            </span>
-          </div>
-        </div>
-      )}
+      {/* V11.15.0 — Removed the mobile top stat bar.
+          Previously rendered "5,000 sightings" pill next to the
+          Filters button; that exact count is already shown in the
+          bottom sheet header ("X sightings mapped") AND the value
+          was misleading (capped at Supabase's PostgREST 5000-row
+          limit before V11.15.0 pagination fix). Two displays of the
+          same info created confusion; bottom sheet is the canonical
+          location now. */}
 
       {/* Mobile: Bottom sheet */}
       <MapBottomSheet

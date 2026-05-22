@@ -117,18 +117,40 @@ export function useViewportData(
         // Net: country-precision reports now show as halos on the
         // map (Italy, India, etc.). Both choropleth + halo paths
         // are populated.
-        const { data, error: dbError } = await supabase
-          .from('reports')
-          .select(
-            'id,title,slug,summary,category,latitude,longitude,location_name,country,country_code,event_date,event_date_precision,credibility,witness_count,has_physical_evidence,has_photo_video,coords_synthetic,metadata'
-          )
-          .not('latitude', 'is', null)
-          .not('longitude', 'is', null)
-          .eq('status', 'approved')
-          .order('created_at', { ascending: false })
-          .limit(50000)
-
-        if (cancelled) return
+        // V11.15.0 — Paginate around Supabase's PostgREST 5000-row
+        // cap. Previously `.limit(50000)` silently returned only the
+        // first 5,000 rows, which explained the "5,000 sightings"
+        // ceiling visible on the map. We now walk via .range() in
+        // pages of 1000 until either the cap (50000) is reached or
+        // a page returns fewer rows than requested.
+        let allData: any[] = []
+        let dbError: any = null
+        const PAGE_SIZE = 1000
+        const HARD_CAP = 50000
+        let pageStart = 0
+        while (pageStart < HARD_CAP) {
+          const pageEnd = Math.min(pageStart + PAGE_SIZE - 1, HARD_CAP - 1)
+          const res = await supabase
+            .from('reports')
+            .select(
+              'id,title,slug,summary,category,latitude,longitude,location_name,country,country_code,event_date,event_date_precision,credibility,witness_count,has_physical_evidence,has_photo_video,coords_synthetic,metadata'
+            )
+            .not('latitude', 'is', null)
+            .not('longitude', 'is', null)
+            .eq('status', 'approved')
+            .order('created_at', { ascending: false })
+            .range(pageStart, pageEnd)
+          if (cancelled) return
+          if (res.error) {
+            dbError = res.error
+            break
+          }
+          const rows = res.data || []
+          allData = allData.concat(rows)
+          if (rows.length < PAGE_SIZE) break  // exhausted
+          pageStart += PAGE_SIZE
+        }
+        const data = allData
 
         if (dbError) {
           setError(dbError.message)

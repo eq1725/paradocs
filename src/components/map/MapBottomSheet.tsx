@@ -313,7 +313,13 @@ export default function MapBottomSheet({
   return (
     <div
       ref={sheetRef}
-      className="absolute bottom-[56px] left-0 right-0 bg-gray-950/95 backdrop-blur-md border-t border-gray-800/50 rounded-t-2xl z-30 lg:hidden"
+      // V11.15.0 — Conditional bottom offset. MobileBottomTabs is
+      // md:hidden (only renders below 768px), so above that breakpoint
+      // there's no global nav at the bottom — the previous fixed
+      // bottom-[56px] left a 56px black gap on tablet width. Now:
+      //   - <md (mobile): bottom-[56px] to stack above MobileBottomTabs
+      //   - md+ (tablet+, before lg breakpoint): bottom-0
+      className="absolute bottom-[56px] md:bottom-0 left-0 right-0 bg-gray-950/95 backdrop-blur-md border-t border-gray-800/50 rounded-t-2xl z-30 lg:hidden"
       style={{
         height: currentHeight,
         transition: isDragging ? 'none' : 'height 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
