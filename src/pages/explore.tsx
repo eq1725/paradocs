@@ -45,6 +45,8 @@ import { useMapState } from '@/components/map/useMapState'
 import { useViewportData } from '@/components/map/useViewportData'
 import { useChoroplethData } from '@/components/map/useChoroplethData'
 import RegionTotalsPanel from '@/components/map/RegionTotalsPanel'
+import ChoroplethLegend from '@/components/map/ChoroplethLegend'
+import MapEmptyState from '@/components/map/MapEmptyState'
 import { ReportProperties } from '@/components/map/mapStyles'
 import MapControls, { BasemapStyle } from '@/components/map/MapControls'
 import MapFilterPanel from '@/components/map/MapFilterPanel'
@@ -456,6 +458,8 @@ function ExploreMapMode() {
         mapPadding={filterPanelOpen ? MAP_PADDING_WITH_FILTERS : MAP_PADDING_DEFAULT}
         choroplethGeoJson={choroplethActive ? choropleth.geojson : null}
         choroplethMaxCount={choropleth.maxCount}
+        choroplethQuantiles={choropleth.quantiles}
+        activeCountry={filters.country}
         onChoroplethCountryClick={function(_code, name) {
           setFilters({ ...filters, country: filters.country === name ? null : name })
         }}
@@ -471,6 +475,28 @@ function ExploreMapMode() {
         onCountryClick={function(_code, name) {
           setFilters({ ...filters, country: filters.country === name ? null : name })
         }}
+      />
+
+      {/* V11.15.0 — Choropleth legend (visible only when layer is on)
+          + empty-state card (shown when active filters return zero
+          reports — without it the map renders blank and users assume
+          the site is broken). */}
+      <ChoroplethLegend
+        quantiles={choropleth.quantiles}
+        visible={choroplethActive && choropleth.quantiles.some(function (q) { return q > 0 })}
+      />
+      <MapEmptyState
+        visible={!loading && filteredCount === 0 && (
+          !!filters.category || !!filters.country || !!filters.searchQuery || filters.hasEvidence || filters.dateFrom !== null || filters.dateTo !== null
+        )}
+        onReset={resetFilters}
+        filterSummary={
+          [
+            filters.country && filters.country,
+            filters.category && filters.category,
+            filters.searchQuery && '"' + filters.searchQuery + '"',
+          ].filter(Boolean).join(' + ') || undefined
+        }
       />
 
       {/* Loading overlay */}

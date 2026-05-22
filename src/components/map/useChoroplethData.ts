@@ -78,6 +78,13 @@ interface UseChoroplethDataReturn {
   maxCount: number
   /** True while the underlying GeoJSON is loading. */
   loading: boolean
+  /** V11.15.0 — Quantile thresholds for 5-bucket discrete classification.
+   *  Each entry is the upper bound (inclusive) for that bucket index.
+   *  Example: [2, 8, 30, 250, 4000] means bucket0=1-2, bucket1=3-8,
+   *  bucket2=9-30, bucket3=31-250, bucket4=251-4000. Pass to the paint
+   *  expression to map report_count to a discrete color step.
+   *  Used for the on-map legend, too. */
+  quantiles: number[]
 }
 
 /**
@@ -144,9 +151,42 @@ export function useChoroplethData(
     return buckets.reduce((m, b) => Math.max(m, b.total), 0)
   }, [buckets])
 
+  // V11.15.0 — Quantile classification. With a long-tailed
+  // distribution (US 4190, next ~10 countries 100-400, then 70+
+  // countries < 50), the prior log-opacity ramp collapsed the bottom
+  // 80% of countries to indistinguishable faint purple. Quantile bins
+  // by rank give every tier a visibly distinct color step.
+  //
+  // We compute 4 cut points → 5 buckets. Bucket 0 is the lightest
+  // (countries with the fewest reports); bucket 4 is the darkest.
+  // The bucket cuts are at the 20/40/60/80 percentiles of the
+  // distribution. Edge cases:
+  //   - All zero / no data → all buckets degenerate to 0; choropleth
+  //     renders nothing.
+  //   - All-same count → buckets collapse but the paint expression
+  //     still works (step interpolation handles ties).
+  //   - One outlier → quantile naturally distributes the outlier
+  //     into bucket 4 alone; the rest of the data fills 0-3.
+  const quantiles = useMemo<number[]>(() => {
+    const withData = buckets.filter(b => b.total > 0).map(b => b.total).sort((a, b) => a - b)
+    if (withData.length === 0) return [1, 2, 3, 4, 5]  // degenerate; never hit
+    const percentile = (p: number): number => {
+      const idx = Math.floor((withData.length - 1) * p)
+      return withData[idx]
+    }
+    return [
+      percentile(0.2),
+      percentile(0.4),
+      percentile(0.6),
+      percentile(0.8),
+      withData[withData.length - 1],  // max
+    ]
+  }, [buckets])
+
   return {
     geojson: joined,
     maxCount,
     loading,
+    quantiles,
   }
 }

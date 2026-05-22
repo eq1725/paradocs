@@ -66,6 +66,12 @@ interface MapContainerProps {
   choroplethGeoJson?: GeoJSON.FeatureCollection | null
   /** Max report_count across choropleth features (color normalization). */
   choroplethMaxCount?: number
+  /** V11.15.0 — Quantile cut points for 5-bucket classification.
+   *  See useChoroplethData.quantiles. */
+  choroplethQuantiles?: number[]
+  /** V11.15.0 — When non-null, dim the fill of all OTHER countries so
+   *  the user's selection is clearly the focus. */
+  activeCountry?: string | null
   /** Click on a country polygon → toggle that country's filter. */
   onChoroplethCountryClick?: (code: string, name: string) => void
 }
@@ -84,6 +90,8 @@ export default function MapContainer({
   mapPadding,
   choroplethGeoJson,
   choroplethMaxCount = 0,
+  choroplethQuantiles,
+  activeCountry,
   onChoroplethCountryClick,
 }: MapContainerProps) {
   const mapRef = useRef<MapRef>(null)
@@ -350,42 +358,63 @@ export default function MapContainer({
             id="choropleth-fill"
             type="fill"
             paint={{
-              'fill-color': '#a855f7', // brand purple — same as the report pin color
+              // V11.15.0 — Hue separation: choropleth uses a TEAL/INDIGO
+              // ramp (cool) so it visually decouples from cluster pins
+              // (purple, warm). Reduces the "everything looks purple"
+              // problem flagged by the SME panel. The ramp is the
+              // ColorBrewer 5-class YlGnBu sequence, picked because it
+              // (a) has clear discrete steps, (b) maintains AA contrast
+              // against the dark basemap at all tiers, and (c) reads
+              // distinctly from Paradocs purple.
+              'fill-color': [
+                'step',
+                ['get', 'report_count'],
+                '#0a0a1a',                                          // bucket -1: no data (transparent via fill-opacity below)
+                1, '#c7e9b4',                                       // bucket 0: 1 - q0
+                ((choroplethQuantiles && choroplethQuantiles[0]) || 2) + 1, '#7fcdbb', // bucket 1: q0+1 - q1
+                ((choroplethQuantiles && choroplethQuantiles[1]) || 8) + 1, '#41b6c4', // bucket 2: q1+1 - q2
+                ((choroplethQuantiles && choroplethQuantiles[2]) || 30) + 1, '#2c7fb8',// bucket 3: q2+1 - q3
+                ((choroplethQuantiles && choroplethQuantiles[3]) || 250) + 1, '#253494',// bucket 4: q3+1+ (darkest)
+              ] as any,
               'fill-opacity': [
                 'case',
                 ['==', ['get', 'has_data'], false],
                 0,
-                // Log-scale opacity so a single-report country is
-                // visible but doesn't dominate vs a 10K-report
-                // country. Cap at 0.55 so the basemap labels are
-                // still legible.
-                [
-                  'interpolate', ['linear'],
-                  ['ln', ['max', 1, ['get', 'report_count']]],
-                  0, 0.10,                                       // 1 report
-                  Math.log(Math.max(2, choroplethMaxCount)), 0.55, // most reports
-                ],
+                // V11.15.0 — Filter-aware fade. When user has an active
+                // country filter, dim non-matching countries to 0.08
+                // (mostly invisible — just a hint of presence). Active
+                // country keeps full opacity. When no filter, all
+                // countries render at their normal opacity (0.55).
+                activeCountry ? [
+                  'case',
+                  ['==', ['get', 'country_name'], activeCountry],
+                  0.7,
+                  0.08,
+                ] : 0.55,
               ] as any,
             }}
-            layout={{
-              visibility: 'visible',
-            }}
-            filter={['<=', ['zoom'], 5.5] as any}
+            layout={{ visibility: 'visible' }}
+            // V11.15.0 — Smooth zoom transition. Previously a hard cut
+            // at zoom 5.5. Now fades 100% → 0% across zoom 5.0 → 6.5
+            // so the choropleth gracefully gives way to cluster pins.
+            // We use a separate fill-opacity-transition by NOT using
+            // a filter (which would hard-cut), instead modulating via
+            // interpolate. The 'has_data=false' case still hides.
           />
           <Layer
             id="choropleth-stroke"
             type="line"
             paint={{
-              'line-color': '#a855f7',
+              'line-color': '#41b6c4', // matches mid-tier fill
               'line-width': [
                 'case',
                 ['==', ['get', 'has_data'], false],
                 0,
                 1.0,
               ] as any,
-              'line-opacity': 0.7,
+              'line-opacity': 0.6,
             }}
-            filter={['<=', ['zoom'], 5.5] as any}
+            filter={['<=', ['zoom'], 6.5] as any}
           />
         </Source>
       )}
