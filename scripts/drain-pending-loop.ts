@@ -121,6 +121,24 @@ async function main() {
 
   var finalCount = await getPendingCount()
   var totalSec = Math.floor((Date.now() - startTime) / 1000)
+
+  // V11.14.8.2 — refresh report_region_counts materialized view so the
+  // choropleth + region-totals panel reflect the freshly-drained
+  // reports. The view filters on status='approved' AND country_code IS
+  // NOT NULL; new auto-promoted reports from the drain land in
+  // 'approved' but the view doesn't pick them up until refreshed.
+  console.log('\nRefreshing report_region_counts materialized view...')
+  var sb = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+  var refresh = await sb.rpc('refresh_region_counts')
+  if (refresh.error) {
+    console.warn('  refresh error (non-fatal): ' + refresh.error.message)
+  } else {
+    console.log('  ✓ region counts refreshed (choropleth + panel now current)')
+  }
+
   console.log('\n══════════════════════════════════════════════════════════')
   console.log('Drain loop complete')
   console.log('  Started with:  ' + startCount + ' pending')

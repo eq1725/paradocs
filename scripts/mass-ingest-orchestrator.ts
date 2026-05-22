@@ -73,6 +73,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import { spawn } from 'child_process'
+import { createClient } from '@supabase/supabase-js'
 
 // ─────────────────────────────────────────────────────────────────────
 // CONFIG
@@ -691,6 +692,25 @@ async function main() {
     while (batchWorkerInFlight.count > 0) {
       await new Promise(function (r) { setTimeout(r, 15_000) })
     }
+  }
+
+  // V11.14.8.2 — Refresh the report_region_counts materialized view so
+  // the choropleth + region-totals panel pick up everything the run
+  // just promoted to status='approved'. Non-fatal if RPC missing.
+  console.log('\nRefreshing report_region_counts materialized view...')
+  try {
+    var refreshClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
+    var refresh = await refreshClient.rpc('refresh_region_counts')
+    if (refresh.error) {
+      console.warn('  refresh error (non-fatal): ' + refresh.error.message)
+    } else {
+      console.log('  ✓ region counts refreshed (choropleth + panel now current)')
+    }
+  } catch (e: any) {
+    console.warn('  refresh threw (non-fatal): ' + (e?.message || e))
   }
 
   // Summary
