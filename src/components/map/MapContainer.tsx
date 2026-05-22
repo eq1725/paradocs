@@ -223,17 +223,17 @@ export default function MapContainer({
       const features = e.features || []
       if (features.length === 0) return
 
-      // V11.14.8 — Cluster-priority resolution. e.features is in
-      // MapLibre's z-order, but cluster pins and country polygons can
-      // both match the same click point (when a cluster sits over a
-      // tinted country at low zoom). Picking features[0] was hitting
-      // the polygon underneath, toggling the country filter and
-      // making other clusters vanish — looked like a glitch. Force
-      // pins/clusters to always win; fall through to choropleth only
-      // when there's no pin at the click point.
+      // V11.14.8 / V11.15.0 fix — Cluster-priority resolution. The
+      // cluster Source's id is 'reports' (not 'reports-source' as the
+      // first attempt assumed), so the prior check never matched and
+      // clicks always fell through to the choropleth polygon. Result:
+      // clicking the 166 cluster over Brazil toggled the country
+      // filter instead of expanding the cluster. Now we test against
+      // the actual source ids on the map: 'reports' for clusters/pins,
+      // 'choropleth-source' for country polygons.
       let feature: any = features[0]
       const clusterOrPin = features.find(function (f: any) {
-        return f.source === 'reports-source'
+        return f.source === 'reports'
       })
       const choroplethHit = features.find(function (f: any) {
         return f.source === 'choropleth-source'
