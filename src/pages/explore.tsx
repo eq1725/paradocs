@@ -1655,6 +1655,12 @@ function ExploreSearchMode() {
   var [categoryFacets, setCategoryFacets] = useState<Record<string, number>>({})
   var [resultCount, setResultCount] = useState(0)
   var [searchMode, setSearchMode] = useState<'simple' | 'phrase'>('simple')
+  // V11.15.1 — Paginated rendering. Show 20 results initially; "Load
+  // more" appends 20 more each click. Avoids flat scroll of 100+ rows
+  // on long-tail queries.
+  var INITIAL_DISPLAY = 20
+  var LOAD_MORE_INCREMENT = 20
+  var [displayCount, setDisplayCount] = useState<number>(INITIAL_DISPLAY)
 
   // Autocomplete
   var [autocompleteItems, setAutocompleteItems] = useState<AutocompleteItem[]>([])
@@ -1719,6 +1725,7 @@ function ExploreSearchMode() {
     setSearched(true)
     setShowAutocomplete(false)
     setFallbackResults([])
+    setDisplayCount(INITIAL_DISPLAY)  // V11.15.1 — reset paginated display on new search
 
     try {
       var apiUrl = '/api/search/fulltext?q=' + encodeURIComponent(searchQuery.trim()) + '&mode=' + searchMode + '&limit=100'
@@ -1944,8 +1951,8 @@ function ExploreSearchMode() {
             </div>
           )}
 
-          {/* Fulltext results */}
-          {results.length > 0 && results.map(function(report) {
+          {/* Fulltext results (V11.15.1 — paginated, slice to displayCount) */}
+          {results.length > 0 && results.slice(0, displayCount).map(function(report) {
             var config = (CATEGORY_CONFIG as any)[report.category] || CATEGORY_CONFIG.psychological_experiences
             var locationStr = formatLocationLabel(report, { maxParts: 3 })
             return (
@@ -1967,6 +1974,32 @@ function ExploreSearchMode() {
               </Link>
             )
           })}
+
+          {/* V11.15.1 — "Load more" button + result count indicator.
+              Visible only when there are more results to show. Clicking
+              appends LOAD_MORE_INCREMENT (20) more results. Once all
+              shown, message changes to a simple total. */}
+          {results.length > 0 && (
+            <div className="text-center pt-2 pb-1">
+              {displayCount < results.length ? (
+                <>
+                  <button
+                    onClick={function() { setDisplayCount(function(d) { return d + LOAD_MORE_INCREMENT }) }}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-500/15 hover:bg-primary-500/25 active:bg-primary-500/35 text-primary-100 hover:text-white text-sm font-medium rounded-lg transition-colors"
+                  >
+                    Load {Math.min(LOAD_MORE_INCREMENT, results.length - displayCount)} more
+                  </button>
+                  <div className="text-xs text-gray-500 mt-2 tabular-nums">
+                    Showing {displayCount} of {results.length}
+                  </div>
+                </>
+              ) : (
+                <div className="text-xs text-gray-500 tabular-nums">
+                  Showing all {results.length} result{results.length === 1 ? '' : 's'}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Fallback results */}
           {fallbackResults.length > 0 && fallbackResults.map(function(report: any) {
