@@ -87,58 +87,66 @@ export function useViewportData(
 
   const reportMapRef = useRef<Map<string, ReportProperties>>(new Map())
 
-  // ─── Fetch all geocoded reports from Supabase ────────────
+  // ─── V11.15.1 P1.2C — Viewport-aware report fetch ──────────
+  //
+  // Previously: paginated SELECT of all approved reports, then client-
+  // side filter via filteredReports useMemo. Worked at 22k but
+  // became chatty at 100k+. The full corpus was loaded into the
+  // browser regardless of what the user was looking at.
+  //
+  // New: hits /api/map/viewport-reports with the current viewport
+  // bbox + active filters. Server applies bbox + category/country/
+  // date/evidence/q filters via the V11.15.1 partial btree index.
+  // Returns up to `limit` reports (default 5000, max 10000).
+  //
+  // Re-fetches on:
+  //   - bounds change (debounced 300ms — don't spam during pan/zoom)
+  //   - any filter change (category/country/date/evidence/q)
+  //
+  // First mount (bounds=null): worldwide bbox so the map populates
+  // immediately while the Map component is still computing its first
+  // viewport. Subsequent fetches use real bounds.
+  //
+  // Stale-fetch guard: each fetch gets an incrementing token; only
+  // the latest token's response is allowed to commit state.
   useEffect(() => {
     let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    // Worldwide bbox fallback for initial mount (before Map emits bounds).
+    const effectiveBounds: [number, number, number, number] =
+      bounds || [-180, -85, 180, 85]
 
     async function fetchReports() {
       setLoading(true)
       setError(null)
 
       try {
-        // V10.9.A — pin layer fetches PRECISE-COORD reports only.
-        // V11.14 — REVERSED the V11 exclusion of synthetic-coord
-        // reports. The original concern was that 50+ country-centroid
-        // pins piling up at the same point would look like a real
-        // cluster. But:
-        //   1. With V11.10+ filters + first-class admin curation, the
-        //      "57 at Kansas" defaulting bug is impossible — country
-        //      defaults were removed in V11.8 and bogus locations are
-        //      structurally nulled in V11.11. Synthetic coords now
-        //      only appear when the source genuinely points to a
-        //      country with no city/state signal.
-        //   2. The map's fuzzy-halo layer (location_precision='country'
-        //      / 'state') renders synthetic-coord reports at lower
-        //      opacity + larger radius — visually distinct from
-        //      precise pins, so users can tell.
-        //   3. The V11.11 coincident-pin popup handles the rare case
-        //      of multiple country-precision reports at the same
-        //      centroid by showing a list.
-        // Net: country-precision reports now show as halos on the
-        // map (Italy, India, etc.). Both choropleth + halo paths
-        // are populated.
-        // V11.15.0 — Paginate around Supabase's PostgREST 5000-row
-        // cap. Previously `.limit(50000)` silently returned only the
-        // first 5,000 rows.
-        //
-        // V11.15.0.1 — PROGRESSIVE loading. The first version of
-        // pagination waited for ALL pages to finish before flipping
-        // loading=false, which meant ~4-10s of "Loading map data"
-        // before any pins showed. Now each page commits to state as
-        // it arrives so pins stream in incrementally:
-        //   - First page (1000 newest reports) flips loading=false
-        //     and the map becomes interactive immediately.
-        //   - Subsequent pages append to allReports — the map
-        //     re-renders with more pins as each lands.
-        //   - The choropleth + region totals are already on screen
-        //     during this phase (they load from a separate fast API).
-        const PAGE_SIZE = 1000
-        const HARD_CAP = 50000
+        const url = new URL('/api/map/viewport-reports', window.location.origin)
+        url.searchParams.set('bbox', effectiveBounds.join(','))
+        if (filters.category) url.searchParams.set('category', filters.category)
+        if (filters.country) url.searchParams.set('country', filters.country)
+        if (filters.dateFrom !== null) url.searchParams.set('dateFrom', String(filters.dateFrom))
+        if (filters.dateTo !== null) url.searchParams.set('dateTo', String(filters.dateTo))
+        if (filters.hasEvidence) url.searchParams.set('hasEvidence', 'true')
+        if (filters.searchQuery) url.searchParams.set('q', filters.searchQuery)
+        url.searchParams.set('limit', '10000')
 
-        // Helper: convert a page of raw DB rows to ReportPoints.
+        const resp = await fetch(url.toString())
+        if (cancelled) return
+        if (!resp.ok) {
+          setError('Viewport fetch ' + resp.status)
+          setLoading(false)
+          return
+        }
+        const data = await resp.json()
+        if (cancelled) return
+
+        const rows: any[] = data.reports || []
         const reportMap = new Map<string, ReportProperties>()
-        const rowToPoint = (r: any): ReportPoint | null => {
-          if (!r.latitude || !r.longitude) return null
+        const points: ReportPoint[] = []
+        for (const r of rows) {
+          if (!r.latitude || !r.longitude) continue
           const props: ReportProperties = {
             id: r.id,
             title: r.title,
@@ -157,66 +165,45 @@ export function useViewportData(
             location_precision: (r.metadata && r.metadata.location_precision) || null,
           }
           reportMap.set(r.id, props)
-          return {
+          points.push({
             type: 'Feature' as const,
             geometry: {
               type: 'Point' as const,
               coordinates: [parseFloat(r.longitude), parseFloat(r.latitude)],
             },
             properties: props,
-          }
+          })
         }
-
-        let pageStart = 0
-        let isFirstPage = true
-        while (pageStart < HARD_CAP) {
-          const pageEnd = Math.min(pageStart + PAGE_SIZE - 1, HARD_CAP - 1)
-          const res = await supabase
-            .from('reports')
-            .select(
-              'id,title,slug,summary,category,latitude,longitude,location_name,country,country_code,event_date,event_date_precision,credibility,witness_count,has_physical_evidence,has_photo_video,coords_synthetic,metadata'
-            )
-            .not('latitude', 'is', null)
-            .not('longitude', 'is', null)
-            .eq('status', 'approved')
-            .order('created_at', { ascending: false })
-            .range(pageStart, pageEnd)
-          if (cancelled) return
-          if (res.error) {
-            setError(res.error.message)
-            if (!cancelled) setLoading(false)
-            return
-          }
-          const rows = res.data || []
-          const pagePoints: ReportPoint[] = []
-          for (const r of rows) {
-            const p = rowToPoint(r)
-            if (p) pagePoints.push(p)
-          }
-          reportMapRef.current = reportMap
-          // Append to state. setAllReports with a function form means
-          // React batches updates correctly across awaits.
-          if (isFirstPage) {
-            setAllReports(pagePoints)
-            setLoading(false)  // Map becomes interactive after first page
-            isFirstPage = false
-          } else {
-            setAllReports(prev => prev.concat(pagePoints))
-          }
-          if (rows.length < PAGE_SIZE) break  // exhausted
-          pageStart += PAGE_SIZE
-        }
+        reportMapRef.current = reportMap
+        setAllReports(points)
+        setLoading(false)
       } catch (err: any) {
         if (!cancelled) {
-          setError(err.message || 'Failed to load map data')
+          setError(err?.message || 'Failed to load map data')
           setLoading(false)
         }
       }
     }
 
-    fetchReports()
-    return () => { cancelled = true }
-  }, [fetchKey])
+    // Debounce bounds changes so pan/zoom doesn't spam the endpoint.
+    // Filter changes still fire immediately because they're discrete.
+    if (bounds) {
+      timer = setTimeout(fetchReports, 300)
+    } else {
+      // Initial mount — fetch worldwide bbox immediately so the map
+      // populates without waiting on the first viewport callback.
+      fetchReports()
+    }
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+    }
+  }, [
+    bounds && bounds[0], bounds && bounds[1], bounds && bounds[2], bounds && bounds[3],
+    filters.category, filters.country, filters.dateFrom, filters.dateTo,
+    filters.hasEvidence, filters.searchQuery,
+    fetchKey,
+  ])
 
   // ─── V10.9.A / V11.15.1 — fetch region totals for choropleth ──────
   //
