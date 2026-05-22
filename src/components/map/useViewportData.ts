@@ -85,6 +85,25 @@ export function useViewportData(
   const [error, setError] = useState<string | null>(null)
   const [fetchKey, setFetchKey] = useState(0)
 
+  // V11.15.1 — Track which (filter, bounds) combo produced the current
+  // allReports. When this differs from the current filter key, we're
+  // in a transition window where allReports is stale. effectiveLoading
+  // below combines the underlying loading flag with this transition
+  // signal so consumers (like MapEmptyState) hide during the brief
+  // gap between filter change and new fetch landing.
+  const filterKey = JSON.stringify({
+    category: filters.category,
+    country: filters.country,
+    dateFrom: filters.dateFrom,
+    dateTo: filters.dateTo,
+    hasEvidence: filters.hasEvidence,
+    searchQuery: filters.searchQuery,
+    bounds: bounds ? bounds.join(',') : null,
+  })
+  const [completedKey, setCompletedKey] = useState<string>('')
+  const isTransitioning = completedKey !== filterKey
+  const effectiveLoading = loading || isTransitioning
+
   const reportMapRef = useRef<Map<string, ReportProperties>>(new Map())
 
   // ─── V11.15.1 P1.2C — Viewport-aware report fetch ──────────
@@ -176,6 +195,7 @@ export function useViewportData(
         }
         reportMapRef.current = reportMap
         setAllReports(points)
+        setCompletedKey(filterKey)
         setLoading(false)
       } catch (err: any) {
         if (!cancelled) {
@@ -422,7 +442,11 @@ export function useViewportData(
     regionTotalCount,
     dataBounds,
     yearHistogram,
-    loading,
+    // V11.15.1 — Use the transition-aware loading flag so consumers
+    // hide stale-data UX during filter changes (between filter
+    // change and new fetch landing). See effectiveLoading derivation
+    // near the top of this hook.
+    loading: effectiveLoading,
     error,
     supercluster,
     getReport,
