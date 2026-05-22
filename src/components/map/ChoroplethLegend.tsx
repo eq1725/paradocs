@@ -75,13 +75,13 @@ export default function ChoroplethLegend({ quantiles, visible, title }: Chorople
 
   if (!visible || !quantiles || quantiles.length < 5) return null
 
-  // V11.15.1 — Build buckets, then collapse degenerate tiers.
-  // When a category filter narrows the data so many countries share
-  // the same low count (e.g. 80% of countries have count=3), the
-  // percentile thresholds collapse and adjacent tiers render with
-  // lo > hi ("4-3"). We detect that and merge consecutive tiers
-  // whose ranges would otherwise be invalid. End result: fewer
-  // tiers, but every tier has a real, non-degenerate range.
+  // V11.15.1 — Build buckets from the (already strictly-increasing)
+  // quantiles. useChoroplethData dedupes quantiles so each tier is
+  // guaranteed non-degenerate. We still drop any tier with lo > hi
+  // as a defensive guard. No merging of consecutive tiers — earlier
+  // logic incorrectly merged ALL consecutive tiers because they
+  // happen to satisfy b.lo == last.hi + 1, collapsing the gradient
+  // to a single bucket.
   const rawBuckets: Array<{ lo: number; hi: number; color: string }> = [
     { lo: 1,                       hi: quantiles[0], color: BUCKET_COLORS[0] },
     { lo: quantiles[0] + 1,        hi: quantiles[1], color: BUCKET_COLORS[1] },
@@ -91,17 +91,8 @@ export default function ChoroplethLegend({ quantiles, visible, title }: Chorople
   ]
   const buckets: Array<{ lo: number; hi: number; color: string }> = []
   for (const b of rawBuckets) {
-    if (b.hi < b.lo) continue  // degenerate — skip
-    // If the new bucket has the same lo as the last accepted bucket,
-    // merge: extend the previous hi to cover this bucket's range and
-    // bump the color forward so the gradient still progresses.
-    const last = buckets[buckets.length - 1]
-    if (last && b.lo <= last.hi + 1) {
-      last.hi = Math.max(last.hi, b.hi)
-      last.color = b.color  // adopt the darker tier's color
-    } else {
-      buckets.push({ ...b })
-    }
+    if (b.hi < b.lo) continue  // defensive — should never hit after dedup
+    buckets.push({ ...b })
   }
   if (buckets.length === 0) return null
 
