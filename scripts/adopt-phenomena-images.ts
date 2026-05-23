@@ -74,11 +74,19 @@ const MODE_REVIEW = flag('--re-review')
 const MODE_DRY = flag('--dry-run')
 const CATEGORY = arg('--category')
 const SLUG = arg('--slug')
+const MANUAL_URL = arg('--url')
+const MANUAL_ATTR = arg('--attribution')
+const MANUAL_LICENSE = arg('--license')
+const MANUAL_ALT = arg('--alt')
 const LIMIT_STR = arg('--limit')
 const LIMIT = LIMIT_STR ? parseInt(LIMIT_STR, 10) || 0 : 0
 
 if (!MODE_ALL && !CATEGORY && !SLUG && !MODE_REVIEW) {
   console.error('Specify --all, --category <name>, --slug <slug>, or --re-review')
+  process.exit(1)
+}
+if (MANUAL_URL && !SLUG) {
+  console.error('--url requires --slug (manual override is per-phenomenon)')
   process.exit(1)
 }
 
@@ -424,6 +432,41 @@ interface ProcessResult {
 }
 
 async function processPhenomenon(sb: any, p: Phenomenon): Promise<ProcessResult> {
+  // V11.16.2 — Manual URL override path. When the user knows the right
+  // image for a fringe phenomenon (e.g., a trail-cam still hosted
+  // somewhere specific), they can pass --url and skip the Wikipedia /
+  // Commons search entirely. Haiku is NOT consulted on manual picks —
+  // the user has already verified the image is correct.
+  if (MANUAL_URL) {
+    const manualCandidate: Candidate = {
+      title: 'Manual: ' + (MANUAL_ATTR || p.name),
+      url: MANUAL_URL,
+      description: MANUAL_ALT || p.name,
+      license: MANUAL_LICENSE || 'fair_use_educational',
+      attribution: MANUAL_ATTR || ('Manually curated image for ' + p.name),
+      source: 'wikimedia_commons', // not literally true but we don't track 'manual' as a source enum yet
+    }
+    if (MODE_DRY) return { status: 'dry_run', picked: manualCandidate, haiku: { pickIndex: 0, confidence: 100, altText: MANUAL_ALT || p.name, reason: 'manual override' } }
+    const buf = await fetchImageBuffer(MANUAL_URL)
+    if (!buf) return { status: 'fetch_failed', picked: manualCandidate }
+    const heroUrl = await encodeAndUpload(sb, p.slug, buf)
+    if (!heroUrl) return { status: 'upload_failed', picked: manualCandidate }
+    const updateRes = await sb.from('phenomena').update({
+      primary_image_url: heroUrl,
+      image_source: 'manual',
+      image_license: MANUAL_LICENSE || 'fair_use_educational',
+      image_attribution: MANUAL_ATTR || ('Manually curated image for ' + p.name),
+      image_alt_text: MANUAL_ALT || (p.name + ' — image'),
+      image_adopted_at: new Date().toISOString(),
+      image_review_score: 100, // user-verified
+    }).eq('id', p.id)
+    if (updateRes.error) {
+      console.warn('  db update error: ' + updateRes.error.message)
+      return { status: 'upload_failed', picked: manualCandidate }
+    }
+    return { status: 'adopted', picked: manualCandidate, haiku: { pickIndex: 0, confidence: 100, altText: MANUAL_ALT || p.name, reason: 'manual override' } }
+  }
+
   // Source priority:
   //   1. Wikipedia article pageimage — editorially curated, usually
   //      the iconic image of the phenomenon. Highest signal.
@@ -529,12 +572,15 @@ async function main() {
   if (CATEGORY) q = q.eq('category', CATEGORY)
   if (MODE_REVIEW) {
     // Re-review: phenomena that have an existing image (legacy hotlink
-    // or low-confidence adoption) and haven't been adopted yet by the
-    // V11.16 pipeline (or were adopted but scored low).
+    // or low-confidence V11.16 adoption). Excludes images already
+    // adopted by V11.16 with a clean confidence score (>= REVIEW_THRESHOLD).
     q = q.not('primary_image_url', 'is', null)
+      .or('image_adopted_at.is.null,image_review_score.lt.' + REVIEW_THRESHOLD)
   } else if (!SLUG) {
-    // Adoption: phenomena without an image OR without a Storage adoption.
-    q = q.is('image_adopted_at', null)
+    // Default adoption mode: only phenomena with NO image at all.
+    // Phenomena with legacy hotlinked images stay as-is until the
+    // explicit --re-review pass replaces them.
+    q = q.is('primary_image_url', null)
   }
 
   const phenomena = await fetchAllRows<Phenomenon>(q)
