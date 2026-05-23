@@ -657,11 +657,67 @@ function spawnClassifierAfterRun(succeeded: number): Promise<void> {
       } else {
         console.warn('[Auto-classify] ! Classifier exited with code=' + code + ' (log: ' + logPath + ')')
       }
-      resolve()
+      // V11.17.11 — Chain the display_blurb generator so any phenomena
+      // newly created by admin tools (batch-create, manual seeds) get
+      // their card blurb populated automatically. The script is a
+      // no-op when no rows have NULL display_blurb, so this is safe
+      // to call on every drain end-of-run.
+      runDisplayBlurbGenerator().then(resolve, resolve)
     })
     child.on('error', function (err) {
       try { fs.closeSync(out) } catch (_e) { /* ignore */ }
       console.warn('[Auto-classify] spawn error: ' + (err.message || err))
+      runDisplayBlurbGenerator().then(resolve, resolve)
+    })
+  })
+}
+
+/**
+ * V11.17.11 — Run the display_blurb generator end-of-run. Only does
+ * work when phenomena.display_blurb has NULL rows; otherwise exits
+ * within ~1s. Skipped entirely when PARADOCS_AUTO_BLURB=false.
+ */
+function runDisplayBlurbGenerator(): Promise<void> {
+  return new Promise(function (resolve) {
+    if (process.env.PARADOCS_AUTO_BLURB === 'false') {
+      console.log('[Auto-blurb] Disabled via PARADOCS_AUTO_BLURB=false — skipping.')
+      resolve()
+      return
+    }
+    console.log('\n=== Post-classify display_blurb generator ===')
+    var ts = Date.now()
+    var logPath = path.join('outputs', 'orchestrator-blurb-' + ts + '.log')
+    var out: number
+    try {
+      try { fs.mkdirSync('outputs', { recursive: true }) } catch (_e) { /* exists */ }
+      out = fs.openSync(logPath, 'a')
+    } catch (e: any) {
+      console.warn('[Auto-blurb] could not open log: ' + (e?.message || e))
+      resolve()
+      return
+    }
+    console.log('Blurb log → ' + logPath)
+    var child = spawn(
+      'npx',
+      ['tsx', 'scripts/generate-display-blurbs.ts'],
+      {
+        detached: false,
+        stdio: ['ignore', out, out],
+        env: process.env,
+      },
+    )
+    child.on('exit', function (code) {
+      try { fs.closeSync(out) } catch (_e) { /* ignore */ }
+      if (code === 0) {
+        console.log('[Auto-blurb] ✓ Generator finished cleanly (log: ' + logPath + ')')
+      } else {
+        console.warn('[Auto-blurb] ! Generator exited with code=' + code + ' (log: ' + logPath + ')')
+      }
+      resolve()
+    })
+    child.on('error', function (err) {
+      try { fs.closeSync(out) } catch (_e) { /* ignore */ }
+      console.warn('[Auto-blurb] spawn error: ' + (err.message || err))
       resolve()
     })
   })
