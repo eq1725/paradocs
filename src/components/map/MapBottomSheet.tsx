@@ -11,7 +11,7 @@ import { MapFilters, ReportProperties, CATEGORY_COLORS } from './mapStyles'
 import { CategoryIcon } from '@/components/ui/CategoryIcon'
 import { PhenomenonCategory } from '@/lib/database.types'
 import MapReportCard from './MapReportCard'
-import MapFilterPanel from './MapFilterPanel'
+import MapFilterPanel, { MapPinnedFilterChips } from './MapFilterPanel'
 import MapTimeline from './MapTimeline'
 import type { RegionBucket } from './useViewportData'
 
@@ -420,14 +420,40 @@ export default function MapBottomSheet({
         )}
       </div>
 
+      {/* V11.17.10 — Pinned filter chips header (full state only).
+          Renders Search + Category chips as a sticky top section so
+          the user can search/filter without scrolling. Lives outside
+          the scrollable contentRef container, between the drag handle
+          and the scrollable body. */}
+      {isFull && (
+        <div
+          className="px-4 pb-3 border-b border-white/5 bg-gray-950/95"
+          // touchAction pan-y keeps the chip rail's horizontal scroll
+          // from triggering the sheet's vertical drag capture.
+          style={{ touchAction: 'pan-y' }}
+        >
+          <MapPinnedFilterChips
+            filters={filters}
+            onFilterChange={onFilterChange}
+          />
+        </div>
+      )}
+
       {/* Content below drag zone */}
       {/* V10.9.D.4 — content area sizing.
           peek/half: drag zone is ~56px (handle + stat line)
-          full:      drag zone is ~32px (just handle, stat hidden) */}
+          full:      drag zone is ~32px (just handle, stat hidden)
+                    + pinned chips header (~108px) so subtract more.
+          V11.17.10 — overscroll-behavior:contain stops vertical
+          swipes from bleeding into the document and pulling down the
+          sticky top tab bar (Map/Browse/Search). */}
       <div
         ref={contentRef}
-        className="overflow-y-auto px-4"
-        style={{ height: isFull ? `calc(100% - 32px)` : `calc(100% - 56px)` }}
+        className="overflow-y-auto px-4 overscroll-contain"
+        style={{
+          height: isFull ? `calc(100% - 32px - 108px)` : `calc(100% - 56px)`,
+          overscrollBehavior: 'contain',
+        }}
       >
         {/* Half state: report card OR stats overview */}
         {snap !== 'peek' && selectedReport && (
@@ -551,7 +577,9 @@ export default function MapBottomSheet({
           </div>
         )}
 
-        {/* Full state: filters */}
+        {/* Full state: filters (Country + Has Evidence + Reset
+            footer — Search and Category chips are pinned above as
+            the sheet header, see omitPinnedSection). */}
         {snap === 'full' && (
           <div className="pb-8 h-full">
             <MapFilterPanel
@@ -561,6 +589,7 @@ export default function MapBottomSheet({
               filteredCount={filteredCount}
               totalCount={totalCount}
               inline
+              omitPinnedSection
               rankedCountries={regionBuckets}
             />
           </div>

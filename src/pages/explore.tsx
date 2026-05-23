@@ -220,6 +220,27 @@ var MODE_TABS: { key: ExploreMode; label: string; icon: any }[] = [
 var MAP_PADDING_WITH_FILTERS = { top: 60, bottom: 100, left: 340, right: 40 }
 var MAP_PADDING_DEFAULT = { top: 60, bottom: 100, left: 40, right: 40 }
 
+/**
+ * V11.17.10 — Sentence-aware truncate for phenomenon card descriptions.
+ * Plain CSS line-clamp cuts mid-word ("...a single moment of clari") which
+ * reads like a bug. This helper picks the nearest sentence boundary, falling
+ * back to a word boundary + ellipsis. Line-clamp stays as the visual cap so
+ * very long single sentences still fit the card.
+ */
+function trimToSentence(text: string, maxLen: number): string {
+  if (!text) return ''
+  if (text.length <= maxLen) return text
+  var head = text.slice(0, maxLen)
+  var lastPunct = Math.max(
+    head.lastIndexOf('. '),
+    head.lastIndexOf('! '),
+    head.lastIndexOf('? ')
+  )
+  if (lastPunct > maxLen * 0.55) return head.slice(0, lastPunct + 1).trim()
+  var lastSpace = head.lastIndexOf(' ')
+  return (lastSpace > maxLen * 0.4 ? head.slice(0, lastSpace) : head).trim() + '…'
+}
+
 // ─── MAIN COMPONENT ─────────────────────────────────────────
 
 export default function ExplorePage() {
@@ -365,6 +386,22 @@ function ExploreMapMode() {
       }
     }
   }, [router.isReady])
+
+  // V11.17.10 — While on map mode, lock the document so iOS Safari
+  // rubber-band scrolling doesn't pull the sticky top tab bar
+  // (Map/Browse/Search) when the user swipes inside the bottom sheet.
+  // overscroll-behavior:none on the body kills the chain even if a
+  // touch event escapes the sheet's overscroll-contain.
+  useEffect(function() {
+    var prevHtml = document.documentElement.style.overscrollBehavior
+    var prevBody = document.body.style.overscrollBehavior
+    document.documentElement.style.overscrollBehavior = 'none'
+    document.body.style.overscrollBehavior = 'none'
+    return function() {
+      document.documentElement.style.overscrollBehavior = prevHtml
+      document.body.style.overscrollBehavior = prevBody
+    }
+  }, [])
 
   var viewportData = useViewportData(filters, bounds, zoom)
   var features = viewportData.features
@@ -1284,7 +1321,7 @@ function ExploreBrowseMode() {
                                       {item.report_count > 0 && <span className="text-[11px] text-gray-400">{item.report_count} reports</span>}
                                     </div>
                                     <h3 className="font-semibold text-white text-base sm:text-lg line-clamp-1 group-hover/card:text-primary-300 transition-colors">{item.name}</h3>
-                                    {item.ai_summary && <p className="text-xs text-gray-400 line-clamp-2 mt-1 leading-relaxed">{item.ai_summary}</p>}
+                                    {item.ai_summary && <p className="text-xs text-gray-400 line-clamp-2 mt-1 leading-relaxed">{trimToSentence(item.ai_summary, 140)}</p>}
                                   </div>
                                 </Link>
                               )
@@ -1502,7 +1539,7 @@ function ExploreBrowseMode() {
                     <div className="flex-1 min-w-0 p-3 flex flex-col justify-center">
                       <h3 className="font-semibold text-white text-sm line-clamp-1 group-hover/card:text-primary-300 transition-colors">{item.name}</h3>
                       {item.ai_summary && (
-                        <p className="text-[11px] text-gray-500 line-clamp-2 mt-1 leading-relaxed">{item.ai_summary}</p>
+                        <p className="text-[11px] text-gray-500 line-clamp-2 mt-1 leading-relaxed">{trimToSentence(item.ai_summary, 110)}</p>
                       )}
                       {item.report_count > 0 && (
                         <span className="text-[11px] text-gray-400 tabular-nums mt-1.5">{item.report_count} reports</span>

@@ -898,12 +898,44 @@ export default function PhenomenaPage() {
   )
 }
 
+/**
+ * V11.17.10 — Sentence-aware truncate for the card description.
+ * CSS line-clamp by itself cuts mid-word/mid-sentence which reads
+ * like a glitch ("...the apparition has been knowi"). This helper
+ * trims at the nearest sentence boundary inside maxLen, falling back
+ * to word boundary + ellipsis. CSS line-clamp-3 still wraps the
+ * remainder as a safety net for very long single sentences.
+ */
+function trimToSentence(text: string, maxLen: number): string {
+  if (!text) return ''
+  if (text.length <= maxLen) return text
+  const head = text.slice(0, maxLen)
+  const lastPunct = Math.max(
+    head.lastIndexOf('. '),
+    head.lastIndexOf('! '),
+    head.lastIndexOf('? '),
+    head.endsWith('.') ? head.length - 1 : -1,
+    head.endsWith('!') ? head.length - 1 : -1,
+    head.endsWith('?') ? head.length - 1 : -1
+  )
+  if (lastPunct > maxLen * 0.55) {
+    return head.slice(0, lastPunct + 1).trim()
+  }
+  const lastSpace = head.lastIndexOf(' ')
+  return (lastSpace > maxLen * 0.4 ? head.slice(0, lastSpace) : head).trim() + '…'
+}
+
 function PhenomenonCard({ phenomenon }: { phenomenon: Phenomenon }) {
   const config = CATEGORY_CONFIG[phenomenon.category as keyof typeof CATEGORY_CONFIG]
   const [imgError, setImgError] = useState(false)
   const gradient = CATEGORY_GRADIENTS[phenomenon.category] || 'from-gray-800 to-gray-900'
   const qf = phenomenon.ai_quick_facts
   const hasImage = phenomenon.primary_image_url && !imgError
+  // V11.17.10 — Server-side ai_summary can be 200-400 chars; line-clamp
+  // alone hides the remainder with abrupt mid-sentence ellipsis. Pre-
+  // trim at the nearest sentence boundary so what reaches the card
+  // reads as a complete thought.
+  const trimmedSummary = phenomenon.ai_summary ? trimToSentence(phenomenon.ai_summary, 180) : ''
 
   // Normalize danger level for color lookup
   const dangerKey = qf?.danger_level?.split(' ')?.[0] || ''
@@ -968,9 +1000,9 @@ function PhenomenonCard({ phenomenon }: { phenomenon: Phenomenon }) {
             <ChevronRight className="w-5 h-5 text-gray-500 group-hover:text-purple-400 group-hover:translate-x-0.5 transition-all flex-shrink-0 mt-0.5" />
           </div>
 
-          {phenomenon.ai_summary && (
-            <p className="text-sm text-gray-400 line-clamp-2 mb-3 leading-relaxed">
-              {phenomenon.ai_summary}
+          {trimmedSummary && (
+            <p className="text-sm text-gray-400 line-clamp-3 mb-3 leading-relaxed">
+              {trimmedSummary}
             </p>
           )}
 
@@ -1002,6 +1034,9 @@ function PhenomenonCard({ phenomenon }: { phenomenon: Phenomenon }) {
 
 function PhenomenonListItem({ phenomenon }: { phenomenon: Phenomenon }) {
   const config = CATEGORY_CONFIG[phenomenon.category as keyof typeof CATEGORY_CONFIG]
+  // V11.17.10 — Single-line truncate looked abrupt mid-word. Trim
+  // at sentence/word boundary so the row ends cleanly.
+  const trimmedSummary = phenomenon.ai_summary ? trimToSentence(phenomenon.ai_summary, 120) : ''
 
   return (
     <Link href={`/phenomena/${phenomenon.slug}`}>
@@ -1018,9 +1053,9 @@ function PhenomenonListItem({ phenomenon }: { phenomenon: Phenomenon }) {
           <h3 className="text-white font-medium group-hover:text-purple-400 transition-colors text-sm sm:text-base">
             {phenomenon.name}
           </h3>
-          {phenomenon.ai_summary && (
-            <p className="text-xs sm:text-sm text-gray-400 truncate">
-              {phenomenon.ai_summary}
+          {trimmedSummary && (
+            <p className="text-xs sm:text-sm text-gray-400 line-clamp-1">
+              {trimmedSummary}
             </p>
           )}
         </div>
