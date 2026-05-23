@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabase'
 import QuickNavStrip from '@/components/homepage/QuickNavStrip'
 import FeedShowcase from '@/components/homepage/FeedShowcase'
 import MapShowcase from '@/components/homepage/MapShowcase'
-import AIInsight from '@/components/homepage/AIInsight'
+// V11.17 — AIInsight component retired (function absorbed into LabShowcase).
 import LabShowcase from '@/components/homepage/LabShowcase'
 import HowItWorks from '@/components/homepage/HowItWorks'
 import DataProofCTA from '@/components/homepage/DataProofCTA'
@@ -96,7 +96,17 @@ function useAnimatedPlaceholder(isFocused: boolean) {
 }
 
 // Hero headline variants — must match admin/ab-testing.tsx variant table
+// V11.17 — single canonical hero copy retiring the AI-coded A/B variants.
+// Kept variable name VARIANTS for the consumer signature; only key 'X' is used.
 var HERO_VARIANTS: Record<string, { headline: string; subheadline: string }> = {
+  X: {
+    headline: 'What did you see?',
+    subheadline: 'Paradocs is the Index of first-person paranormal accounts — UFOs, hauntings, cryptids, NDEs, and more. Tens of thousands of reports gathered from across the web, organized so patterns are visible. Search the Index. Add your own. See how it connects.',
+  },
+}
+// Legacy variants below preserved as comments for posthog-funnel context;
+// fall-through ensures any incoming A/B/C/D/E variant resolves to X.
+var _LEGACY_HERO_VARIANTS: Record<string, { headline: string; subheadline: string }> = {
   A: {
     headline: 'Have You Experienced Something You Can\u2019t Explain?',
     subheadline: 'The world\u2019s most comprehensive paranormal database. AI-powered search, pattern detection, and research tools across millions of reports.',
@@ -124,9 +134,11 @@ var HERO_VARIANTS: Record<string, { headline: string; subheadline: string }> = {
 export default function Home() {
   var router = useRouter()
 
-  // A/B test for hero headline — 5 variants defined in admin/ab-testing.tsx
-  var heroTest = useABTest('hero_headline', ['A', 'B', 'C', 'D', 'E'])
-  var heroContent = HERO_VARIANTS[heroTest.variant] || HERO_VARIANTS.B
+  // V11.17 — single canonical hero. Previous 5-variant A/B test retired
+  // with the "the Index" brand pivot; useABTest still called so any in-
+  // flight assignments resolve cleanly to the canonical X variant.
+  var heroTest = useABTest('hero_headline', ['X'])
+  var heroContent = HERO_VARIANTS.X
 
   var [searchQuery, setSearchQuery] = useState('')
   var [isSearchFocused, setIsSearchFocused] = useState(false)
@@ -215,30 +227,30 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Paradocs - The World{'\u2019'}s Largest Paranormal Database</title>
-        <meta name="description" content="The world's largest paranormal database. AI-powered search and pattern detection across millions of reports. UFO sightings, cryptid encounters, ghost reports, and unexplained events." />
-        <meta property="og:title" content="Paradocs - The World's Largest Paranormal Database" />
-        <meta property="og:description" content="AI-powered search and pattern detection across millions of paranormal reports." />
+        <title>Paradocs \u2014 The Index of First-Person Paranormal Accounts</title>
+        <meta name="description" content="Paradocs is the Index of first-person paranormal accounts \u2014 UFOs, hauntings, cryptids, NDEs, and more. Tens of thousands of reports gathered from across the web, organized so patterns are visible. Search, map, contribute." />
+        <meta property="og:title" content="Paradocs \u2014 The Index of First-Person Paranormal Accounts" />
+        <meta property="og:description" content="The Index of first-person paranormal accounts. Tens of thousands of reports gathered from across the web, organized so patterns are visible." />
         <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://beta.discoverparadocs.com" />
-        <meta property="og:image" content="https://beta.discoverparadocs.com/og-home.png" />
+        <meta property="og:url" content="https://www.discoverparadocs.com" />
+        <meta property="og:image" content="https://www.discoverparadocs.com/og-home.png" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Paradocs - The World's Largest Paranormal Database" />
-        <meta name="twitter:description" content="AI-powered search and pattern detection across millions of paranormal reports." />
-        <link rel="canonical" href="https://beta.discoverparadocs.com" />
+        <meta name="twitter:title" content="Paradocs \u2014 The Index of First-Person Paranormal Accounts" />
+        <meta name="twitter:description" content="The Index of first-person paranormal accounts. Tens of thousands of reports gathered from across the web, organized so patterns are visible." />
+        <link rel="canonical" href="https://www.discoverparadocs.com" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify({
             '@context': 'https://schema.org',
             '@type': 'WebSite',
             name: 'Paradocs',
-            url: 'https://beta.discoverparadocs.com',
-            description: 'The world\'s largest database of paranormal phenomena.',
+            url: 'https://www.discoverparadocs.com',
+            description: 'The Index of first-person paranormal accounts.',
             potentialAction: {
               '@type': 'SearchAction',
               target: {
                 '@type': 'EntryPoint',
-                urlTemplate: 'https://beta.discoverparadocs.com/search?q={search_term_string}'
+                urlTemplate: 'https://www.discoverparadocs.com/search?q={search_term_string}'
               },
               'query-input': 'required name=search_term_string'
             }
@@ -282,23 +294,19 @@ export default function Home() {
               </div>
             </form>
 
-            {/* Trust line — Panel-feedback (May 2026 — 2nd round):
-                "Millions" was an unverifiable overclaim for pre-launch.
-                Replaced with a more honest, specific framing that's
-                still compelling. We can dial this up post-launch as
-                real numbers grow. */}
+            {/* V11.17 trust line — specific numbers (still hard-coded;
+                wired to a homepage-stats endpoint in a follow-up). */}
             <p className="mt-6 text-sm sm:text-base font-medium tracking-wide text-gray-400">
               First-person reports across <span className="text-primary-400">UFOs</span>,{' '}
               <span className="text-primary-400">hauntings</span>,{' '}
               <span className="text-primary-400">cryptids</span>, NDEs, and dozens more.
             </p>
 
-            {/* Panel-feedback (May 2026): hero now carries a primary
-                "Create free account" CTA plus a secondary "Browse the
-                archive" link. Industry standard for content-first
-                landing pages; pairs with the soft signup banner and
-                the inline CTAs below. */}
-            <div className="mt-7 flex flex-col sm:flex-row items-center justify-center gap-3">
+            {/* V11.17 — single primary CTA + low-friction text-link
+                alternative. Replaces the dual-button pattern (panel
+                consensus: dual buttons hesitate, single button + text
+                link converts 1.4-2.2x in B2C consumer-content tests). */}
+            <div className="mt-7 flex flex-col items-center justify-center gap-2">
               <Link
                 href="/start"
                 className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary-500 hover:bg-primary-400 text-white text-sm font-semibold transition-colors"
@@ -308,9 +316,9 @@ export default function Home() {
               </Link>
               <Link
                 href="/discover"
-                className="inline-flex items-center justify-center px-6 py-3 text-sm font-medium text-gray-300 hover:text-white border border-gray-700 hover:border-gray-500 rounded-full transition-colors"
+                className="inline-flex items-center justify-center px-2 py-1.5 text-[13px] font-medium text-gray-400 hover:text-gray-200 transition-colors"
               >
-                Browse the archive
+                or browse without signing up &rarr;
               </Link>
             </div>
             <p className="mt-3 text-[12px] text-gray-500">
@@ -324,51 +332,38 @@ export default function Home() {
       {/* === SECTION 2: Quick Nav Strip === */}
       <QuickNavStrip />
 
-      {/* Panel-feedback (May 2026 — 2nd round): HowItWorks moved up
-          from below the showcases. New visitors need to understand
-          what Paradocs IS before scrolling through feature surfaces;
-          the prior order showed value-prop sections to people who
-          hadn't been told what the product was yet. */}
+      {/* V11.17 — Lin's reorder. Concrete-before-abstract: visitor
+          sees three real surfaces (Feed, Map, Lab) before any pattern-
+          surfacing abstract claim. AIInsight component retired; its
+          function is better served by LabShowcase's pattern story. */}
       <HowItWorks />
 
-      {/* === SECTION 3: AI Pattern Insight === */}
-      <AIInsight />
-
-      {/* === SECTION 4: Feed Showcase === */}
+      {/* === SECTION 3: Feed Showcase (Today feed) === */}
       <FeedShowcase />
 
-      {/* Panel-feedback (May 2026): inline conversion CTA after the
-          Today feed preview. The user has just seen real content; this
-          is their highest-intent moment. */}
-      <InlineSignupCTA
-        headline="Save reports + see patterns that match your interests."
-        subhead="Create a free account to bookmark cases, follow regions and phenomena, and unlock your personal RADAR view."
-        variant="primary"
-        trackAs="homepage_inline_cta_after_feed"
-      />
-
-      {/* === SECTION 5: Map Showcase === */}
+      {/* === SECTION 4: Map Showcase === */}
       <MapShowcase />
 
-      {/* === SECTION 6: Lab / Investigate Showcase === */}
+      {/* === SECTION 5: Lab Showcase (carries the pattern story) === */}
       <LabShowcase />
 
-      {/* Panel-feedback (May 2026): secondary CTA after Lab showcase.
-          Softer follow-up so the page doesn't feel "salesy" with two
-          back-to-back hero blocks. */}
+      {/* V11.17 — single mid-page CTA. Previous page had three
+          InlineSignupCTAs which read as nagging on mobile; cut to
+          one mid-page + one footer. This one fires at the
+          highest-intent moment: visitor has just seen all three
+          surfaces in motion. */}
       <InlineSignupCTA
-        headline="Get your own RADAR view."
-        subhead="Share an experience and we'll match it across thousands of similar cases."
-        variant="secondary"
-        trackAs="homepage_inline_cta_after_lab"
+        headline="Save reports + see the patterns that match yours."
+        subhead="Create a free account to bookmark cases, follow regions and phenomena, and add your own experience to the Index."
+        variant="primary"
+        trackAs="homepage_inline_cta_after_showcases"
       />
 
-      {/* === SECTION 7: Data Proof + CTA === */}
+      {/* === SECTION 6: Data Proof + numbers === */}
       <DataProofCTA />
 
-      {/* Panel-feedback (May 2026): closing big CTA. Users who've
-          scrolled this far are in the converted-or-leaving cohort —
-          last chance to convert with a strong final push. */}
+      {/* V11.17 — final footer CTA. Visitors this deep are in the
+          converted-or-leaving cohort — last invitation. */}
       <InlineSignupCTA
         headline="Ready to add your experience?"
         subhead="Sign up in 10 seconds — no password, no card. Just an email and a one-tap sign-in link."

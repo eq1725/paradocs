@@ -46,7 +46,7 @@ export default function LabShowcase() {
               Investigate the unknown
             </h2>
             <p className="mt-4 text-base md:text-lg text-gray-400 max-w-lg">
-              Build case files, save reports, and cross-reference evidence. Your research workspace connects the dots across millions of data points.
+              Build case files, save reports, and cross-reference evidence against your own experience. Your research workspace surfaces the patterns the Index already sees — across tens of thousands of first-person accounts.
             </p>
 
             <Link

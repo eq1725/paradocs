@@ -76,7 +76,7 @@ export default function FeedShowcase() {
               {/* Section header inside phone */}
               <div className="px-3.5 pb-2.5">
                 <p className="text-[12px] font-semibold text-white">What people are reporting</p>
-                <p className="text-[9px] text-gray-500 mt-0.5">Real encounters and AI-detected patterns</p>
+                <p className="text-[9px] text-gray-500 mt-0.5">Real encounters and patterns from the Index</p>
               </div>
 
               {/* Feed cards */}

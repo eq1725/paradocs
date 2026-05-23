@@ -9,44 +9,46 @@ import { ChevronDown } from 'lucide-react'
  * Provides SEO-rich crawlable text and answers common visitor questions.
  */
 
+// V11.17 — copy rewritten without "AI" language. "The Index" is the
+// recurring noun-phrase (per V11.17 brand pivot).
 var steps = [
   {
     number: '01',
-    title: 'We aggregate the data',
-    description: 'Reports from hundreds of sources—NUFORC, MUFON, BFRO, historical archives, and community submissions—are collected, deduplicated, and standardized into a single unified database.',
+    title: 'Reports from across the web',
+    description: 'First-person accounts from NUFORC, MUFON, BFRO, historical archives, community forums, and your own submissions — all collected, deduplicated, and gathered into a single unified Index.',
   },
   {
     number: '02',
-    title: 'AI detects the patterns',
-    description: 'Our analysis pipeline scans for geographic clusters, temporal correlations, and phenomenological links that are invisible when data is scattered across dozens of siloed databases.',
+    title: 'The Index surfaces patterns',
+    description: 'Geographic clusters, temporal correlations, and phenomenological links — the connections that are invisible when reports sit scattered across siloed databases emerge clearly when tens of thousands are organized together.',
   },
   {
     number: '03',
-    title: 'You explore and investigate',
-    description: 'Search, filter, and map millions of reports. Save what matters to case files. Cross-reference evidence and uncover connections no one else has found.',
+    title: 'You investigate',
+    description: 'Search, filter, and map the full Index. Save what matters. Cross-reference cases against your own experience. Find connections nobody else has found.',
   },
 ]
 
 var faqs = [
   {
-    question: 'What kind of reports are in the database?',
-    answer: 'Paradocs covers the full spectrum of anomalous and unexplained phenomena—UFO and UAP sightings, cryptid encounters, ghost and apparition reports, psychic experiences, high strangeness, and more. We catalog over 4,792 distinct phenomena types across hundreds of source archives.',
+    question: 'What kind of reports are in the Index?',
+    answer: 'Paradocs covers the full spectrum of anomalous and unexplained phenomena — UFO and UAP sightings, cryptid encounters, ghost and apparition reports, psychic experiences, high strangeness, and more. The Index catalogs over 1,400 distinct phenomena across dozens of source archives.',
   },
   {
     question: 'Where does the data come from?',
-    answer: 'We aggregate reports from established research organizations like NUFORC, MUFON, and BFRO, along with historical archives, academic collections, and community submissions. Every report is deduplicated, geocoded, and standardized for consistency.',
+    answer: 'Reports come from established research organizations like NUFORC, MUFON, and BFRO, along with historical archives, academic collections, and community submissions. Every report is deduplicated, geocoded, and standardized for consistency.',
   },
   {
     question: 'Is Paradocs free to use?',
-    answer: 'Yes. Searching the database, browsing reports, and exploring the interactive map are completely free. No credit card required. Advanced research tools like case files and AI-powered analysis are available to registered users.',
+    answer: 'Yes. Searching the Index, browsing reports, and exploring the interactive map are completely free. No credit card required. Advanced research tools — case files, personalized signals, and pattern analysis — are available to registered users.',
   },
   {
     question: 'Does Paradocs take a position on whether phenomena are real?',
-    answer: 'No. Paradocs is a research utility, not a belief system. We document and analyze reports with intellectual honesty—without assuming phenomena are real or dismissing them as fake. Our role is to surface patterns and let you draw your own conclusions.',
+    answer: 'No. Paradocs is a research utility, not a belief system. We document and analyze reports with intellectual honesty — without assuming phenomena are real or dismissing them as fake. Our role is to surface patterns and let you draw your own conclusions.',
   },
   {
-    question: 'How does the AI analysis work?',
-    answer: 'Our pipeline analyzes thousands of reports to identify geographic clusters, temporal patterns, and cross-phenomenon correlations. It detects connections that are invisible in any single database but emerge clearly when millions of cases are analyzed together.',
+    question: 'How does the Index find patterns?',
+    answer: 'The Index reads thousands of first-person reports together to identify geographic clusters, temporal patterns, and cross-phenomenon correlations. These connections are invisible in any single source but emerge clearly when tens of thousands of accounts are read alongside each other.',
   },
 ]
 
