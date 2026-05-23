@@ -1541,37 +1541,112 @@ function ExploreBrowseMode() {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            // V11.17.12 — Breakpoint-swap layout (panel rec A+D):
+            //   < lg : horizontal stripe (image-left, text-right) — keeps
+            //          mobile/tablet density high and lets the description
+            //          have the full row width to breathe.
+            //   ≥ lg : vertical poster (image-top, text-below) in a 3-col
+            //          (lg) / 4-col (xl) grid. Fixes the desktop truncation
+            //          problem (description gets full card width instead
+            //          of a narrow text column) and shifts the visual
+            //          read from "directory" to "gallery" — same pattern
+            //          used by Apple App Store / Netflix / Spotify.
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 lg:gap-4">
               {sorted.map(function(item) {
                 var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.psychological_experiences
                 var hasImage = item.primary_image_url && item.primary_image_url.indexOf('default-cryptid') === -1
+                var qf: any = (item as any).ai_quick_facts || null
+                var originLabel = qf?.origin && typeof qf.origin === 'string'
+                  ? (qf.origin.length > 30 ? qf.origin.slice(0, 28).trim() + '…' : qf.origin)
+                  : null
                 return (
-                  <Link key={item.id} href={'/phenomena/' + item.slug} className="group/card flex overflow-hidden rounded-xl border border-white/10 hover:border-primary-500/30 bg-white/[0.02] hover:bg-white/[0.04] transition-all">
-                    {/* Thumbnail */}
-                    <div className="relative w-24 sm:w-28 shrink-0 overflow-hidden">
+                  <Link
+                    key={item.id}
+                    href={'/phenomena/' + item.slug}
+                    className="
+                      group/card flex lg:flex-col overflow-hidden rounded-xl
+                      border border-white/10 hover:border-primary-500/40
+                      bg-white/[0.02] hover:bg-white/[0.04]
+                      transition-all duration-300
+                      lg:hover:-translate-y-0.5 lg:hover:shadow-xl lg:hover:shadow-primary-500/10
+                    "
+                  >
+                    {/* Thumbnail. Horizontal stripe (fixed left width)
+                        on <lg; vertical poster (full width, 4:3 aspect)
+                        on ≥lg. The image element fills via absolute. */}
+                    <div className="
+                      relative shrink-0 overflow-hidden
+                      w-24 sm:w-28 lg:w-full lg:aspect-[4/3]
+                    ">
                       {hasImage ? (
                         <>
-                          <img src={item.primary_image_url!} alt="" className="absolute inset-0 w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" loading="lazy" />
-                          <div className="absolute inset-0 bg-gradient-to-r from-transparent to-gray-950/30" />
+                          <img
+                            src={item.primary_image_url!}
+                            alt=""
+                            className="absolute inset-0 w-full h-full object-cover group-hover/card:scale-[1.04] transition-transform duration-500"
+                            referrerPolicy="no-referrer"
+                            loading="lazy"
+                          />
+                          {/* Right-darken on horizontal stripes, bottom-darken
+                              on poster layout so the text below has contrast. */}
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent to-gray-950/30 lg:bg-gradient-to-t lg:from-gray-950/50 lg:to-transparent" />
                         </>
                       ) : (
                         <div className={classNames('absolute inset-0 flex items-center justify-center bg-gradient-to-br', CATEGORY_GRADIENTS[item.category] || 'from-gray-900 to-gray-950')}>
-                          <span className={classNames('opacity-30', config.color)}><CategoryIcon category={item.category as PhenomenonCategory} size={32} /></span>
+                          <span className={classNames('opacity-30 group-hover/card:opacity-50 transition-opacity', config.color)}>
+                            <CategoryIcon category={item.category as PhenomenonCategory} size={32} />
+                          </span>
+                        </div>
+                      )}
+                      {/* Report-count chip — overlaid on the poster image
+                          at lg+ so it doesn't compete with the title for
+                          vertical space. Stays in the content row below
+                          on mobile/tablet. */}
+                      {item.report_count > 0 && (
+                        <span className="hidden lg:inline-flex absolute top-2 right-2 items-center gap-1 px-2 py-0.5 rounded-full bg-gray-950/80 backdrop-blur-sm text-[10px] font-medium text-gray-200 tabular-nums">
+                          {item.report_count.toLocaleString()} {item.report_count === 1 ? 'report' : 'reports'}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Content. Vertical-centred on <lg (so it lines up with
+                        the thumbnail). Top-aligned + min-height on ≥lg
+                        so cards in the same row hold their height even
+                        when one phenomenon has a longer blurb. */}
+                    <div className="flex-1 min-w-0 p-3 lg:p-4 flex flex-col justify-center lg:justify-start lg:min-h-[140px]">
+                      <h3 className="font-semibold text-white text-sm lg:text-base line-clamp-1 group-hover/card:text-primary-300 transition-colors">
+                        {item.name}
+                      </h3>
+                      {(item.display_blurb || item.ai_summary) && (
+                        <p className="text-[11px] lg:text-[13px] text-gray-500 lg:text-gray-400 line-clamp-2 lg:line-clamp-3 mt-1 lg:mt-1.5 leading-relaxed">
+                          {item.display_blurb || firstSentence(item.ai_summary, 140)}
+                        </p>
+                      )}
+
+                      {/* Meta row. Origin pill is lg+ only (richer card,
+                          space allows). Report count stays on <lg here
+                          (it's on the image overlay at ≥lg). */}
+                      {(originLabel || item.report_count > 0) && (
+                        <div className="flex items-center gap-2 mt-1.5 lg:mt-auto lg:pt-3">
+                          {originLabel && (
+                            <span className="hidden lg:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/[0.05] text-[10px] text-gray-300 truncate max-w-[200px]">
+                              <MapPin className="w-2.5 h-2.5 opacity-60 flex-shrink-0" />
+                              {originLabel}
+                            </span>
+                          )}
+                          {item.report_count > 0 && (
+                            <span className="lg:hidden text-[11px] text-gray-400 tabular-nums">
+                              {item.report_count} {item.report_count === 1 ? 'report' : 'reports'}
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>
-                    {/* Content */}
-                    <div className="flex-1 min-w-0 p-3 flex flex-col justify-center">
-                      <h3 className="font-semibold text-white text-sm line-clamp-1 group-hover/card:text-primary-300 transition-colors">{item.name}</h3>
-                      {(item.display_blurb || item.ai_summary) && (
-                        <p className="text-[11px] text-gray-500 line-clamp-2 mt-1 leading-relaxed">{item.display_blurb || firstSentence(item.ai_summary, 110)}</p>
-                      )}
-                      {item.report_count > 0 && (
-                        <span className="text-[11px] text-gray-400 tabular-nums mt-1.5">{item.report_count} reports</span>
-                      )}
-                    </div>
-                    {/* Arrow */}
-                    <div className="flex items-center pr-3 text-gray-600 group-hover/card:text-primary-400 transition-colors">
+
+                    {/* Chevron — only renders on <lg as a wayfinding cue.
+                        Posters at ≥lg have their own affordance (whole
+                        card is the tap target + hover lift). */}
+                    <div className="lg:hidden flex items-center pr-3 text-gray-600 group-hover/card:text-primary-400 transition-colors">
                       <ChevronRightIcon className="w-4 h-4" />
                     </div>
                   </Link>
