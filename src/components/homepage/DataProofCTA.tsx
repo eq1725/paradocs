@@ -63,40 +63,62 @@ function AnimatedCounter({ target, duration, suffix, label }: {
 /**
  * Data proof counters + final CTA section.
  *
- * Phase 1 (launch): phenomena types, locations (dynamic), source archives
- * Phase 2 (post-ingestion): add total reports counter
- * Phase 3 (growth): add researchers counter
+ * V11.17.4 — Brand-confident 4-fact stat block per Round 4 panel.
+ * Counts are fetched client-side (so the animation triggers correctly
+ * on scroll-into-view); fallback values keep the section readable if
+ * the API call fails. Each label uses the brand-confident frame:
+ *   "98,427 first-person accounts. 47 source archives.
+ *    1,463 distinct phenomena. One archive."
+ *
+ * The fourth "tile" — "One archive" — is intentionally not a number.
+ * It's the category claim disguised as a stat. Pinterest does this
+ * with "1 place for your ideas."
  */
-export default function DataProofCTA() {
-  var [locationCount, setLocationCount] = useState(0)
+interface HomepageCounts {
+  reports: number
+  sources: number
+  phenomena: number
+}
 
-  /* Fetch dynamic location count from API */
+export default function DataProofCTA() {
+  var [counts, setCounts] = useState<HomepageCounts>({
+    reports: 98000,
+    sources: 47,
+    phenomena: 1463,
+  })
+
+  /* Fetch live counts from the homepage-stats endpoint. The hero
+   * already gets these via getStaticProps (ISR), but this component
+   * needs them client-side so the AnimatedCounter targets are
+   * correct when the section scrolls into view. */
   useEffect(function() {
-    fetch('/api/stats/locations')
-      .then(function(res) { return res.json() })
+    fetch('/api/homepage/stats')
+      .then(function(res) { return res.ok ? res.json() : null })
       .then(function(data) {
-        if (data.count && data.count > 0) {
-          setLocationCount(data.count)
-        }
+        if (!data) return
+        setCounts({
+          reports: typeof data.reports === 'number' ? data.reports : 98000,
+          sources: typeof data.sources === 'number' ? data.sources : 47,
+          phenomena: typeof data.phenomena === 'number' ? data.phenomena : 1463,
+        })
       })
-      .catch(function() {
-        /* Silent fail — counter just stays at 0 / won't animate */
-      })
+      .catch(function() { /* fallback values stand */ })
   }, [])
 
   return (
     <section className="py-16 md:py-24 border-t border-white/5 bg-gradient-to-b from-transparent to-primary-900/10">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
 
-        {/* Animated counters */}
-        <div className="grid grid-cols-3 gap-6 md:gap-12 mb-16">
-          <AnimatedCounter target={4792} duration={2000} label="phenomena types" />
-          {locationCount > 0 ? (
-            <AnimatedCounter target={locationCount} duration={1800} label="locations" />
-          ) : (
-            <AnimatedCounter target={200} duration={1500} suffix="+" label="locations" />
-          )}
-          <AnimatedCounter target={200} duration={1500} suffix="+" label="source archives" />
+        {/* V11.17.4 — Four-fact brand-confidence stat block. The
+            fourth tile is the category claim ("One archive."). */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-10 mb-16">
+          <AnimatedCounter target={counts.reports} duration={2000} label="first-person accounts" />
+          <AnimatedCounter target={counts.sources} duration={1500} label="source archives" />
+          <AnimatedCounter target={counts.phenomena} duration={1800} label="distinct phenomena" />
+          <div className="text-center">
+            <div className="text-3xl md:text-4xl font-display font-bold text-white">One</div>
+            <div className="text-sm text-gray-500 mt-1">archive</div>
+          </div>
         </div>
 
         {/* CTA */}
@@ -105,7 +127,7 @@ export default function DataProofCTA() {
             Start exploring for free
           </h2>
           <p className="mt-3 text-gray-400">
-            Search the database, swipe through reports, and save what matters. No credit card required.
+            Search what others have seen. Save what matches you. Add your own. No credit card required.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link

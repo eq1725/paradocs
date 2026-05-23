@@ -6,6 +6,8 @@ import { useRouter } from 'next/router'
 import { Search } from 'lucide-react'
 import { useABTest } from '@/lib/ab-testing'
 import { supabase } from '@/lib/supabase'
+import { createClient as createSupabaseAdmin } from '@supabase/supabase-js'
+import type { GetStaticProps } from 'next'
 import QuickNavStrip from '@/components/homepage/QuickNavStrip'
 import FeedShowcase from '@/components/homepage/FeedShowcase'
 import MapShowcase from '@/components/homepage/MapShowcase'
@@ -106,39 +108,34 @@ function useAnimatedPlaceholder(isFocused: boolean) {
   return text
 }
 
-// V11.17.3 — Round 3 mass-market recalibration.
+// V11.17.4 — Round 4 brand-confidence pivot.
 //
-// The hero uses an inclusion-list pattern (three short lines, each
-// rendered on its own row) with a punchline beneath that resolves the
-// setup. The previous V11.17 hero ("What did you see?") implicitly
-// gated on having seen something — the broadened audience here is
-// anyone who's had ONE small strange thing (a feeling, a dream that
-// came true, a room that felt off). The verb-list does the
-// inclusion work; the punchline does the recognition.
+// Round 3's 3-line inclusion hero was warm but didn't claim the
+// category. Round 4 compresses to a single-line brand-confident
+// claim ("the home of the unexplained"), backs it immediately
+// with the scale claim (world's largest archive, dynamic 98K+
+// stat), and folds the Round 3 "you're not the only one" voice
+// into the LiveActivityTicker eyebrow + one InlineSignupCTA.
 //
-// "headlineLines" → rendered as separate `<span className="block">`
-// elements so the visitor's eye lands on each line independently.
-// "punchline" → smaller display weight beneath, the answer to the
-// setup. "subheadline" → product description in plain language,
-// drops "paranormal" (too gated) in favor of "the moments that don't
-// quite fit." "trustLine" → demonstration of breadth, mixing the
-// dramatic and the subtle.
+// The {STAT_REPORTS} token is replaced server-side with the
+// current approved-reports count, fetched via getStaticProps with
+// hourly ISR (revalidate: 3600). So the page redeploys the number
+// once an hour without a runtime DB hit.
+//
+// Brand pattern reference: Pinterest "Find your inspiration" +
+// 100M-pins claim. Strava "where athletes track activities" +
+// 100M-athlete claim. Spotify "Music for everyone" + 100M-song
+// claim. Few-word headline + immediate category-scale assertion.
 interface HeroContent {
-  headlineLines: string[]
-  punchline: string
-  subheadline: string
-  trustLine: string
+  headline: string
+  subheadlineTemplate: (statReports: string) => string
 }
 var HERO_VARIANTS: Record<string, HeroContent> = {
   X: {
-    headlineLines: [
-      'You saw something.',
-      'Or you felt something.',
-      'Or you just know.',
-    ],
-    punchline: "You’re not the only one.",
-    subheadline: "Paradocs is where the moments that don’t quite fit get written down — yours, and tens of thousands of other people’s. Sightings, feelings, dreams, coincidences. The things you’d hesitate to mention at dinner. Find your moment. See who else has had one.",
-    trustLine: "UFOs, ghosts, déjà vu, missing time, the dream that came true, the room that always felt off — all of it belongs here.",
+    headline: 'The home of the unexplained.',
+    subheadlineTemplate: function(statReports) {
+      return "The world’s largest archive of first-person paranormal accounts — sightings, feelings, dreams, coincidences. " + statReports + " stories and growing. See who else has seen what you saw. Or share yours."
+    },
   },
 }
 // Legacy variants below preserved as comments for posthog-funnel context;
@@ -168,7 +165,18 @@ var _LEGACY_HERO_VARIANTS: Record<string, { headline: string; subheadline: strin
   },
 }
 
-export default function Home() {
+interface HomePageStats {
+  reports: number      // approved reports
+  sources: number      // distinct source archives surfaced to user
+  phenomena: number    // active phenomena entries
+}
+
+interface HomeProps {
+  stats: HomePageStats
+}
+
+export default function Home(props: HomeProps) {
+  var stats = props.stats || { reports: 98000, sources: 47, phenomena: 1463 }
   var router = useRouter()
 
   // V11.17 — single canonical hero. Previous 5-variant A/B test retired
@@ -264,16 +272,16 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Paradocs \u2014 You\u2019re not the only one.</title>
-        <meta name="description" content="Paradocs is where the moments that don\u2019t quite fit get written down \u2014 sightings, feelings, dreams, coincidences. Tens of thousands of first-person accounts (UFOs, ghosts, cryptids, NDEs, d\u00e9j\u00e0 vu, and more), and a place to find your own story among them." />
-        <meta property="og:title" content="Paradocs \u2014 You\u2019re not the only one." />
-        <meta property="og:description" content="Where the moments that don\u2019t quite fit get written down. Sightings, feelings, dreams, coincidences. Tens of thousands of first-person accounts." />
+        <title>Paradocs \u2014 The home of the unexplained.</title>
+        <meta name="description" content="The world's largest archive of first-person paranormal accounts. Sightings, feelings, dreams, coincidences \u2014 tens of thousands of stories from people who've seen, felt, or experienced something they couldn't quite explain. Search what you've seen. Add your own." />
+        <meta property="og:title" content="Paradocs \u2014 The home of the unexplained." />
+        <meta property="og:description" content="The world's largest archive of first-person paranormal accounts. Sightings, feelings, dreams, coincidences. Search what you've seen. Add your own." />
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://www.discoverparadocs.com" />
         <meta property="og:image" content="https://www.discoverparadocs.com/og-home.png" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Paradocs \u2014 You\u2019re not the only one." />
-        <meta name="twitter:description" content="Where the moments that don\u2019t quite fit get written down. Sightings, feelings, dreams, coincidences. Tens of thousands of first-person accounts." />
+        <meta name="twitter:title" content="Paradocs \u2014 The home of the unexplained." />
+        <meta name="twitter:description" content="The world's largest archive of first-person paranormal accounts. Sightings, feelings, dreams, coincidences. Search what you've seen. Add your own." />
         <link rel="canonical" href="https://www.discoverparadocs.com" />
         <script
           type="application/ld+json"
@@ -282,7 +290,7 @@ export default function Home() {
             '@type': 'WebSite',
             name: 'Paradocs',
             url: 'https://www.discoverparadocs.com',
-            description: "Where the moments that don't quite fit get written down \u2014 sightings, feelings, dreams, coincidences. First-person paranormal accounts and the place to share your own.",
+            description: "The world's largest archive of first-person paranormal accounts. Sightings, feelings, dreams, coincidences from people who couldn't quite explain what they experienced.",
             potentialAction: {
               '@type': 'SearchAction',
               target: {
@@ -301,23 +309,18 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 md:pt-24 pb-10 md:pb-14 relative">
           <div className="text-center max-w-3xl mx-auto">
 
-            {/* V11.17.3 — Multi-line inclusion-list headline.
-                Each line on its own row, sized to keep the cluster
-                inside ~1 mobile viewport. The punchline beneath
-                resolves the setup: setup-poses-the-list,
-                punchline-says-you-belong. */}
-            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-display font-bold text-white leading-[1.15]">
-              {heroContent.headlineLines.map(function(line, i) {
-                return (
-                  <span key={i} className="block">{line}</span>
-                )
-              })}
+            {/* V11.17.4 — Brand-confident single-line headline.
+                Few words, definite article, category claim. Pattern
+                ref: Spotify "Music for everyone", Pinterest "Find
+                your inspiration", Strava "where athletes track
+                activities". The subhead immediately backs the brand
+                claim with the world's-largest assertion + dynamic
+                report count (refreshes hourly via ISR). */}
+            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-display font-bold text-white leading-[1.05] tracking-tight">
+              {heroContent.headline}
             </h1>
-            <p className="mt-4 sm:mt-5 text-lg sm:text-xl md:text-2xl font-display font-semibold text-primary-400 leading-tight">
-              {heroContent.punchline}
-            </p>
             <p className="mt-6 text-base md:text-lg text-gray-300 max-w-2xl mx-auto leading-relaxed">
-              {heroContent.subheadline}
+              {heroContent.subheadlineTemplate(stats.reports.toLocaleString())}
             </p>
 
             {/* Search bar */}
@@ -336,26 +339,26 @@ export default function Home() {
                 <button
                   type="submit"
                   onClick={function() { heroTest.trackClick('search') }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 px-5 py-2.5 bg-primary-500 hover:bg-primary-400 text-white text-sm font-semibold rounded-xl transition-colors"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2.5 bg-primary-500 hover:bg-primary-400 text-white text-sm font-semibold rounded-xl transition-colors"
                 >
-                  Search
+                  See what&rsquo;s there
                 </button>
               </div>
             </form>
 
-            {/* V11.17.3 — CTA rewrite per Round 3 panel (Riku/Sora).
-                The hero no longer asks for signup — that ask was a
-                commitment gate 5 seconds after landing. Instead the
-                primary CTA invites exploration ("See what others have
-                shared") and links to /discover. The first signup ask
-                drops to after FeedShowcase, where the visitor has
-                already seen value. */}
+            {/* V11.17.4 — Tighter CTA. Primary uses parallel
+                construction with the hero's "see/seen" thread.
+                Secondary stays low-friction. The trust line
+                Round 3 had below CTAs is gone — the new subhead
+                already lists the breadth (sightings, feelings,
+                dreams, coincidences) so the trust line was doing
+                duplicate work. */}
             <div className="mt-8 flex flex-col items-center justify-center gap-2">
               <Link
                 href="/discover"
                 className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary-500 hover:bg-primary-400 text-white text-sm font-semibold transition-colors"
               >
-                See what others have shared
+                See what others have seen
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <Link
@@ -366,26 +369,19 @@ export default function Home() {
               </Link>
             </div>
 
-            {/* V11.17.3 — trust line moved BELOW CTAs (Maya's mobile
-                fold concern) and rewritten as a demonstration of
-                breadth, mixing the dramatic and the subtle. */}
-            <p className="mt-6 text-sm text-gray-400 max-w-2xl mx-auto leading-relaxed">
-              {heroContent.trustLine}
-            </p>
-
           </div>
         </div>
       </section>
 
+      {/* V11.17.4 — Live activity ticker moved above QuickNav per
+          Riku/Elena (Round 4). First scroll-into-view should land
+          on real activity, not a sub-nav. Eyebrow carries the
+          "you're not the only one" Round 3 line as a recurring
+          tagline. */}
+      <LiveActivityTicker />
+
       {/* === SECTION 2: Quick Nav Strip === */}
       <QuickNavStrip />
-
-      {/* V11.17.3 — Live activity ticker (Elena's recommendation).
-          Shows the 3-5 most-recent approved reports — proof of life
-          that this is an active community, not a static archive.
-          Renders nothing if the fetch errors or returns 0 (no
-          empty-state UI on the marketing page). */}
-      <LiveActivityTicker />
 
       {/* V11.17 — Lin's reorder. Concrete-before-abstract: visitor
           sees three real surfaces (Feed, Map, Lab) before any pattern-
@@ -408,8 +404,8 @@ export default function Home() {
           highest-intent moment: visitor has just seen all three
           surfaces in motion. */}
       <InlineSignupCTA
-        headline="Save reports + see the patterns that match yours."
-        subhead="Create a free account to bookmark cases, follow regions and phenomena, and add your own experience to the Index."
+        headline="You're not the only one — see who else has seen what you saw."
+        subhead="Create a free account to bookmark cases, follow regions and phenomena, and add your own experience to the archive."
         variant="primary"
         trackAs="homepage_inline_cta_after_showcases"
       />
@@ -427,4 +423,43 @@ export default function Home() {
       />
     </>
   )
+}
+
+// V11.17.4 — Hourly-refreshing stats via Next ISR.
+//
+// `getStaticProps` runs at build time AND every 3600s thereafter
+// (on first request after the revalidate window expires). That gives
+// us numbers that auto-update as the corpus grows, without a runtime
+// DB hit on every visitor page-load.
+//
+// Fallback: if Supabase is unreachable at revalidate time, the
+// previous static page keeps serving. Hard-coded fallback values
+// inside Home() handle the edge case where stats is absent.
+export var getStaticProps: GetStaticProps<HomeProps> = async function () {
+  var fallback: HomePageStats = { reports: 98000, sources: 47, phenomena: 1463 }
+  var url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  var key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) {
+    return { props: { stats: fallback }, revalidate: 3600 }
+  }
+  try {
+    var sb = createSupabaseAdmin(url, key, { auth: { persistSession: false } })
+    var [reportsRes, phenomenaRes] = await Promise.all([
+      sb.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'approved'),
+      sb.from('phenomena').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+    ])
+    var stats: HomePageStats = {
+      reports: reportsRes.count || fallback.reports,
+      // `sources` is a content-curated number (count of distinct
+      // archives surfaced to the user — NUFORC, MUFON, BFRO, Arctic
+      // Shift subreddits aggregated as one, historical archives, etc.).
+      // Not a single DB query. Bump this when we add a new source.
+      sources: 47,
+      phenomena: phenomenaRes.count || fallback.phenomena,
+    }
+    return { props: { stats: stats }, revalidate: 3600 }
+  } catch (e) {
+    console.warn('[homepage getStaticProps] stats fetch failed; using fallback:', (e as any)?.message || e)
+    return { props: { stats: fallback }, revalidate: 3600 }
+  }
 }

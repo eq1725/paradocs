@@ -138,7 +138,7 @@ export default function LiveActivityTicker() {
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
           </span>
           <span className="text-[11px] uppercase tracking-[0.14em] text-gray-400 font-medium">
-            Right now on Paradocs
+            Right now on Paradocs — you&rsquo;re not the only one.
           </span>
         </div>
 

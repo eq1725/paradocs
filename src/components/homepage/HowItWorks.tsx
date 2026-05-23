@@ -97,7 +97,7 @@ export default function HowItWorks() {
             How Paradocs works
           </h2>
           <p className="mt-3 text-gray-400 text-sm md:text-base max-w-xl mx-auto">
-            From a moment you couldn’t quite explain to a community of people who’ve had something like it.
+            How the world’s largest archive of the unexplained works.
           </p>
         </div>
 
