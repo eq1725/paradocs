@@ -1100,7 +1100,16 @@ function ExploreBrowseMode() {
 
   // Handler for tapping a category tile
   function handleCategoryTap(catKey: string) {
+    // V11.17.10 — Prime the loading state synchronously so the
+    // phenomena section's first render after this tap is the
+    // skeleton — never the "No tagged reports yet" empty state
+    // (which would otherwise briefly flash if the phenomena array
+    // is still empty from a fresh mount). loadPhenomena also sets
+    // loading=true, but doing it here guarantees the order regardless
+    // of how React batches the async function call.
     setSelectedCategoryForPhenomena(catKey)
+    setPhenomena([])
+    setPhenomenaLoading(true)
     loadPhenomena(catKey)
   }
 
