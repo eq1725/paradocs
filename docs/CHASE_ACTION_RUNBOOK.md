@@ -255,16 +255,36 @@ Alternative: if you'd rather route this to a human designer or another tool, no 
 
 ## Status snapshot (after this runbook)
 
+**Updated end of V11.17.12 session (May 23, 2026).** Items completed since the runbook was first written are flagged. See `docs/SESSION_HANDOFF_V11_17.md` for the full current punchlist + the engineering-resume trigger.
+
 | Action | Status | Notes |
 |---|---|---|
 | C0.1 Google Play signup | ✅ Done (Chase) | Awaiting Google verification |
-| E0.3 Apple SBP | ⏭️ | Item 1 above |
-| E1.1 RevenueCat | ⏭️ | Item 2 above |
-| E0.2 Stripe products | ⏭️ | Item 3 above |
+| E0.3 Apple SBP | ⏭️ | Item 1 above — not yet enrolled |
+| E1.1 RevenueCat | ⏭️ | Item 2 above — not yet signed up |
+| E0.2 Stripe products | ⏭️ | Item 3 above — products not yet created |
 | C0.2 App Store Connect API key | ⏭️ | Item 4 above |
-| Apply migrations | ⏭️ | Item 5 above |
+| Apply migrations (`tier_design_v2` + `user_notifications`) | ❓ verify | Item 5 above — applied during earlier session work; new session should confirm |
 | T1.12 Private Relay QA | ⏭️ | Item 6 above (post-deploy) |
 | Pre-ship verification | ⏭️ | Item 7 above |
 | T1.13 test backend | ⏭️ | Item 8 above (post-launch OK) |
-| C3.3 App icons | ⏭️ | Item 9 above — needs your input first |
-| B0.8 Legal counsel | ⏭️ | See `docs/LEGAL_GUIDANCE_INITIAL.md` for the initial framework + what to ask actual counsel |
+| C3.3 App icons | ⏭️ | Item 9 above — needs Chase's input first |
+| B0.8 Legal counsel | ⏭️ | See `docs/LEGAL_GUIDANCE_INITIAL.md` |
+
+**Completed since this runbook was first written (V11.x stream):**
+- V11.14 — Consolidated AI service + Anthropic Batch API worker shipped; mass Reddit ingestion completed (~70k reports linked, 196k junction rows)
+- V11.15 — Map UX overhaul: choropleth, region totals, mobile filter sheet, progressive pin loading, search pagination
+- V11.16 — Phenomenon image pipeline (Wikimedia + Haiku confirm + Supabase Storage adoption); 506 mismatched + 957 missing tracked separately
+- V11.17 — Homepage rewrite through 4 SME rounds → "The home of the unexplained."; map demo video; live activity ticker; dynamic stats via ISR
+- V11.17.5-12 — Map/UX bug bundle + `phenomena.display_blurb` (Haiku batch + 1,458 phenomena populated) + breakpoint-swap card layout
+
+**Pending (Chase's "next go" sequence — see SESSION_HANDOFF_V11_17.md §3.3):**
+1. Vercel canonical host + Supabase URL config
+2. Non-incognito smoke at https://www.discoverparadocs.com
+3. B0.1.exec — `npx tsx scripts/b1-5-smoke-test.ts`
+4. Title backfill — `npx tsx scripts/backfill-report-titles.ts --dry-run` then live
+5. B0.8 — Outside counsel engagement
+6. E0.2 / E1.1 / E0.3 — Stripe, RevenueCat, Apple SBP
+7. Mass ingestion: NDERF → OBERF → NUFORC → (after counsel) YouTube
+
+**Engineering-resume trigger:** B0.1.exec green + RevenueCat ready → C1.3 + C2.x + Track D + E2.4 follow-ups + auth hardening (OTP fallback).
