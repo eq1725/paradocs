@@ -1156,5 +1156,32 @@ export function isObviouslyLowQuality(title: string, description: string): boole
     if (pattern.test(title)) return true;
   }
 
+  // V11.15.4 — Solicitations / news synthesis / meta-commentary / debate
+  // posts. Sample reports that motivated this set: "Radio Host Seeks
+  // Bigfoot Witness Interview", "1947 ABC News radio report documents...",
+  // "A user reframes the UAP debate", "calls out UFO disclosure
+  // advocates", "connects David Grusch's testimony... into a single
+  // cascading premise". None of these are first-person witness accounts.
+  const titleAndBody = (title + '\n' + description).slice(0, 2000)
+  const metaPatterns: RegExp[] = [
+    // Solicitation
+    /\b(seeks?|seeking|soliciting|recruiting|looking for|need)\s+(first[-\s]?hand\s+)?(witness(es)?|accounts?|stories|encounters|testimon(y|ies))\b/i,
+    /\bfor\s+(my|our)\s+(podcast|radio\s+show|interview\s+series|documentary|youtube\s+channel)\b/i,
+    /\binterview\s+series\b/i,
+    // Historical news synthesis
+    /\b(ABC|CBS|NBC|CNN|BBC|FOX|NPR|AP|Reuters)\s+(News|news|radio|report|tv|article)\b/,
+    /\bdocumented\s+by\s+(ABC|CBS|NBC|CNN|BBC|FOX|NPR)\b/i,
+    // Meta-commentary about disclosure / the debate
+    /\b(the|UAP|UFO)\s+disclosure\s+(debate|movement|community|advocates?)\b/i,
+    /\b(reframes?|reframing)\s+(the\s+)?(UAP|UFO|disclosure|debate|argument)\b/i,
+    /\bcalls?\s+out\s+(\w+\s+)?(advocates?|insiders?|whistleblowers?|figures?)\b/i,
+    /\binvert(ing|s|ed)?\s+the\s+burden\s+of\s+proof\b/i,
+    // Synthesis posts
+    /\bconnects?\s+\w+(\s+\w+)?(['']s)?\s+(congressional\s+)?(testimony|claims?|allegations?)\b.{0,80}\b(into|with)\s+(a\s+)?(single|cascading|broader)\b/i,
+  ];
+  for (const pattern of metaPatterns) {
+    if (pattern.test(titleAndBody)) return true;
+  }
+
   return false;
 }

@@ -47,6 +47,7 @@ import {
   buildConsolidatedUserPrompt,
   persistConsolidatedResult,
 } from '../src/lib/services/consolidated-ai.service'
+import { findMetaInAiOutput } from '../src/lib/ingestion/filters/meta-commentary-detector'
 
 // ─────────────────────────────────────────────────────────────────────
 // CONFIG
@@ -522,14 +523,29 @@ async function main() {
         var titleInsufficient = !!(parsed.title && String(parsed.title).trim().toUpperCase() === 'INSUFFICIENT')
         var aiInsufficient = titleInsufficient || (!hasNarrative && !hasPullQuote)
 
-        if (aiInsufficient) {
+        // V11.15.4 — Catch AI self-flagged meta-commentary. If the AI's
+        // own summary / analysis / pull_quote says the source isn't a
+        // witnessed event, reject — these are forum opinions, news
+        // synthesis, or solicitations, not experience reports.
+        var metaHit = findMetaInAiOutput({
+          summary: parsed.summary,
+          analysis: parsed.analysis,
+          pull_quote: parsed.pull_quote,
+          feed_hook: parsed.feed_hook,
+        })
+
+        if (aiInsufficient || metaHit) {
           // Path A — auto-reject
           try {
             var rejectRes = await (supabase.from('reports') as any)
               .update({ status: 'rejected', updated_at: new Date().toISOString() })
               .eq('id', reportId)
             if (!rejectRes.error) {
-              console.log('  ↓ ' + reportId + ' auto-rejected (AI INSUFFICIENT)')
+              if (metaHit) {
+                console.log('  ↓ ' + reportId + ' auto-rejected (meta: "' + metaHit.phrase + '" in ' + metaHit.field + ')')
+              } else {
+                console.log('  ↓ ' + reportId + ' auto-rejected (AI INSUFFICIENT)')
+              }
             }
           } catch (rejectErr: any) {
             console.warn('  ! ' + reportId + ' auto-reject failed (left at pending_review): ' + (rejectErr?.message || rejectErr))

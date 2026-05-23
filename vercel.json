@@ -54,10 +54,7 @@
     {
       "path": "/api/cron/transcribe-videos",
       "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/cron/ingest",
-      "schedule": "0 7 * * *"
     }
   ]
 }
+
