@@ -135,9 +135,15 @@ export async function getPhenomenonBySlug(slug: string): Promise<Phenomenon | nu
 }
 
 /**
- * Get related reports for a phenomenon
+ * Get related reports for a phenomenon. Supports pagination via offset
+ * for the Load More pattern on /phenomena/[slug] (V11.15.2: phenomena
+ * can have 1000+ tagged reports post-classifier; one page isn't enough).
  */
-export async function getPhenomenonReports(phenomenonId: string, limit = 20) {
+export async function getPhenomenonReports(
+  phenomenonId: string,
+  limit = 20,
+  offset = 0,
+) {
   const { data, error } = await getSupabaseAdmin()
     .from('report_phenomena')
     .select(`
@@ -150,7 +156,7 @@ export async function getPhenomenonReports(phenomenonId: string, limit = 20) {
     .eq('phenomenon_id', phenomenonId)
     .eq('report.status', 'approved')
     .order('confidence', { ascending: false })
-    .limit(limit);
+    .range(offset, offset + limit - 1);
 
   if (error) {
     console.error('[Phenomena] Error fetching reports:', error);

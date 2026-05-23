@@ -78,8 +78,13 @@ export default async function handler(
         });
       }
 
-      // Get related reports
-      var reports = await getPhenomenonReports(phenomenon.id, 20);
+      // Get related reports — paginated for phenomena with many tagged
+      // reports (post-classifier some have 1000+). Default 20 per page.
+      var limitParam = parseInt(String(req.query.limit || ''), 10)
+      var offsetParam = parseInt(String(req.query.offset || ''), 10)
+      var pageLimit = Number.isFinite(limitParam) && limitParam > 0 && limitParam <= 100 ? limitParam : 20
+      var pageOffset = Number.isFinite(offsetParam) && offsetParam >= 0 ? offsetParam : 0
+      var reports = await getPhenomenonReports(phenomenon.id, pageLimit, pageOffset);
 
       // Get approved media from phenomena_media table
       var { data: mediaItems } = await supabaseAdmin

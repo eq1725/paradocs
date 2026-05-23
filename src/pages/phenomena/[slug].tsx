@@ -52,6 +52,7 @@ interface Phenomenon {
   aliases?: string[]
   primary_image_url?: string | null
   report_count?: number
+  ai_summary?: string | null
 }
 
 interface RelatedReport {
@@ -75,6 +76,9 @@ export default function PhenomenonPage() {
   const [reports, setReports] = useState<RelatedReport[]>([])
   const [loading, setLoading] = useState(true)
   const [isTagFallback, setIsTagFallback] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
+  const PAGE_SIZE = 20
 
   useEffect(() => {
     if (slug && typeof slug === 'string') {
@@ -84,7 +88,7 @@ export default function PhenomenonPage() {
 
   async function loadPhenomenon(phenomenonSlug: string) {
     try {
-      const res = await fetch(`/api/phenomena/${phenomenonSlug}`)
+      const res = await fetch(`/api/phenomena/${phenomenonSlug}?limit=${PAGE_SIZE}&offset=0`)
       if (!res.ok) {
         // No encyclopedia entry AND no tagged-report fallback either —
         // route to the category browse surface rather than the
@@ -94,8 +98,13 @@ export default function PhenomenonPage() {
       }
       const data = await res.json()
       setPhenomenon(data.phenomenon)
-      setReports(data.reports || [])
+      const firstPage = data.reports || []
+      setReports(firstPage)
       setIsTagFallback(!!data.is_tag_fallback)
+      // hasMore = the first page came back full AND the total count is
+      // higher than what we showed. Either signal alone could be wrong.
+      const total = data.phenomenon?.report_count
+      setHasMore(firstPage.length >= PAGE_SIZE && (typeof total !== 'number' || total > firstPage.length))
 
       // Track view for constellation map — non-blocking, signed-in only.
       if (data.phenomenon?.id) {
@@ -120,6 +129,32 @@ export default function PhenomenonPage() {
       console.error('Error loading phenomenon:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function loadMore() {
+    if (!phenomenon || loadingMore || !hasMore) return
+    setLoadingMore(true)
+    try {
+      const res = await fetch(`/api/phenomena/${phenomenon.slug}?limit=${PAGE_SIZE}&offset=${reports.length}`)
+      if (!res.ok) {
+        setHasMore(false)
+        return
+      }
+      const data = await res.json()
+      const next = (data.reports || []) as RelatedReport[]
+      if (next.length === 0) {
+        setHasMore(false)
+        return
+      }
+      setReports(prev => prev.concat(next))
+      const total = phenomenon.report_count
+      const newLen = reports.length + next.length
+      setHasMore(next.length >= PAGE_SIZE && (typeof total !== 'number' || total > newLen))
+    } catch (e) {
+      console.error('Error loading more reports:', e)
+    } finally {
+      setLoadingMore(false)
     }
   }
 
@@ -290,12 +325,45 @@ export default function PhenomenonPage() {
           <YourSignalForPhenomenon slug={phenomenon.slug} />
         </div>
 
+        {/* Description (ai_summary). Rendered when present so the page
+            has context above the report list. Kept short — a single
+            paragraph, no headings — so it doesn't dominate above-the-fold. */}
+        {phenomenon.ai_summary && (
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+            <p className="text-[15px] leading-relaxed text-gray-300 max-w-3xl">
+              {phenomenon.ai_summary}
+            </p>
+          </div>
+        )}
+
         {/* Reports grid (or empty state) */}
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
           {reports.length === 0 ? (
             <EmptyState phenomenonName={phenomenon.name} />
           ) : (
-            <ReportGrid reports={reports} />
+            <>
+              <div className="flex items-end justify-between mb-4">
+                <h2 className="text-xs uppercase tracking-[0.14em] text-gray-500">Reports</h2>
+                {typeof phenomenon.report_count === 'number' && phenomenon.report_count > 0 && (
+                  <span className="text-[11px] text-gray-500 tabular-nums">
+                    Showing {reports.length.toLocaleString()} of {phenomenon.report_count.toLocaleString()}
+                  </span>
+                )}
+              </div>
+              <ReportGrid reports={reports} />
+              {hasMore && (
+                <div className="flex justify-center mt-8">
+                  <button
+                    type="button"
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium text-gray-200 bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loadingMore ? 'Loading…' : 'Load more reports'}
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

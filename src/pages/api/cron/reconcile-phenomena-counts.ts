@@ -47,7 +47,7 @@ export var config = {
 var SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 var SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 var CRON_SECRET = process.env.CRON_SECRET || ''
-var ADMIN_KEY = process.env.ADMIN_KEY || ''
+var ADMIN_KEY = process.env.ADMIN_API_KEY || ''
 
 function isAuthorized(req: NextApiRequest): boolean {
   var bearer = req.headers.authorization
