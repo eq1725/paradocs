@@ -338,7 +338,15 @@ async function classifyCategory(
     }
   })
 
-  const CHUNK_SIZE = 50000
+  // V11.15.4 fix — the system prompt with the phenomena catalog is
+  // ~11k tokens (~44KB serialized). Each batch request carries its own
+  // copy of that prompt in the JSON payload, even with cache_control
+  // (cache_control affects what Anthropic charges and what they
+  // process, NOT what the client sends over the wire). So a single
+  // submission of 50k requests would JSON.stringify to ~2.2 GB, well
+  // past Node's ~512MB practical string limit and the HTTP body cap.
+  // Cap chunks at 4000 → ~175MB payload, fits comfortably under both.
+  const CHUNK_SIZE = 4000
   const chunks: any[][] = []
   for (let i = 0; i < batchReqs.length; i += CHUNK_SIZE) {
     chunks.push(batchReqs.slice(i, i + CHUNK_SIZE))
