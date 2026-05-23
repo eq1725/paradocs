@@ -3,6 +3,7 @@
 import { classNames } from '@/lib/utils'
 import { X } from 'lucide-react'
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 
 interface MobileBottomSheetProps {
   isOpen: boolean
@@ -136,16 +137,27 @@ export function MobileBottomSheet({
     setCurrentHeight(closest)
   }, [isDragging, currentHeight, isDismissible, handleDismiss])
 
+  // Render via portal to document.body so position:fixed is always
+  // viewport-relative — bypasses any ancestor that establishes a
+  // containing block (transform, filter, backdrop-filter, contain).
+  // V11.15.3 fix: PhenomenonFilterBar uses backdrop-blur-md which was
+  // pinning the sheet to the filter bar's bounding box on mobile.
+  var [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null)
+  useEffect(function () {
+    if (typeof document !== 'undefined') setPortalTarget(document.body)
+  }, [])
+
   if (!isOpen && currentHeight === 0) return null
+  if (!portalTarget) return null
 
   var heightStyle = currentHeight + 'vh'
 
-  return (
+  var sheetMarkup = (
     <>
       {/* Backdrop */}
       <div
         className={classNames(
-          'fixed inset-0 z-40 transition-opacity duration-300 md:hidden',
+          'fixed inset-0 z-[100] transition-opacity duration-300',
           isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
         )}
         onClick={isDismissible ? handleDismiss : undefined}
@@ -156,7 +168,7 @@ export function MobileBottomSheet({
       <div
         ref={sheetRef}
         className={classNames(
-          'fixed bottom-0 left-0 right-0 z-50 md:hidden',
+          'fixed bottom-0 left-0 right-0 z-[101]',
           'bg-gray-900 rounded-t-2xl border-t border-gray-800',
           'flex flex-col',
           isAnimating && !isDragging ? 'transition-all duration-300 ease-out' : '',
@@ -208,6 +220,8 @@ export function MobileBottomSheet({
       </div>
     </>
   )
+
+  return createPortal(sheetMarkup, portalTarget)
 }
 
 export default MobileBottomSheet
