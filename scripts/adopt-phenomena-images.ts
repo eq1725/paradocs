@@ -50,6 +50,7 @@ if (!ANTHROPIC_API_KEY) {
 const HAIKU_MODEL = 'claude-haiku-4-5-20251001'
 const ANTHROPIC_MESSAGES_URL = 'https://api.anthropic.com/v1/messages'
 const WIKIMEDIA_API = 'https://commons.wikimedia.org/w/api.php'
+const WIKIPEDIA_API = 'https://en.wikipedia.org/w/api.php'
 const STORAGE_BUCKET = 'phenomena-images'
 const REVIEW_THRESHOLD = 60  // <60 Haiku confidence triggers rejection / replacement
 
@@ -94,14 +95,83 @@ interface Phenomenon {
 }
 
 interface Candidate {
-  title: string         // Wikimedia "File:" page title
-  url: string           // Direct image URL (Wikimedia)
-  description: string   // From imageinfo metadata
+  title: string         // Page or file title
+  url: string           // Direct image URL
+  description: string   // From imageinfo / Wikipedia intro
   license: string       // CC0 / CC BY / CC BY-SA / public domain / unknown
   attribution: string   // Author + license HTML string
+  source: 'wikipedia' | 'wikimedia_commons'
 }
 
-// ─── Wikimedia search ─────────────────────────────────────────────────
+// ─── Wikipedia article pageimage (primary source) ─────────────────────
+//
+// Most well-documented phenomena have a Wikipedia article with an
+// editorially-chosen lead image. That image is much higher signal than
+// the noise we'd get from a Commons keyword search — it's already been
+// vetted by Wikipedia editors as "the image of this subject."
+//
+// We try the exact phenomenon name first, then aliases one at a time.
+
+async function fetchWikipediaPageImage(title: string): Promise<Candidate | null> {
+  const params = new URLSearchParams({
+    action: 'query',
+    titles: title,
+    prop: 'pageimages|info|extracts',
+    pithumbsize: '1200',
+    exintro: '1',
+    explaintext: '1',
+    inprop: 'url',
+    format: 'json',
+    origin: '*',
+    redirects: '1',
+  })
+  let resp
+  try {
+    resp = await fetch(WIKIPEDIA_API + '?' + params.toString(), {
+      headers: { 'User-Agent': 'Paradocs-ImageAdopt/1.0 (https://www.discoverparadocs.com)' },
+    })
+  } catch (e: any) { return null }
+  if (!resp.ok) return null
+  const data = await resp.json()
+  const pages = data?.query?.pages || {}
+  for (const pageId of Object.keys(pages)) {
+    const page = pages[pageId]
+    // Negative pageId means article doesn't exist
+    if (page.missing !== undefined || !page.thumbnail) continue
+    const thumbUrl: string = page.thumbnail.source
+    if (!thumbUrl) continue
+    // We want the full-res image, not the 1200px thumb. Strip the
+    // /thumb/ + /<size>px suffix to get the original.
+    const fullUrl = thumbUrl
+      .replace('/thumb/', '/')
+      .replace(/\/\d+px-[^/]+$/, '')
+    const intro = (page.extract || '').substring(0, 300)
+    const wpArticleUrl = page.fullurl || ('https://en.wikipedia.org/wiki/' + encodeURIComponent(page.title.replace(/ /g, '_')))
+    return {
+      title: 'Wikipedia: ' + page.title,
+      url: fullUrl,
+      description: intro || page.title,
+      license: 'See Wikimedia source',
+      attribution: 'Image from <a href="' + wpArticleUrl + '" rel="noopener" target="_blank">Wikipedia — ' + page.title + '</a>',
+      source: 'wikipedia',
+    }
+  }
+  return null
+}
+
+async function searchWikipediaForPhenomenon(p: Phenomenon): Promise<Candidate | null> {
+  // Try the exact name first.
+  const exactHit = await fetchWikipediaPageImage(p.name)
+  if (exactHit) return exactHit
+  // Then aliases (up to 3 to bound API calls).
+  for (const alias of (p.aliases || []).slice(0, 3)) {
+    const hit = await fetchWikipediaPageImage(alias)
+    if (hit) return hit
+  }
+  return null
+}
+
+// ─── Wikimedia Commons search (fallback) ──────────────────────────────
 
 async function searchWikimedia(query: string, limit = 5): Promise<Candidate[]> {
   const params = new URLSearchParams({
@@ -163,6 +233,7 @@ async function searchWikimedia(query: string, limit = 5): Promise<Candidate[]> {
       description: stripHtml(description).substring(0, 300),
       license: stripHtml(license),
       attribution: stripHtml(author) + ' (' + stripHtml(license) + ')',
+      source: 'wikimedia_commons',
     })
   }
   return candidates
@@ -353,9 +424,23 @@ interface ProcessResult {
 }
 
 async function processPhenomenon(sb: any, p: Phenomenon): Promise<ProcessResult> {
-  // Search Wikimedia for name + first 2 aliases.
-  const searchQuery = [p.name, ...((p.aliases || []).slice(0, 2))].join(' OR ')
-  const candidates = await searchWikimedia(searchQuery, 5)
+  // Source priority:
+  //   1. Wikipedia article pageimage — editorially curated, usually
+  //      the iconic image of the phenomenon. Highest signal.
+  //   2. Wikimedia Commons keyword search on the exact name — fuzzy,
+  //      requires Haiku gating to avoid false positives like the
+  //      rove-beetle-for-cryptid bug in the legacy pipeline.
+  //
+  // Aliases are tried in source #1 (Wikipedia) but NOT OR'd into the
+  // Commons search (would pull in unrelated noise — the old behavior
+  // that caused 5-candidate-result-rejected for Fresno Nightcrawler).
+  const candidates: Candidate[] = []
+  const wpHit = await searchWikipediaForPhenomenon(p)
+  if (wpHit) candidates.push(wpHit)
+  if (candidates.length === 0) {
+    const commonsHits = await searchWikimedia(p.name, 5)
+    candidates.push(...commonsHits)
+  }
   if (candidates.length === 0) {
     return { status: 'no_candidates' }
   }
@@ -376,12 +461,15 @@ async function processPhenomenon(sb: any, p: Phenomenon): Promise<ProcessResult>
   const heroUrl = await encodeAndUpload(sb, p.slug, buffer)
   if (!heroUrl) return { status: 'upload_failed', picked, haiku }
 
-  // Write metadata back to phenomena row
+  // Write metadata back to phenomena row.
+  // The `image_attribution` field is already an HTML-safe string from
+  // the source-specific extraction (Wikipedia returns a link tag,
+  // Commons returns author + license text).
   const updateRes = await sb.from('phenomena').update({
     primary_image_url: heroUrl,
-    image_source: 'wikimedia',
+    image_source: picked.source,
     image_license: classifyLicense(picked.license),
-    image_attribution: 'Wikimedia Commons — ' + picked.attribution,
+    image_attribution: picked.attribution,
     image_alt_text: haiku.altText || (p.name + ' — image'),
     image_adopted_at: new Date().toISOString(),
     image_review_score: haiku.confidence,
