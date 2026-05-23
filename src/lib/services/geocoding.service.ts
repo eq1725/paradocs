@@ -3,11 +3,17 @@
 // Fallback: Nominatim / OpenStreetMap (free, no key required)
 // Falls back gracefully: city → state/province → country
 
+// V11.17.6 — accuracy field exposes the geocoder's place_type so the
+// caller can set location_precision honestly. Without this, callers
+// were stamping precision='exact' on a state-centroid result. Values
+// map to MapTiler/Nominatim place_type categories.
+export type GeocodeAccuracy = 'address' | 'street' | 'locality' | 'region' | 'country';
 interface GeocodingResult {
   latitude: number;
   longitude: number;
   displayName: string;
   confidence: number; // 0-1 based on result relevance
+  accuracy: GeocodeAccuracy;
 }
 
 interface MapTilerFeature {
@@ -51,11 +57,17 @@ async function geocodeWithNominatim(location: string): Promise<GeocodingResult |
       return null;
     }
 
+    // V11.17.6 — typed loose enough to read class/type/address for
+    // accuracy mapping (Nominatim returns these alongside lat/lon).
     var data = await response.json() as Array<{
       lat: string;
       lon: string;
       display_name: string;
       importance: number;
+      class?: string;
+      type?: string;
+      admin_level?: number | string;
+      address?: { admin_level?: number | string; country?: string };
     }>;
 
     if (!data || data.length === 0) {
@@ -70,11 +82,32 @@ async function geocodeWithNominatim(location: string): Promise<GeocodingResult |
       return null;
     }
 
+    // V11.17.6 — Nominatim returns class/type fields; map to accuracy.
+    // type=city|town|village|hamlet|suburb → locality
+    // type=administrative + class=boundary → region or country
+    var nomClass: string = result.class || ''
+    var nomType: string = result.type || ''
+    var accuracy: GeocodeAccuracy = 'locality'
+    if (nomClass === 'place' && (nomType === 'city' || nomType === 'town' || nomType === 'village' || nomType === 'hamlet' || nomType === 'suburb' || nomType === 'neighbourhood')) {
+      accuracy = 'locality'
+    } else if (nomClass === 'highway') {
+      accuracy = 'street'
+    } else if (nomClass === 'boundary' && nomType === 'administrative') {
+      // admin_level distinguishes country vs region; 2=country, 4=state/province
+      const lvl = Number(result.address?.admin_level || result.admin_level || 0)
+      accuracy = lvl <= 2 ? 'country' : 'region'
+    } else if (nomType === 'country' || result.address?.country === result.display_name) {
+      accuracy = 'country'
+    } else if (nomType === 'state' || nomType === 'province' || nomType === 'region') {
+      accuracy = 'region'
+    }
+
     return {
       latitude: lat,
       longitude: lng,
       displayName: result.display_name || location,
-      confidence: Math.min(result.importance || 0.5, 1.0)
+      confidence: Math.min(result.importance || 0.5, 1.0),
+      accuracy: accuracy,
     };
   } catch (error) {
     console.error('[Geocoding] Nominatim error for ' + location + ':', error);
@@ -116,11 +149,24 @@ async function geocodeWithMapTiler(location: string, apiKey: string): Promise<Ge
       return null;
     }
 
+    // V11.17.6 — map MapTiler's place_type to our GeocodeAccuracy.
+    // 'address' / 'street' / 'locality' (city-accurate)
+    // 'region' (state/province centroid)
+    // 'country' (country centroid)
+    var pt: string[] = feature.place_type || [];
+    var accuracy: GeocodeAccuracy = 'locality';
+    if (pt.includes('address') || pt.includes('poi')) accuracy = 'address';
+    else if (pt.includes('street')) accuracy = 'street';
+    else if (pt.includes('municipality') || pt.includes('locality') || pt.includes('city')) accuracy = 'locality';
+    else if (pt.includes('region')) accuracy = 'region';
+    else if (pt.includes('country')) accuracy = 'country';
+
     return {
       latitude: lat,
       longitude: lng,
       displayName: feature.place_name || location,
-      confidence: feature.relevance || 0.5
+      confidence: feature.relevance || 0.5,
+      accuracy: accuracy,
     };
   } catch (error) {
     console.error('[Geocoding] MapTiler error for ' + location + ':', error);

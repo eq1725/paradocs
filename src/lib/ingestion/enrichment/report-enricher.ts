@@ -326,7 +326,7 @@ export function validateDatePrecision(
  * Works globally — not limited to any country.
  * Returns coordinates or null. Never fabricates coordinates.
  */
-export async function geocodeReport(report: ScrapedReport): Promise<{ latitude: number; longitude: number; source: string } | null> {
+export async function geocodeReport(report: ScrapedReport): Promise<{ latitude: number; longitude: number; source: string; accuracy?: 'address' | 'street' | 'locality' | 'region' | 'country' } | null> {
   // Skip if already has coordinates
   if (report.latitude != null && report.longitude != null &&
       report.latitude !== 0 && report.longitude !== 0) {
@@ -365,7 +365,8 @@ export async function geocodeReport(report: ScrapedReport): Promise<{ latitude: 
       return {
         latitude: result.latitude,
         longitude: result.longitude,
-        source: locationQuery
+        source: locationQuery,
+        accuracy: (result as any).accuracy as ('address' | 'street' | 'locality' | 'region' | 'country' | undefined),
       };
     }
     return null;
@@ -485,6 +486,7 @@ export async function enrichReport(report: ScrapedReport, options?: { skipGeocod
 
   // --- 4. GEOCODING ---
   // Only if we have location but no coordinates
+  var geoAccuracy: 'address' | 'street' | 'locality' | 'region' | 'country' | undefined;
   if (!options?.skipGeocode) {
     var geoResult = await geocodeReport(report);
     if (geoResult) {
@@ -493,21 +495,32 @@ export async function enrichReport(report: ScrapedReport, options?: { skipGeocod
       log.geocoded = true;
       log.geocodeSource = geoResult.source;
       log.fieldsEnriched.push('latitude', 'longitude');
-      console.log('[Enrichment] Geocoded: ' + geoResult.source + ' -> ' + geoResult.latitude.toFixed(4) + ', ' + geoResult.longitude.toFixed(4));
+      geoAccuracy = geoResult.accuracy;
+      console.log('[Enrichment] Geocoded: ' + geoResult.source + ' -> ' + geoResult.latitude.toFixed(4) + ', ' + geoResult.longitude.toFixed(4) + ' (' + (geoAccuracy || 'unknown') + ')');
     }
   }
 
   // --- 5. LOCATION PRECISION ---
-  // Infer precision from the fields we ended up with. Adapters that set
-  // this explicitly are preserved. Used by the map to render fuzzy pins
-  // (state-centroid / country-centroid) distinctly from city-accurate ones.
+  // V11.17.6 — Prefer the geocoder's reported accuracy when we just
+  // geocoded the report (it tells us whether MapTiler/Nominatim
+  // resolved to a city, state centroid, or country centroid). Only
+  // fall back to field-presence inference when the geocoder didn't
+  // run or didn't return an accuracy. DB CHECK constraint allows
+  // {exact|city|region|country}.
   if (!report.location_precision && (report.latitude != null || report.location_name)) {
-    if (report.city) report.location_precision = 'city';
-    // V11.17.5 — DB CHECK constraint allows {exact|city|region|country};
-    // 'state' is rejected at write time. Use 'region' (matches the
-    // TS type def in src/pages/start.tsx + src/pages/api/reports/video).
-    else if (report.state_province) report.location_precision = 'region';
-    else if (report.country) report.location_precision = 'country';
+    if (geoAccuracy === 'address' || geoAccuracy === 'street' || geoAccuracy === 'locality') {
+      report.location_precision = 'city';
+    } else if (geoAccuracy === 'region') {
+      report.location_precision = 'region';
+    } else if (geoAccuracy === 'country') {
+      report.location_precision = 'country';
+    } else if (report.city) {
+      report.location_precision = 'city';
+    } else if (report.state_province) {
+      report.location_precision = 'region';
+    } else if (report.country) {
+      report.location_precision = 'country';
+    }
   }
 
   return { report: report, enrichments: log };
