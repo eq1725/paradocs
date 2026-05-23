@@ -92,10 +92,13 @@ export interface ScrapedReport {
   // Location precision — how accurate the coordinates are, if we have any.
   //   exact   = adapter supplied a GPS-accurate pair (BFRO, NUFORC some cases)
   //   city    = geocoded from "City, State"
-  //   state   = geocoded from state centroid only (inherently fuzzy)
+  //   region  = geocoded from state/province centroid only (inherently fuzzy)
   //   country = geocoded from a bare country mention (very fuzzy)
   // Null when we have no coordinates at all.
-  location_precision?: 'exact' | 'city' | 'state' | 'country';
+  // V11.17.5 — 'region' replaces 'state' to match the DB CHECK constraint
+  // (reports_location_precision_check) and the TS type in start.tsx.
+  // 'state' is rejected at DB write time.
+  location_precision?: 'exact' | 'city' | 'region' | 'country';
   // Structured observation fields (populated from source metadata)
   witness_count?: number;
   event_time?: string;

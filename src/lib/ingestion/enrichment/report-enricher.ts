@@ -503,7 +503,10 @@ export async function enrichReport(report: ScrapedReport, options?: { skipGeocod
   // (state-centroid / country-centroid) distinctly from city-accurate ones.
   if (!report.location_precision && (report.latitude != null || report.location_name)) {
     if (report.city) report.location_precision = 'city';
-    else if (report.state_province) report.location_precision = 'state';
+    // V11.17.5 — DB CHECK constraint allows {exact|city|region|country};
+    // 'state' is rejected at write time. Use 'region' (matches the
+    // TS type def in src/pages/start.tsx + src/pages/api/reports/video).
+    else if (report.state_province) report.location_precision = 'region';
     else if (report.country) report.location_precision = 'country';
   }
 

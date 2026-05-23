@@ -522,9 +522,15 @@ export default function MapContainer({
         <Layer
           id="unclustered-point"
           type="circle"
+          // V11.17.5 — Fuzzy precision values: 'region' (per DB
+          // CHECK constraint + TS type def) plus 'country'. We
+          // also exclude legacy 'state' just in case any code
+          // path still emits that — it would have errored on DB
+          // write but if a row got through, treat it as fuzzy.
           filter={[
             'all',
             ['!', ['has', 'point_count']],
+            ['!=', ['get', 'location_precision'], 'region'],
             ['!=', ['get', 'location_precision'], 'state'],
             ['!=', ['get', 'location_precision'], 'country'],
           ] as any}
@@ -564,6 +570,7 @@ export default function MapContainer({
             'all',
             ['!', ['has', 'point_count']],
             ['any',
+              ['==', ['get', 'location_precision'], 'region'],
               ['==', ['get', 'location_precision'], 'state'],
               ['==', ['get', 'location_precision'], 'country'],
             ],
@@ -586,6 +593,7 @@ export default function MapContainer({
             'all',
             ['!', ['has', 'point_count']],
             ['any',
+              ['==', ['get', 'location_precision'], 'region'],
               ['==', ['get', 'location_precision'], 'state'],
               ['==', ['get', 'location_precision'], 'country'],
             ],
