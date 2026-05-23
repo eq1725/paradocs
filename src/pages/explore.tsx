@@ -1157,7 +1157,7 @@ function ExploreBrowseMode() {
           </div>
 
           {/* ─── 2. BROWSE BY CATEGORY — redesigned with Lucide icons + live counts ─── */}
-          <div className="mb-8">
+          <div id="browse-categories" className="mb-8 scroll-mt-20">
             <div className="flex items-center gap-2.5 mb-4">
               <Grid3X3 className="w-5 h-5 text-primary-400" />
               <div>
@@ -1235,9 +1235,17 @@ function ExploreBrowseMode() {
                         </div>
                         <div className="flex items-center gap-3">
                           {section.id === 'spotlight' && (
-                            <Link href="/explore?view=categories" className="text-xs sm:text-sm font-medium text-primary-400 hover:text-primary-300 transition-colors whitespace-nowrap">
+                            <a
+                              href="#browse-categories"
+                              onClick={function(e) {
+                                e.preventDefault()
+                                var el = document.getElementById('browse-categories')
+                                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                              }}
+                              className="text-xs sm:text-sm font-medium text-primary-400 hover:text-primary-300 transition-colors whitespace-nowrap"
+                            >
                               See all <ChevronRightIcon className="w-3 h-3 inline -mt-0.5" />
-                            </Link>
+                            </a>
                           )}
                           <div className="hidden sm:flex gap-1 opacity-0 group-hover/section:opacity-100 transition-opacity">
                             <button onClick={function() { scrollContainer('feed-' + section.id, 'left') }} className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400"><ChevronLeft className="w-4 h-4" /></button>
@@ -1277,11 +1285,19 @@ function ExploreBrowseMode() {
                                 </Link>
                               )
                             })}
-                            <Link href="/explore?view=categories" className="min-w-[50vw] sm:min-w-[180px] flex-shrink-0 snap-start flex flex-col items-center justify-center rounded-xl border border-white/10 hover:border-primary-500/30 bg-white/[0.02] hover:bg-white/[0.04] transition-all gap-3 px-6">
+                            <a
+                              href="#browse-categories"
+                              onClick={function(e) {
+                                e.preventDefault()
+                                var el = document.getElementById('browse-categories')
+                                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                              }}
+                              className="min-w-[50vw] sm:min-w-[180px] flex-shrink-0 snap-start flex flex-col items-center justify-center rounded-xl border border-white/10 hover:border-primary-500/30 bg-white/[0.02] hover:bg-white/[0.04] transition-all gap-3 px-6"
+                            >
                               <BookOpen className="w-8 h-8 text-primary-400" />
                               <span className="text-sm font-medium text-primary-400">Browse Encyclopedia</span>
                               <span className="text-xs text-gray-500">Every phenomenon</span>
-                            </Link>
+                            </a>
                           </div>
                           <div className="absolute right-0 top-0 bottom-2 w-12 bg-gradient-to-l from-[#0a0a1a] to-transparent pointer-events-none" />
                         </div>
