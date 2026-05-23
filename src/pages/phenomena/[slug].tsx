@@ -57,6 +57,10 @@ interface Phenomenon {
   primary_image_url?: string | null
   report_count?: number
   ai_summary?: string | null
+  // V11.16 — image provenance fields (nullable; only populated on
+  // phenomena adopted by the new image pipeline)
+  image_attribution?: string | null
+  image_alt_text?: string | null
 }
 
 interface RelatedReport {
@@ -368,7 +372,7 @@ export default function PhenomenonPage() {
                 {phenomenon.primary_image_url ? (
                   <img
                     src={phenomenon.primary_image_url}
-                    alt={phenomenon.name}
+                    alt={phenomenon.image_alt_text || phenomenon.name}
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
                     loading="lazy"
@@ -411,6 +415,19 @@ export default function PhenomenonPage() {
               <p className="text-[15px] leading-relaxed text-gray-300 mt-5 sm:mt-6 max-w-3xl">
                 {phenomenon.ai_summary}
               </p>
+            )}
+
+            {/* V11.16 — image attribution credit. Required for CC BY-SA
+                images and good citizenship for the rest. Rendered as
+                small, low-emphasis text so it doesn't compete with the
+                main copy. dangerouslySetInnerHTML is OK here because
+                the attribution string is server-controlled (written by
+                the adoption script, never user input). */}
+            {phenomenon.image_attribution && (
+              <p
+                className="text-[10px] text-gray-500 mt-3 [&_a]:text-gray-400 [&_a]:hover:text-gray-200 [&_a]:underline"
+                dangerouslySetInnerHTML={{ __html: phenomenon.image_attribution }}
+              />
             )}
           </div>
         </div>
