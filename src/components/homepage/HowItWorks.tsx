@@ -9,46 +9,49 @@ import { ChevronDown } from 'lucide-react'
  * Provides SEO-rich crawlable text and answers common visitor questions.
  */
 
-// V11.17 — copy rewritten without "AI" language. "The Index" is the
-// recurring noun-phrase (per V11.17 brand pivot).
+// V11.17.3 — Round 3 rewrite. Community-language verbs replace
+// researcher-language verbs throughout. "Investigate / cross-
+// reference / data" → "save / find your story / accounts." The
+// research-utility framing softens (without losing the
+// no-position-on-truth claim that's critical for credibility).
 var steps = [
   {
     number: '01',
     title: 'Reports from across the web',
-    description: 'First-person accounts from NUFORC, MUFON, BFRO, historical archives, community forums, and your own submissions — all collected, deduplicated, and gathered into a single unified Index.',
+    description: 'First-person accounts and moments people couldn’t quite explain — sightings, dreams, encounters, coincidences. Collected from sources across the web (NUFORC, MUFON, BFRO, historical archives, community forums), plus what people share here directly.',
   },
   {
     number: '02',
-    title: 'The Index surfaces patterns',
-    description: 'Geographic clusters, temporal correlations, and phenomenological links — the connections that are invisible when reports sit scattered across siloed databases emerge clearly when tens of thousands are organized together.',
+    title: 'Patterns become visible',
+    description: 'Same shape over the same region. Same hour of the night. Same feeling, decades apart. Patterns become visible when tens of thousands of accounts are read alongside each other — patterns nobody could see in any single story.',
   },
   {
     number: '03',
-    title: 'You investigate',
-    description: 'Search, filter, and map the full Index. Save what matters. Cross-reference cases against your own experience. Find connections nobody else has found.',
+    title: 'You find your story',
+    description: 'Search what you saw, felt, dreamed, or sensed. Save the cases that match. Add your own moment. See who else has had something like it — in your area, your decade, your situation.',
   },
 ]
 
 var faqs = [
   {
-    question: 'What kind of reports are in the Index?',
-    answer: 'Paradocs covers the full spectrum of anomalous and unexplained phenomena — UFO and UAP sightings, cryptid encounters, ghost and apparition reports, psychic experiences, high strangeness, and more. The Index catalogs over 1,400 distinct phenomena across dozens of source archives.',
+    question: 'What kind of reports does Paradocs collect?',
+    answer: 'The full spectrum of moments people couldn’t quite explain — UFO and UAP sightings, ghost and apparition reports, cryptid encounters, near-death experiences, psychic phenomena, déjà vu, missing time, sleep paralysis, premonitions, high strangeness, and more. Over 1,400 distinct phenomena across dozens of source archives.',
   },
   {
     question: 'Where does the data come from?',
-    answer: 'Reports come from established research organizations like NUFORC, MUFON, and BFRO, along with historical archives, academic collections, and community submissions. Every report is deduplicated, geocoded, and standardized for consistency.',
+    answer: 'Reports come from established research organizations like NUFORC, MUFON, and BFRO, along with historical archives, academic collections, community forums, and submissions from people who share their experiences here directly. Every report is deduplicated, geocoded, and standardized for consistency.',
   },
   {
     question: 'Is Paradocs free to use?',
-    answer: 'Yes. Searching the Index, browsing reports, and exploring the interactive map are completely free. No credit card required. Advanced research tools — case files, personalized signals, and pattern analysis — are available to registered users.',
+    answer: 'Yes. Searching, browsing reports, and exploring the interactive map are completely free. No credit card required. Save reports, add your own experience, follow regions and phenomena, and unlock pattern alerts by creating a free account.',
   },
   {
     question: 'Does Paradocs take a position on whether phenomena are real?',
-    answer: 'No. Paradocs is a research utility, not a belief system. We document and analyze reports with intellectual honesty — without assuming phenomena are real or dismissing them as fake. Our role is to surface patterns and let you draw your own conclusions.',
+    answer: 'No. Paradocs is for anyone who’s experienced something they can’t quite explain, and for anyone curious about what others have seen, felt, or sensed. We document without taking a position on whether phenomena are real — we surface patterns and let you draw your own conclusions.',
   },
   {
-    question: 'How does the Index find patterns?',
-    answer: 'The Index reads thousands of first-person reports together to identify geographic clusters, temporal patterns, and cross-phenomenon correlations. These connections are invisible in any single source but emerge clearly when tens of thousands of accounts are read alongside each other.',
+    question: 'How are patterns found across all these reports?',
+    answer: 'Reports are read together — across geography, time, phenomenon type, and witness detail. Same shape over the same region. Same kind of dream in the same month. Same feeling, decades apart. Connections invisible in any single source emerge clearly when tens of thousands of accounts are read alongside each other.',
   },
 ]
 
@@ -94,7 +97,7 @@ export default function HowItWorks() {
             How Paradocs works
           </h2>
           <p className="mt-3 text-gray-400 text-sm md:text-base max-w-xl mx-auto">
-            From raw data to research-ready insights in three steps.
+            From a moment you couldn’t quite explain to a community of people who’ve had something like it.
           </p>
         </div>
 

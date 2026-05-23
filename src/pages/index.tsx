@@ -14,18 +14,29 @@ import LabShowcase from '@/components/homepage/LabShowcase'
 import HowItWorks from '@/components/homepage/HowItWorks'
 import DataProofCTA from '@/components/homepage/DataProofCTA'
 import InlineSignupCTA from '@/components/homepage/InlineSignupCTA'
+import LiveActivityTicker from '@/components/homepage/LiveActivityTicker'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 
-/* Rotating search placeholder queries — real examples that model depth */
+/* V11.17.3 — Broadened rotation. Mix of dramatic events and subtle
+ * personal moments. The placeholder is the second most-read element
+ * on the page after the headline; it carries inclusion signal *before*
+ * the visitor reads any other copy. The original list was all big
+ * paranormal events, which implicitly told visitors with only "small"
+ * moments that this place wasn't for them. */
 var SEARCH_EXAMPLES = [
   'triangle UFOs over the Hudson Valley',
+  'the feeling someone was watching you',
   'shadow people in old houses',
+  'a dream that came true the next morning',
   'strange lights near military bases',
-  'Bigfoot sightings in the Pacific Northwest',
+  'the room that always felt off',
   'missing time on rural highways',
+  'the day the dog wouldn’t go upstairs',
+  'Bigfoot sightings in the Pacific Northwest',
+  'déjà vu that wouldn’t go away',
   'orbs captured on security cameras',
-  'encounters along the 37th parallel',
+  'the moment you just knew',
 ]
 
 var TYPE_SPEED = 60   /* ms per character typed */
@@ -95,13 +106,39 @@ function useAnimatedPlaceholder(isFocused: boolean) {
   return text
 }
 
-// Hero headline variants — must match admin/ab-testing.tsx variant table
-// V11.17 — single canonical hero copy retiring the AI-coded A/B variants.
-// Kept variable name VARIANTS for the consumer signature; only key 'X' is used.
-var HERO_VARIANTS: Record<string, { headline: string; subheadline: string }> = {
+// V11.17.3 — Round 3 mass-market recalibration.
+//
+// The hero uses an inclusion-list pattern (three short lines, each
+// rendered on its own row) with a punchline beneath that resolves the
+// setup. The previous V11.17 hero ("What did you see?") implicitly
+// gated on having seen something — the broadened audience here is
+// anyone who's had ONE small strange thing (a feeling, a dream that
+// came true, a room that felt off). The verb-list does the
+// inclusion work; the punchline does the recognition.
+//
+// "headlineLines" → rendered as separate `<span className="block">`
+// elements so the visitor's eye lands on each line independently.
+// "punchline" → smaller display weight beneath, the answer to the
+// setup. "subheadline" → product description in plain language,
+// drops "paranormal" (too gated) in favor of "the moments that don't
+// quite fit." "trustLine" → demonstration of breadth, mixing the
+// dramatic and the subtle.
+interface HeroContent {
+  headlineLines: string[]
+  punchline: string
+  subheadline: string
+  trustLine: string
+}
+var HERO_VARIANTS: Record<string, HeroContent> = {
   X: {
-    headline: 'What did you see?',
-    subheadline: 'Paradocs is the Index of first-person paranormal accounts — UFOs, hauntings, cryptids, NDEs, and more. Tens of thousands of reports gathered from across the web, organized so patterns are visible. Search the Index. Add your own. See how it connects.',
+    headlineLines: [
+      'You saw something.',
+      'Or you felt something.',
+      'Or you just know.',
+    ],
+    punchline: "You’re not the only one.",
+    subheadline: "Paradocs is where the moments that don’t quite fit get written down — yours, and tens of thousands of other people’s. Sightings, feelings, dreams, coincidences. The things you’d hesitate to mention at dinner. Find your moment. See who else has had one.",
+    trustLine: "UFOs, ghosts, déjà vu, missing time, the dream that came true, the room that always felt off — all of it belongs here.",
   },
 }
 // Legacy variants below preserved as comments for posthog-funnel context;
@@ -227,16 +264,16 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Paradocs \u2014 The Index of First-Person Paranormal Accounts</title>
-        <meta name="description" content="Paradocs is the Index of first-person paranormal accounts \u2014 UFOs, hauntings, cryptids, NDEs, and more. Tens of thousands of reports gathered from across the web, organized so patterns are visible. Search, map, contribute." />
-        <meta property="og:title" content="Paradocs \u2014 The Index of First-Person Paranormal Accounts" />
-        <meta property="og:description" content="The Index of first-person paranormal accounts. Tens of thousands of reports gathered from across the web, organized so patterns are visible." />
+        <title>Paradocs \u2014 You\u2019re not the only one.</title>
+        <meta name="description" content="Paradocs is where the moments that don\u2019t quite fit get written down \u2014 sightings, feelings, dreams, coincidences. Tens of thousands of first-person accounts (UFOs, ghosts, cryptids, NDEs, d\u00e9j\u00e0 vu, and more), and a place to find your own story among them." />
+        <meta property="og:title" content="Paradocs \u2014 You\u2019re not the only one." />
+        <meta property="og:description" content="Where the moments that don\u2019t quite fit get written down. Sightings, feelings, dreams, coincidences. Tens of thousands of first-person accounts." />
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://www.discoverparadocs.com" />
         <meta property="og:image" content="https://www.discoverparadocs.com/og-home.png" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Paradocs \u2014 The Index of First-Person Paranormal Accounts" />
-        <meta name="twitter:description" content="The Index of first-person paranormal accounts. Tens of thousands of reports gathered from across the web, organized so patterns are visible." />
+        <meta name="twitter:title" content="Paradocs \u2014 You\u2019re not the only one." />
+        <meta name="twitter:description" content="Where the moments that don\u2019t quite fit get written down. Sightings, feelings, dreams, coincidences. Tens of thousands of first-person accounts." />
         <link rel="canonical" href="https://www.discoverparadocs.com" />
         <script
           type="application/ld+json"
@@ -245,7 +282,7 @@ export default function Home() {
             '@type': 'WebSite',
             name: 'Paradocs',
             url: 'https://www.discoverparadocs.com',
-            description: 'The Index of first-person paranormal accounts.',
+            description: "Where the moments that don't quite fit get written down \u2014 sightings, feelings, dreams, coincidences. First-person paranormal accounts and the place to share your own.",
             potentialAction: {
               '@type': 'SearchAction',
               target: {
@@ -264,10 +301,22 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 md:pt-24 pb-10 md:pb-14 relative">
           <div className="text-center max-w-3xl mx-auto">
 
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-bold text-white leading-tight">
-              {heroContent.headline}
+            {/* V11.17.3 — Multi-line inclusion-list headline.
+                Each line on its own row, sized to keep the cluster
+                inside ~1 mobile viewport. The punchline beneath
+                resolves the setup: setup-poses-the-list,
+                punchline-says-you-belong. */}
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-display font-bold text-white leading-[1.15]">
+              {heroContent.headlineLines.map(function(line, i) {
+                return (
+                  <span key={i} className="block">{line}</span>
+                )
+              })}
             </h1>
-            <p className="mt-6 text-base md:text-lg text-gray-400 max-w-2xl mx-auto">
+            <p className="mt-4 sm:mt-5 text-lg sm:text-xl md:text-2xl font-display font-semibold text-primary-400 leading-tight">
+              {heroContent.punchline}
+            </p>
+            <p className="mt-6 text-base md:text-lg text-gray-300 max-w-2xl mx-auto leading-relaxed">
               {heroContent.subheadline}
             </p>
 
@@ -294,35 +343,34 @@ export default function Home() {
               </div>
             </form>
 
-            {/* V11.17 trust line — specific numbers (still hard-coded;
-                wired to a homepage-stats endpoint in a follow-up). */}
-            <p className="mt-6 text-sm sm:text-base font-medium tracking-wide text-gray-400">
-              First-person reports across <span className="text-primary-400">UFOs</span>,{' '}
-              <span className="text-primary-400">hauntings</span>,{' '}
-              <span className="text-primary-400">cryptids</span>, NDEs, and dozens more.
-            </p>
-
-            {/* V11.17 — single primary CTA + low-friction text-link
-                alternative. Replaces the dual-button pattern (panel
-                consensus: dual buttons hesitate, single button + text
-                link converts 1.4-2.2x in B2C consumer-content tests). */}
-            <div className="mt-7 flex flex-col items-center justify-center gap-2">
+            {/* V11.17.3 — CTA rewrite per Round 3 panel (Riku/Sora).
+                The hero no longer asks for signup — that ask was a
+                commitment gate 5 seconds after landing. Instead the
+                primary CTA invites exploration ("See what others have
+                shared") and links to /discover. The first signup ask
+                drops to after FeedShowcase, where the visitor has
+                already seen value. */}
+            <div className="mt-8 flex flex-col items-center justify-center gap-2">
               <Link
-                href="/start"
+                href="/discover"
                 className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary-500 hover:bg-primary-400 text-white text-sm font-semibold transition-colors"
               >
-                Create free account
+                See what others have shared
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <Link
-                href="/discover"
+                href="/start"
                 className="inline-flex items-center justify-center px-2 py-1.5 text-[13px] font-medium text-gray-400 hover:text-gray-200 transition-colors"
               >
-                or browse without signing up &rarr;
+                or add your own &rarr;
               </Link>
             </div>
-            <p className="mt-3 text-[12px] text-gray-500">
-              Free forever — no card required.
+
+            {/* V11.17.3 — trust line moved BELOW CTAs (Maya's mobile
+                fold concern) and rewritten as a demonstration of
+                breadth, mixing the dramatic and the subtle. */}
+            <p className="mt-6 text-sm text-gray-400 max-w-2xl mx-auto leading-relaxed">
+              {heroContent.trustLine}
             </p>
 
           </div>
@@ -331,6 +379,13 @@ export default function Home() {
 
       {/* === SECTION 2: Quick Nav Strip === */}
       <QuickNavStrip />
+
+      {/* V11.17.3 — Live activity ticker (Elena's recommendation).
+          Shows the 3-5 most-recent approved reports — proof of life
+          that this is an active community, not a static archive.
+          Renders nothing if the fetch errors or returns 0 (no
+          empty-state UI on the marketing page). */}
+      <LiveActivityTicker />
 
       {/* V11.17 — Lin's reorder. Concrete-before-abstract: visitor
           sees three real surfaces (Feed, Map, Lab) before any pattern-

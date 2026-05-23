@@ -43,17 +43,17 @@ export default function LabShowcase() {
           {/* Text content — left on desktop */}
           <div className="flex-1 order-2 md:order-1 text-center md:text-left">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold text-white leading-tight">
-              Investigate the unknown
+              Go deeper, if you want
             </h2>
             <p className="mt-4 text-base md:text-lg text-gray-400 max-w-lg">
-              Build case files, save reports, and cross-reference evidence against your own experience. Your research workspace surfaces the patterns the Index already sees — across tens of thousands of first-person accounts.
+              For when one story isn’t enough — pull together everything on a phenomenon, a region, or a pattern. Save the cases that matter to you. Cross-reference against your own experience. The researcher mode is here when you’re ready.
             </p>
 
             <Link
               href="/lab"
               className="inline-flex items-center gap-2 mt-6 text-sm font-medium text-primary-400 hover:text-primary-300 transition-colors"
             >
-              Start investigating
+              See what the Lab can do
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>

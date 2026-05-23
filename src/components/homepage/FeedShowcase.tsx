@@ -13,6 +13,10 @@ import AppStoreBadges from './AppStoreBadges'
  */
 
 /* Fake feed cards — 3 cards for cleaner readability at rendered size */
+// V11.17.3 — Mix of dramatic and subtle/personal. The third card
+// is intentionally a subtle premonition-style account so the visitor
+// who's only had a small, personal strange thing sees themselves in
+// the feed too. Mass-market signal: "small moments belong here."
 var mockFeedCards = [
   {
     category: 'UFO Sighting',
@@ -29,10 +33,10 @@ var mockFeedCards = [
     time: '5 hours ago',
   },
   {
-    category: 'Ghost / Apparition',
-    color: '#c084fc',
-    hook: 'The figure appeared at the foot of the bed every night for a week, always pointing toward the closet.',
-    location: 'Gettysburg, PA',
+    category: 'Premonition',
+    color: '#f0abfc',
+    hook: 'I dreamed of my grandmother three nights in a row. She died on the fourth.',
+    location: 'Lisbon, Portugal',
     time: '8 hours ago',
   },
 ]
