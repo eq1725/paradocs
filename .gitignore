@@ -64,3 +64,9 @@ research-hub-files.tar.gz
 outputs/*.log
 outputs/orchestrator-state.json
 outputs/arctic-shift-*.log
+
+# V11.17.4 — Homepage showcase recordings.
+# Raw .mov source files are kept locally for re-encoding; only the
+# optimized .mp4 / .webm derivatives go into the repo + CDN.
+public/showcase/*.mov
+public/showcase/*.MOV
