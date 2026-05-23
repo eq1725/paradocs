@@ -1,148 +1,154 @@
 /**
  * API: GET /api/phenomena/[slug]/reports
- * Get paginated reports linked to a phenomenon
+ *
+ * Paginated + filterable reports linked to a phenomenon.
+ *
+ * V11.15.3 rewrite: replaces the previous "load all linked IDs then
+ * .in(ids)" approach (which broke past ~100 reports due to PostgREST
+ * URL-length limits) with a single junction-inner-join. Pagination
+ * happens at the SQL level, no IN-list bloat.
  *
  * Query params:
- * - page: Page number (default: 1)
- * - limit: Items per page (default: 12, max: 100)
- * - sort: 'newest' | 'oldest' | 'popular' | 'most_viewed' | 'confidence' (default: 'newest')
- * - search: Text search query (optional)
- * - category: Filter by category (optional)
- * - country: Filter by country (optional)
- * - credibility: Filter by credibility level (optional)
+ *   page          (default: 1)
+ *   limit         (default: 20, max: 100)
+ *   sort          confidence | newest | oldest | popular | most_viewed
+ *                 (default: confidence — Haiku's best matches first)
+ *   search        Free-text on title + summary
+ *   country       ISO-style country name match
+ *   decade        "2020s" | "2010s" | "2000s" | "1990s" | "1980s" | "1970s"
+ *                 | "earlier"  — operates on event_date year
+ *   credibility   high | medium | low  (legacy, kept for API compat)
+ *   category      legacy, ignored when same as phenomenon.category
+ *
+ * Returns:
+ *   { phenomenon, reports[], pagination: { page, limit, total, totalPages } }
+ *
+ * Edge-cached 60s. Stale-while-revalidate 5min.
  */
 
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { createServerClient } from '@/lib/supabase';
-import { getPhenomenonBySlug } from '@/lib/services/phenomena.service';
+import type { NextApiRequest, NextApiResponse } from 'next'
+import { createClient } from '@supabase/supabase-js'
+import { getPhenomenonBySlug } from '@/lib/services/phenomena.service'
+
+function decadeToRange(decade: string): { from: string; to: string } | null {
+  switch (decade) {
+    case '2020s': return { from: '2020-01-01', to: '2029-12-31' }
+    case '2010s': return { from: '2010-01-01', to: '2019-12-31' }
+    case '2000s': return { from: '2000-01-01', to: '2009-12-31' }
+    case '1990s': return { from: '1990-01-01', to: '1999-12-31' }
+    case '1980s': return { from: '1980-01-01', to: '1989-12-31' }
+    case '1970s': return { from: '1970-01-01', to: '1979-12-31' }
+    case 'earlier': return { from: '0001-01-01', to: '1969-12-31' }
+    default: return null
+  }
+}
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  var slug = req.query.slug;
-
+  var slug = req.query.slug
   if (typeof slug !== 'string') {
-    return res.status(400).json({ error: 'Invalid slug' });
+    return res.status(400).json({ error: 'Invalid slug' })
   }
 
   try {
-    // Prevent stale cache on client-side navigation
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
+    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300')
 
-    // Get the phenomenon
-    var phenomenon = await getPhenomenonBySlug(slug);
-
+    var phenomenon = await getPhenomenonBySlug(slug)
     if (!phenomenon) {
-      return res.status(404).json({ error: 'Phenomenon not found' });
+      return res.status(404).json({ error: 'Phenomenon not found' })
     }
 
-    // Parse query params
-    var page = Math.max(1, parseInt(req.query.page) || 1);
-    var limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 12));
-    var sort = req.query.sort || 'newest';
-    var search = req.query.search;
-    var category = req.query.category;
-    var country = req.query.country;
-    var credibility = req.query.credibility;
+    var page = Math.max(1, parseInt(String(req.query.page), 10) || 1)
+    var limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit), 10) || 20))
+    var sort = String(req.query.sort || 'confidence')
+    var search = req.query.search ? String(req.query.search).trim() : ''
+    var country = req.query.country ? String(req.query.country).trim() : ''
+    var decade = req.query.decade ? String(req.query.decade).trim() : ''
+    var credibility = req.query.credibility ? String(req.query.credibility).trim() : ''
 
-    var supabase = createServerClient();
+    var sb = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
-    // Step 1: Get all report IDs linked to this phenomenon
-    var linkResult = await supabase
-      .from('report_phenomena')
-      .select('report_id, confidence')
-      .eq('phenomenon_id', phenomenon.id);
+    // Single junction-inner-join. PostgREST emits one SQL query.
+    var q: any = sb.from('report_phenomena')
+      .select(
+        'confidence, is_primary, ' +
+          'report:reports!inner(' +
+            'id, title, slug, summary, category, location_name, country, ' +
+            'event_date, event_date_precision, credibility, view_count, status, upvotes, created_at, ' +
+            'phenomenon_type:phenomenon_types(id, name, icon)' +
+          ')',
+        { count: 'exact' }
+      )
+      .eq('phenomenon_id', phenomenon.id)
+      .eq('report.status', 'approved')
 
-    if (linkResult.error) {
-      console.error('[API] Error fetching linked reports:', linkResult.error);
-      throw linkResult.error;
-    }
-
-    var linkedReports = linkResult.data;
-
-    if (!linkedReports || linkedReports.length === 0) {
-      return res.status(200).json({
-        phenomenon: {
-          id: phenomenon.id,
-          name: phenomenon.name,
-          slug: phenomenon.slug,
-          icon: phenomenon.icon,
-        },
-        reports: [],
-        pagination: {
-          page: page,
-          limit: limit,
-          total: 0,
-          totalPages: 0,
-        },
-      });
-    }
-
-    // Create a map of report_id -> confidence for later use
-    var confidenceMap = new Map(linkedReports.map(function(r) { return [r.report_id, r.confidence]; }));
-    var reportIds = linkedReports.map(function(r) { return r.report_id; });
-
-    // Step 2: Query reports with filters
-    var query = supabase
-      .from('reports')
-      .select('*, phenomenon_type:phenomenon_types(id, name, icon)', { count: 'exact' })
-      .in('id', reportIds)
-      .eq('status', 'approved');
-
-    // Apply additional filters
+    // Apply filters at the joined-table level so PostgREST pushes them
+    // down into the SQL, not into a post-fetch filter on this side.
     if (search) {
-      query = query.or('title.ilike.%' + search + '%,summary.ilike.%' + search + '%');
-    }
-    if (category) {
-      query = query.eq('category', category);
+      // Use the embedded-resource filter syntax. Both title + summary.
+      q = q.or('title.ilike.%' + search + '%,summary.ilike.%' + search + '%', { foreignTable: 'reports' })
     }
     if (country) {
-      query = query.eq('country', country);
+      q = q.eq('report.country', country)
     }
     if (credibility) {
-      query = query.eq('credibility', credibility);
+      q = q.eq('report.credibility', credibility)
+    }
+    if (decade) {
+      var range = decadeToRange(decade)
+      if (range) {
+        q = q.gte('report.event_date', range.from).lte('report.event_date', range.to)
+      }
     }
 
-    // Apply sorting
+    // Sort.
     switch (sort) {
-      case 'oldest':
-        query = query.order('event_date', { ascending: true, nullsFirst: false });
-        break;
-      case 'popular':
-        query = query.order('upvotes', { ascending: false });
-        break;
-      case 'most_viewed':
-        query = query.order('view_count', { ascending: false });
-        break;
       case 'newest':
+        q = q.order('event_date', { ascending: false, nullsFirst: false, foreignTable: 'reports' })
+        break
+      case 'oldest':
+        q = q.order('event_date', { ascending: true, nullsFirst: false, foreignTable: 'reports' })
+        break
+      case 'popular':
+        q = q.order('upvotes', { ascending: false, foreignTable: 'reports' })
+        break
+      case 'most_viewed':
+        q = q.order('view_count', { ascending: false, foreignTable: 'reports' })
+        break
+      case 'confidence':
       default:
-        query = query.order('created_at', { ascending: false });
+        q = q.order('is_primary', { ascending: false })
+          .order('confidence', { ascending: false })
     }
 
-    // Apply pagination
-    var from = (page - 1) * limit;
-    query = query.range(from, from + limit - 1);
+    var from = (page - 1) * limit
+    q = q.range(from, from + limit - 1)
 
-    var result = await query;
-
+    var result = await q
     if (result.error) {
-      console.error('[API] Phenomenon reports error:', result.error);
-      throw result.error;
+      console.error('[API] phenomena reports error:', result.error)
+      return res.status(500).json({ error: result.error.message })
     }
 
-    // Add confidence scores to reports
-    var reports = (result.data || []).map(function(report) {
-      return Object.assign({}, report, {
-        match_confidence: confidenceMap.get(report.id) || 0
-      });
-    });
+    var rows = result.data || []
+    var reports = rows.map(function (row: any) {
+      return Object.assign({}, row.report, {
+        match_confidence: row.confidence,
+        is_primary: row.is_primary,
+      })
+    })
+
+    var total = result.count || 0
+    var totalPages = Math.ceil(total / limit)
 
     return res.status(200).json({
       phenomenon: {
@@ -150,19 +156,15 @@ export default async function handler(
         name: phenomenon.name,
         slug: phenomenon.slug,
         icon: phenomenon.icon,
+        report_count: phenomenon.report_count,
       },
       reports: reports,
-      pagination: {
-        page: page,
-        limit: limit,
-        total: result.count || 0,
-        totalPages: Math.ceil((result.count || 0) / limit),
-      },
-    });
+      pagination: { page: page, limit: limit, total: total, totalPages: totalPages },
+    })
   } catch (error) {
-    console.error('[API] Phenomenon reports error:', error);
+    console.error('[API] phenomena reports fatal:', error)
     return res.status(500).json({
       error: error instanceof Error ? error.message : 'Unknown error',
-    });
+    })
   }
 }

@@ -31,7 +31,7 @@
  * if we want to trim the API response too.
  */
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import Link from 'next/link'
@@ -42,6 +42,10 @@ import PhenomenonIcon from '@/components/ui/PhenomenonIcon'
 import { classNames } from '@/lib/utils'
 import YourSignalForPhenomenon from '@/components/phenomena/YourSignalForPhenomenon'
 import { BackToTodayBar } from '@/components/discover/BackToTodayBar'
+import PhenomenonFilterBar, {
+  PhenomenonFilters,
+  DEFAULT_FILTERS,
+} from '@/components/phenomena/PhenomenonFilterBar'
 
 interface Phenomenon {
   id: string | null
@@ -68,6 +72,33 @@ interface RelatedReport {
   match_confidence?: number
 }
 
+const PAGE_SIZE = 20
+
+function filtersToQuery(f: PhenomenonFilters): string {
+  const parts: string[] = []
+  if (f.sort && f.sort !== 'confidence') parts.push('sort=' + encodeURIComponent(f.sort))
+  if (f.country) parts.push('country=' + encodeURIComponent(f.country))
+  if (f.decade) parts.push('decade=' + encodeURIComponent(f.decade))
+  if (f.search) parts.push('search=' + encodeURIComponent(f.search))
+  return parts.length ? '?' + parts.join('&') : ''
+}
+
+function filtersFromQuery(q: Record<string, string | string[] | undefined>): PhenomenonFilters {
+  function s(k: string): string | undefined {
+    const v = q[k]
+    return Array.isArray(v) ? v[0] : v
+  }
+  const sort = s('sort')
+  return {
+    sort: (sort === 'newest' || sort === 'oldest' || sort === 'popular' || sort === 'most_viewed')
+      ? sort
+      : 'confidence',
+    country: s('country') || null,
+    decade: (s('decade') as any) || null,
+    search: s('search') || '',
+  }
+}
+
 export default function PhenomenonPage() {
   const router = useRouter()
   const { slug } = router.query
@@ -78,44 +109,55 @@ export default function PhenomenonPage() {
   const [isTagFallback, setIsTagFallback] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(false)
-  const PAGE_SIZE = 20
+  const [filters, setFiltersState] = useState<PhenomenonFilters>(DEFAULT_FILTERS)
+  const [resultTotal, setResultTotal] = useState<number | null>(null)
+  const [facets, setFacets] = useState<{ countries: Record<string, number>; decades: Record<string, number> } | null>(null)
+  const filterFetchSeq = useRef(0)
 
+  // Sync initial filter state from URL once the route is ready.
+  useEffect(() => {
+    if (!router.isReady) return
+    setFiltersState(filtersFromQuery(router.query))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady])
+
+  // Initial load: fetch phenomenon metadata. Reports come from the
+  // filtered endpoint below so the first paint reflects the URL state.
   useEffect(() => {
     if (slug && typeof slug === 'string') {
-      loadPhenomenon(slug)
+      loadPhenomenonMeta(slug)
+      loadFacets(slug)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug])
 
-  async function loadPhenomenon(phenomenonSlug: string) {
+  // Refetch reports whenever filters or slug change. Sequencing prevents
+  // a slow stale response from clobbering a fast newer one.
+  useEffect(() => {
+    if (!slug || typeof slug !== 'string') return
+    if (!router.isReady) return
+    const seq = ++filterFetchSeq.current
+    loadReports(slug, filters, 0, seq, /*append=*/false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, filters.sort, filters.country, filters.decade, filters.search, router.isReady])
+
+  async function loadPhenomenonMeta(phenomenonSlug: string) {
     try {
-      const res = await fetch(`/api/phenomena/${phenomenonSlug}?limit=${PAGE_SIZE}&offset=0`)
+      const res = await fetch(`/api/phenomena/${phenomenonSlug}?limit=1&offset=0`)
       if (!res.ok) {
-        // No encyclopedia entry AND no tagged-report fallback either —
-        // route to the category browse surface rather than the
-        // deprecated /phenomena index (which 301s anyway per T1.2).
         router.push('/explore?view=categories')
         return
       }
       const data = await res.json()
       setPhenomenon(data.phenomenon)
-      const firstPage = data.reports || []
-      setReports(firstPage)
       setIsTagFallback(!!data.is_tag_fallback)
-      // hasMore = the first page came back full AND the total count is
-      // higher than what we showed. Either signal alone could be wrong.
-      const total = data.phenomenon?.report_count
-      setHasMore(firstPage.length >= PAGE_SIZE && (typeof total !== 'number' || total > firstPage.length))
-
-      // Track view for constellation map — non-blocking, signed-in only.
+      // Track view — non-blocking, signed-in only.
       if (data.phenomenon?.id) {
         supabase.auth.getSession().then(({ data: { session } }) => {
           if (session?.access_token) {
             fetch('/api/activity/track', {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${session.access_token}`,
-              },
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
               body: JSON.stringify({
                 action_type: 'view',
                 phenomenon_id: data.phenomenon.id,
@@ -126,36 +168,81 @@ export default function PhenomenonPage() {
         })
       }
     } catch (error) {
-      console.error('Error loading phenomenon:', error)
-    } finally {
-      setLoading(false)
+      console.error('Error loading phenomenon meta:', error)
     }
   }
 
-  async function loadMore() {
-    if (!phenomenon || loadingMore || !hasMore) return
-    setLoadingMore(true)
+  async function loadFacets(phenomenonSlug: string) {
     try {
-      const res = await fetch(`/api/phenomena/${phenomenon.slug}?limit=${PAGE_SIZE}&offset=${reports.length}`)
+      const res = await fetch(`/api/phenomena/${phenomenonSlug}/facets`)
+      if (!res.ok) return
+      const data = await res.json()
+      setFacets({ countries: data.countries || {}, decades: data.decades || {} })
+    } catch (e) {
+      console.error('Error loading facets:', e)
+    }
+  }
+
+  async function loadReports(
+    phenomenonSlug: string,
+    activeFilters: PhenomenonFilters,
+    offset: number,
+    seq: number,
+    append: boolean,
+  ) {
+    if (append) setLoadingMore(true)
+    else setLoading(true)
+    try {
+      const page = Math.floor(offset / PAGE_SIZE) + 1
+      const qs = filtersToQuery(activeFilters)
+      const sep = qs ? '&' : '?'
+      const url = `/api/phenomena/${phenomenonSlug}/reports${qs}${sep}page=${page}&limit=${PAGE_SIZE}`
+      const res = await fetch(url)
+      if (seq !== filterFetchSeq.current) return // superseded
       if (!res.ok) {
-        setHasMore(false)
+        if (!append) { setReports([]); setHasMore(false); setResultTotal(0) }
         return
       }
       const data = await res.json()
-      const next = (data.reports || []) as RelatedReport[]
-      if (next.length === 0) {
-        setHasMore(false)
-        return
+      if (seq !== filterFetchSeq.current) return // superseded between fetch + parse
+      const page1 = (data.reports || []) as RelatedReport[]
+      const total = data.pagination?.total ?? 0
+      setResultTotal(total)
+      if (append) {
+        setReports(prev => prev.concat(page1))
+        const newLen = reports.length + page1.length
+        setHasMore(page1.length >= PAGE_SIZE && newLen < total)
+      } else {
+        setReports(page1)
+        setHasMore(page1.length >= PAGE_SIZE && page1.length < total)
       }
-      setReports(prev => prev.concat(next))
-      const total = phenomenon.report_count
-      const newLen = reports.length + next.length
-      setHasMore(next.length >= PAGE_SIZE && (typeof total !== 'number' || total > newLen))
     } catch (e) {
-      console.error('Error loading more reports:', e)
+      console.error('Error loading reports:', e)
+      if (!append) { setReports([]); setHasMore(false); setResultTotal(0) }
     } finally {
-      setLoadingMore(false)
+      if (append) setLoadingMore(false)
+      else setLoading(false)
     }
+  }
+
+  // Push filter changes to URL (shallow nav, no scroll jump).
+  const handleFiltersChange = useCallback((next: PhenomenonFilters) => {
+    setFiltersState(next)
+    if (typeof slug !== 'string') return
+    const qs = filtersToQuery(next)
+    router.replace(
+      { pathname: `/phenomena/${slug}`, query: Object.fromEntries(
+        new URLSearchParams(qs.startsWith('?') ? qs.substring(1) : qs).entries()
+      ) },
+      undefined,
+      { shallow: true, scroll: false },
+    )
+  }, [router, slug])
+
+  async function loadMore() {
+    if (!phenomenon || loadingMore || !hasMore) return
+    const seq = filterFetchSeq.current
+    await loadReports(phenomenon.slug, filters, reports.length, seq, /*append=*/true)
   }
 
   // Back navigation — use router.back() when the user arrived from
@@ -317,39 +404,52 @@ export default function PhenomenonPage() {
                 </p>
               </div>
             </div>
+
+            {/* Description (ai_summary) lives inside the hero so it
+                reads as part of the header, above the divider line. */}
+            {phenomenon.ai_summary && (
+              <p className="text-[15px] leading-relaxed text-gray-300 mt-5 sm:mt-6 max-w-3xl">
+                {phenomenon.ai_summary}
+              </p>
+            )}
           </div>
         </div>
+
+        {/* Filter bar — sticky beneath hero, pinned while scrolling reports */}
+        <PhenomenonFilterBar
+          filters={filters}
+          onChange={handleFiltersChange}
+          facets={facets || undefined}
+          resultCount={resultTotal === null ? undefined : resultTotal}
+        />
 
         {/* Personalized callout — silent for anon / no-match cases */}
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
           <YourSignalForPhenomenon slug={phenomenon.slug} />
         </div>
 
-        {/* Description (ai_summary). Rendered when present so the page
-            has context above the report list. Kept short — a single
-            paragraph, no headings — so it doesn't dominate above-the-fold. */}
-        {phenomenon.ai_summary && (
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-            <p className="text-[15px] leading-relaxed text-gray-300 max-w-3xl">
-              {phenomenon.ai_summary}
-            </p>
-          </div>
-        )}
-
         {/* Reports grid (or empty state) */}
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-          {reports.length === 0 ? (
-            <EmptyState phenomenonName={phenomenon.name} />
+        <div
+          className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8"
+          aria-busy={loading}
+        >
+          {loading && reports.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500" />
+            </div>
+          ) : reports.length === 0 ? (
+            <FilteredEmptyState
+              phenomenonName={phenomenon.name}
+              filtersActive={
+                filters.sort !== 'confidence' ||
+                !!filters.country ||
+                !!filters.decade ||
+                !!filters.search
+              }
+              onClearFilters={() => handleFiltersChange(DEFAULT_FILTERS)}
+            />
           ) : (
             <>
-              <div className="flex items-end justify-between mb-4">
-                <h2 className="text-xs uppercase tracking-[0.14em] text-gray-500">Reports</h2>
-                {typeof phenomenon.report_count === 'number' && phenomenon.report_count > 0 && (
-                  <span className="text-[11px] text-gray-500 tabular-nums">
-                    Showing {reports.length.toLocaleString()} of {phenomenon.report_count.toLocaleString()}
-                  </span>
-                )}
-              </div>
               <ReportGrid reports={reports} />
               {hasMore && (
                 <div className="flex justify-center mt-8">
@@ -421,6 +521,40 @@ function EmptyState({ phenomenonName }: { phenomenonName: string }) {
       >
         Browse other categories
       </Link>
+    </div>
+  )
+}
+
+// V11.15.3 — Empty state for the filter-active case. Splits the two
+// empty conditions visually because they call for different CTAs:
+// no-tagged-reports is "browse elsewhere," filter-too-narrow is
+// "clear filters."
+function FilteredEmptyState(props: {
+  phenomenonName: string
+  filtersActive: boolean
+  onClearFilters: () => void
+}) {
+  if (!props.filtersActive) {
+    return <EmptyState phenomenonName={props.phenomenonName} />
+  }
+  return (
+    <div className="text-center py-12 sm:py-16">
+      <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gray-900 border border-gray-800 mb-5">
+        <Telescope className="w-6 h-6 text-gray-500" />
+      </div>
+      <h2 className="text-lg font-semibold text-white mb-2">
+        No reports match these filters
+      </h2>
+      <p className="text-sm text-gray-400 max-w-md mx-auto mb-6">
+        Try widening your filters — there may be {props.phenomenonName} reports outside the current country, decade, or search.
+      </p>
+      <button
+        type="button"
+        onClick={props.onClearFilters}
+        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium text-white bg-purple-600 hover:bg-purple-500 transition-colors"
+      >
+        Clear all filters
+      </button>
     </div>
   )
 }
