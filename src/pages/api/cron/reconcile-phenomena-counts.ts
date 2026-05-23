@@ -79,21 +79,36 @@ export default async function handler(
   var topDrift: Array<{ id: string; name: string; before: number; after: number }> = []
 
   try {
-    // 1. Fetch approved report IDs
-    var approvedReports: { data: Array<{ id: string }> | null; error: any } =
-      await svc.from('reports').select('id').eq('status', 'approved').limit(100000)
-    if (approvedReports.error) throw approvedReports.error
+    // 1. Fetch approved report IDs (paginated — Supabase REST caps single
+    // queries at ~1000 rows server-side regardless of .limit(N), so the
+    // old `.limit(100000)` was silently truncating to 1000 and the
+    // reconcile was nuking real counts to 0. V11.15.3.2 fix.
     var approvedSet = new Set<string>()
-    var approvedRows = approvedReports.data || []
-    for (var i = 0; i < approvedRows.length; i++) {
-      approvedSet.add(approvedRows[i].id)
+    var offset = 0
+    while (true) {
+      var pageRes: { data: Array<{ id: string }> | null; error: any } =
+        await svc.from('reports').select('id').eq('status', 'approved').range(offset, offset + 999)
+      if (pageRes.error) throw pageRes.error
+      var batch = pageRes.data || []
+      for (var i = 0; i < batch.length; i++) approvedSet.add(batch[i].id)
+      if (batch.length < 1000) break
+      offset += 1000
+      if (offset > 500000) break // safety cap
     }
 
-    // 2. Fetch all report_phenomena rows
-    var rpResult: { data: Array<{ phenomenon_id: string; report_id: string }> | null; error: any } =
-      await svc.from('report_phenomena').select('phenomenon_id, report_id').limit(1000000)
-    if (rpResult.error) throw rpResult.error
-    var rpRows = rpResult.data || []
+    // 2. Fetch all report_phenomena rows (paginated for same reason).
+    var rpRows: Array<{ phenomenon_id: string; report_id: string }> = []
+    var rpOffset = 0
+    while (true) {
+      var rpPage: { data: Array<{ phenomenon_id: string; report_id: string }> | null; error: any } =
+        await svc.from('report_phenomena').select('phenomenon_id, report_id').range(rpOffset, rpOffset + 999)
+      if (rpPage.error) throw rpPage.error
+      var rpBatch = rpPage.data || []
+      for (var b = 0; b < rpBatch.length; b++) rpRows.push(rpBatch[b])
+      if (rpBatch.length < 1000) break
+      rpOffset += 1000
+      if (rpOffset > 5000000) break // safety cap
+    }
 
     // 3. Compute real counts (approved-only)
     var realCounts: Record<string, number> = {}
@@ -104,11 +119,19 @@ export default async function handler(
       }
     }
 
-    // 4. Fetch all active phenomena with current count
-    var phenResult: { data: Array<{ id: string; name: string; report_count: number }> | null; error: any } =
-      await svc.from('phenomena').select('id, name, report_count').eq('status', 'active').limit(10000)
-    if (phenResult.error) throw phenResult.error
-    var phenRows = phenResult.data || []
+    // 4. Fetch all active phenomena with current count (paginated).
+    var phenRows: Array<{ id: string; name: string; report_count: number }> = []
+    var phenOffset = 0
+    while (true) {
+      var phenPage: { data: Array<{ id: string; name: string; report_count: number }> | null; error: any } =
+        await svc.from('phenomena').select('id, name, report_count').eq('status', 'active').range(phenOffset, phenOffset + 999)
+      if (phenPage.error) throw phenPage.error
+      var phenBatch = phenPage.data || []
+      for (var pp = 0; pp < phenBatch.length; pp++) phenRows.push(phenBatch[pp])
+      if (phenBatch.length < 1000) break
+      phenOffset += 1000
+      if (phenOffset > 100000) break
+    }
 
     var checked = phenRows.length
     var updated = 0
