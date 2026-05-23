@@ -88,6 +88,9 @@ export default function MapBottomSheet({
 }: MapBottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null)
   const dragStartY = useRef(0)
+  // V11.17.9 — Track horizontal start so the content-area pull-down
+  // listener can ignore horizontal-dominant swipes (chip scrolls).
+  const dragStartX = useRef(0)
   const dragStartHeight = useRef(0)
   const [currentHeight, setCurrentHeight] = useState(SNAP_HEIGHTS.peek)
   const [isDragging, setIsDragging] = useState(false)
@@ -218,16 +221,26 @@ export default function MapBottomSheet({
 
     const onTouchStart = (e: TouchEvent) => {
       dragStartY.current = e.touches[0].clientY
+      dragStartX.current = e.touches[0].clientX
       dragStartHeight.current = currentHeightRef.current
       contentDragCaptured.current = false
     }
 
     const onTouchMove = (e: TouchEvent) => {
       const clientY = e.touches[0].clientY
+      const clientX = e.touches[0].clientX
       const dy = clientY - dragStartY.current // positive = swiping down
+      const dx = clientX - dragStartX.current
+
+      // V11.17.9 — Only capture pull-down-to-dismiss when the gesture
+      // is clearly vertical. Otherwise horizontal chip swipes get
+      // misread as sheet drags. The 1.5× factor lets tiny vertical
+      // drift on a horizontal swipe still scroll the chips, but a
+      // real downward drag still captures the sheet.
+      const isVerticalDominant = Math.abs(dy) > Math.abs(dx) * 1.5
 
       // If content is scrolled to top and swiping down → capture as sheet drag
-      if (!contentDragCaptured.current && el.scrollTop <= 0 && dy > 8) {
+      if (!contentDragCaptured.current && el.scrollTop <= 0 && dy > 8 && isVerticalDominant) {
         contentDragCaptured.current = true
         isDraggingRef.current = true
         setIsDragging(true)
