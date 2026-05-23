@@ -59,3 +59,8 @@ research-hub-files.tar.gz
 
 # Allow supabase migrations despite the *.sql blanket ignore above
 !supabase/migrations/*.sql
+
+# Orchestrator + ingestion run artifacts — generated locally
+outputs/*.log
+outputs/orchestrator-state.json
+outputs/arctic-shift-*.log
