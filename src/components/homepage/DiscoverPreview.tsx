@@ -30,6 +30,9 @@ interface PreviewPhenomenon {
   category: string
   feed_hook: string | null
   ai_summary: string | null
+  /** V11.17.11 — Card-optimized 1-sentence blurb. Preferred over
+   *  ai_summary for tile rendering. */
+  display_blurb: string | null
   ai_quick_facts: any
   report_count: number
   primary_regions: string[] | null
@@ -178,7 +181,11 @@ function EncyclopediaCard(props: { item: PreviewPhenomenon }) {
   var catColor = CATEGORY_COLORS[item.category] || '#b39ddb'
   var gradient = CATEGORY_GRADIENTS[item.category] || CATEGORY_GRADIENTS.psychological_experiences
 
-  var hookText = truncateHook(item.feed_hook || item.ai_summary || '', 180)
+  // V11.17.11 — Prefer feed_hook (narrative tease) → display_blurb
+  // (card-optimized definitional sentence) → ai_summary (truncated).
+  // feed_hook stays first because the homepage carousel reads more
+  // like Discover than like the encyclopedia.
+  var hookText = truncateHook(item.feed_hook || item.display_blurb || item.ai_summary || '', 180)
   var href = '/phenomena/' + item.slug
 
   return (
@@ -398,6 +405,7 @@ export default function DiscoverPreview() {
             category: item.category || 'ufos_aliens',
             feed_hook: item.feed_hook || null,
             ai_summary: item.ai_summary || null,
+            display_blurb: item.display_blurb || null,
             ai_quick_facts: item.ai_quick_facts || null,
             report_count: item.report_count || 0,
             primary_regions: item.primary_regions || null,

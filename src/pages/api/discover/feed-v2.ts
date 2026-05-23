@@ -546,7 +546,7 @@ export default async function handler(
     if (phenIds.length > 0) {
       var { data: fullPhen } = await supabase
         .from('phenomena')
-        .select('id, name, slug, category, icon, ai_summary, ai_description, ai_quick_facts, feed_hook, anchor_case_hook, anchor_when, anchor_where, anchor_witness, unresolved_tension, primary_image_url, report_count, primary_regions, first_reported_date, aliases')
+        .select('id, name, slug, category, icon, ai_summary, display_blurb, ai_description, ai_quick_facts, feed_hook, anchor_case_hook, anchor_when, anchor_where, anchor_witness, unresolved_tension, primary_image_url, report_count, primary_regions, first_reported_date, aliases')
         .in('id', phenIds);
 
       if (fullPhen) {
@@ -771,6 +771,9 @@ export default async function handler(
           category: p.category,
           icon: p.icon,
           ai_summary: p.ai_summary,
+          // V11.17.11 — Card-optimized 1-sentence blurb. Cards render
+          // display_blurb first, with firstSentence(ai_summary) fallback.
+          display_blurb: p.display_blurb || null,
           ai_description: p.ai_description,
           ai_quick_facts: p.ai_quick_facts,
           feed_hook: p.feed_hook || null,

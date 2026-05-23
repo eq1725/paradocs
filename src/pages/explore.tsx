@@ -103,6 +103,8 @@ interface FeedPhenomenon {
   category: string
   icon: string
   ai_summary: string | null
+  /** V11.17.11 — Card-optimized 1-sentence blurb. */
+  display_blurb?: string | null
   ai_quick_facts: any | null
   primary_image_url: string | null
   report_count: number
@@ -174,6 +176,9 @@ interface PhenomenonEntry {
   category: string
   icon: string
   ai_summary: string | null
+  /** V11.17.11 — Card-optimized 1-sentence blurb. Preferred over
+   *  ai_summary in tile rendering. */
+  display_blurb?: string | null
   report_count: number
   primary_image_url: string | null
   aliases: string[]
@@ -221,24 +226,35 @@ var MAP_PADDING_WITH_FILTERS = { top: 60, bottom: 100, left: 340, right: 40 }
 var MAP_PADDING_DEFAULT = { top: 60, bottom: 100, left: 40, right: 40 }
 
 /**
- * V11.17.10 — Sentence-aware truncate for phenomenon card descriptions.
- * Plain CSS line-clamp cuts mid-word ("...a single moment of clari") which
- * reads like a bug. This helper picks the nearest sentence boundary, falling
- * back to a word boundary + ellipsis. Line-clamp stays as the visual cap so
- * very long single sentences still fit the card.
+ * V11.17.11 — First-sentence extractor for phenomenon card blurbs.
+ * Encyclopedia ai_summary fields are 200-400 char paragraphs that
+ * looked broken when CSS line-clamp-2 chopped them mid-word ("...
+ * spanning centuri…"). Panel rec: show only the lead/defining
+ * sentence (Wikipedia + Netflix pattern). If the first sentence is
+ * still too long, falls back to a word-boundary trim with ellipsis.
+ *
+ * Preferred input is the phenomenon's `display_blurb` field once
+ * the AI batch populates it; this helper exists as the universal
+ * fallback for raw ai_summary.
  */
-function trimToSentence(text: string, maxLen: number): string {
+function firstSentence(text: string | null | undefined, maxLen: number = 140): string {
   if (!text) return ''
+  // First sentence boundary — period/exclaim/question followed by
+  // whitespace OR end-of-string. Avoid stopping on decimal "3.5".
+  var match = text.match(/^[^.!?]*[.!?](?=\s|$)/)
+  if (match) {
+    var first = match[0].trim()
+    if (first.length <= maxLen) return first
+    // Lead sentence runs long — trim cleanly at last word.
+    var cut = first.slice(0, maxLen)
+    var lastSpace = cut.lastIndexOf(' ')
+    return (lastSpace > maxLen * 0.5 ? cut.slice(0, lastSpace) : cut).trim() + '…'
+  }
+  // No sentence punctuation found — trim at word boundary.
   if (text.length <= maxLen) return text
   var head = text.slice(0, maxLen)
-  var lastPunct = Math.max(
-    head.lastIndexOf('. '),
-    head.lastIndexOf('! '),
-    head.lastIndexOf('? ')
-  )
-  if (lastPunct > maxLen * 0.55) return head.slice(0, lastPunct + 1).trim()
-  var lastSpace = head.lastIndexOf(' ')
-  return (lastSpace > maxLen * 0.4 ? head.slice(0, lastSpace) : head).trim() + '…'
+  var lastSpace2 = head.lastIndexOf(' ')
+  return (lastSpace2 > maxLen * 0.4 ? head.slice(0, lastSpace2) : head).trim() + '…'
 }
 
 // ─── MAIN COMPONENT ─────────────────────────────────────────
@@ -1042,7 +1058,7 @@ function ExploreBrowseMode() {
     try {
       var q = supabase
         .from('phenomena')
-        .select('id,name,slug,category,icon,ai_summary,report_count,primary_image_url,aliases,ai_quick_facts')
+        .select('id,name,slug,category,icon,ai_summary,display_blurb,report_count,primary_image_url,aliases,ai_quick_facts')
         .eq('category', cat)
         .gt('report_count', 0)
         .order('report_count', { ascending: false })
@@ -1330,7 +1346,7 @@ function ExploreBrowseMode() {
                                       {item.report_count > 0 && <span className="text-[11px] text-gray-400">{item.report_count} reports</span>}
                                     </div>
                                     <h3 className="font-semibold text-white text-base sm:text-lg line-clamp-1 group-hover/card:text-primary-300 transition-colors">{item.name}</h3>
-                                    {item.ai_summary && <p className="text-xs text-gray-400 line-clamp-2 mt-1 leading-relaxed">{trimToSentence(item.ai_summary, 140)}</p>}
+                                    {(item.display_blurb || item.ai_summary) && <p className="text-xs text-gray-400 line-clamp-2 mt-1 leading-relaxed">{item.display_blurb || firstSentence(item.ai_summary, 140)}</p>}
                                   </div>
                                 </Link>
                               )
@@ -1547,8 +1563,8 @@ function ExploreBrowseMode() {
                     {/* Content */}
                     <div className="flex-1 min-w-0 p-3 flex flex-col justify-center">
                       <h3 className="font-semibold text-white text-sm line-clamp-1 group-hover/card:text-primary-300 transition-colors">{item.name}</h3>
-                      {item.ai_summary && (
-                        <p className="text-[11px] text-gray-500 line-clamp-2 mt-1 leading-relaxed">{trimToSentence(item.ai_summary, 110)}</p>
+                      {(item.display_blurb || item.ai_summary) && (
+                        <p className="text-[11px] text-gray-500 line-clamp-2 mt-1 leading-relaxed">{item.display_blurb || firstSentence(item.ai_summary, 110)}</p>
                       )}
                       {item.report_count > 0 && (
                         <span className="text-[11px] text-gray-400 tabular-nums mt-1.5">{item.report_count} reports</span>
