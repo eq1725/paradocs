@@ -958,6 +958,50 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
             report.location_name = null as any;
           }
 
+          // V11.17.8 — Sanitize malformed location_name strings where
+          // body/title content leaked in (e.g.,
+          // "Museum Barn Confronts Staff Member\n\nI work at a museum
+          // about farming in Upstate, NY, United States"). Symptom:
+          // length > 80, contains newlines, or sentence-ending punct
+          // before the comma tail. We extract just the trailing
+          // "City, ST, Country" pattern and use that. If no clean
+          // tail can be extracted but city/state are populated, fall
+          // back to those.
+          if (locName && typeof locName === 'string') {
+            var looksMalformed = locName.length > 80 || locName.indexOf('\n') !== -1 || /[.!?]/.test(locName);
+            if (looksMalformed) {
+              // Try to extract the trailing "City, State, Country" — last
+              // 2-3 comma-separated tokens that don't span a sentence.
+              var parts = locName.split(',').map(function(p) { return p.trim(); }).filter(Boolean);
+              if (parts.length >= 2) {
+                // Take the last 3 segments (city|region, state|region, country)
+                // or last 2 if only that many.
+                var n = Math.min(3, parts.length);
+                var tail = parts.slice(-n);
+                // Strip body content from the first segment: keep only the
+                // rightmost capitalized words (avoiding sentence verbs).
+                var first = tail[0].replace(/[.!?]/g, '').trim();
+                var words = first.split(/\s+/).slice(-3);
+                while (words.length > 0 && /^[a-z]/.test(words[0])) words.shift();
+                tail[0] = words.join(' ').trim();
+                var cleaned = tail.filter(Boolean).join(', ').trim();
+                if (cleaned && cleaned.length > 0 && cleaned.length <= 80 && cleaned !== locName) {
+                  console.log('[Ingestion] Sanitized location_name: "' + locName.slice(0, 50).replace(/\n/g, ' / ') + '..." → "' + cleaned + '"');
+                  locName = cleaned;
+                  report.location_name = cleaned;
+                } else if (report.city || report.state_province || report.country) {
+                  // Fall back to structured fields if extraction failed.
+                  var fallback = [report.city, report.state_province, report.country].filter(Boolean).join(', ');
+                  if (fallback) {
+                    console.log('[Ingestion] Sanitized location_name (structured fallback): "' + locName.slice(0, 50).replace(/\n/g, ' / ') + '..." → "' + fallback + '"');
+                    locName = fallback;
+                    report.location_name = fallback;
+                  }
+                }
+              }
+            }
+          }
+
           // Build insert data with optional structured fields
           const insertData: Record<string, any> = {
               title: finalTitle,
