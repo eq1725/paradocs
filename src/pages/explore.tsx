@@ -371,6 +371,9 @@ function ExploreMapMode() {
   var allPointsGeoJSON = viewportData.allPointsGeoJSON
   var totalReports = viewportData.totalReports
   var filteredCount = viewportData.filteredCount
+  // V11.17.7 — Real total in viewport (ignores API row cap). When the
+  // bbox contains more reports than we render as pins, show "N of M".
+  var bboxTotalCount = viewportData.bboxTotalCount
   var categoryCounts = viewportData.categoryCounts
   var topCountries = viewportData.topCountries
   var dataBounds = viewportData.dataBounds
@@ -602,6 +605,7 @@ function ExploreMapMode() {
         onFilterChange={setFilter}
         onResetFilters={resetFilters}
         filteredCount={filteredCount}
+        bboxTotalCount={bboxTotalCount}
         totalCount={totalReports}
         categoryCounts={categoryCounts}
         topCountries={topCountries}

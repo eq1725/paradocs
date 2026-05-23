@@ -39,10 +39,16 @@ interface UseViewportDataReturn {
   features: any[]
   /** Raw unclustered points as GeoJSON (for heatmap) */
   allPointsGeoJSON: GeoJSON.FeatureCollection
-  /** Total number of reports loaded (pre-filter) */
+  /** Total number of reports loaded (pre-filter) — capped by API limit */
   totalReports: number
-  /** Number of reports matching current filters */
+  /** Number of reports matching current filters — drawn from the
+   *  array of reports actually loaded into the client. Can be capped
+   *  if the bbox contains more than the API's max-rows. */
   filteredCount: number
+  /** V11.17.7 — Real bbox count from the API's `count: 'exact'` query.
+   *  Ignores any row limit. When this exceeds filteredCount, the UI
+   *  can show "showing N of M" honestly. */
+  bboxTotalCount: number
   /** Category counts for the current filtered data */
   categoryCounts: Record<string, number>
   /** Top countries by report count */
@@ -80,6 +86,9 @@ export function useViewportData(
   zoom: number
 ): UseViewportDataReturn {
   const [allReports, setAllReports] = useState<ReportPoint[]>([])
+  // V11.17.7 — Track the API's exact-count for the current bbox so
+  // the UI can show "X of Y" when the rendered set is capped.
+  const [bboxTotalCount, setBboxTotalCount] = useState<number>(0)
   const [regionBuckets, setRegionBuckets] = useState<RegionBucket[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -162,6 +171,10 @@ export function useViewportData(
         if (cancelled) return
 
         const rows: any[] = data.reports || []
+        // V11.17.7 — Capture the real bbox total (ignoring API limit)
+        // so the UI can render "showing N of M" honestly. The server
+        // sets this via PostgREST count: 'exact'.
+        const apiBboxCount: number = typeof data.bboxCount === 'number' ? data.bboxCount : rows.length
         const reportMap = new Map<string, ReportProperties>()
         const points: ReportPoint[] = []
         for (const r of rows) {
@@ -195,6 +208,7 @@ export function useViewportData(
         }
         reportMapRef.current = reportMap
         setAllReports(points)
+        setBboxTotalCount(apiBboxCount)
         setCompletedKey(filterKey)
         setLoading(false)
       } catch (err: any) {
@@ -436,6 +450,7 @@ export function useViewportData(
     allPointsGeoJSON,
     totalReports: allReports.length,
     filteredCount: filteredReports.length,
+    bboxTotalCount,
     categoryCounts,
     topCountries,
     regionBuckets: filteredRegionBuckets,

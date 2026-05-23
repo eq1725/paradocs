@@ -38,6 +38,9 @@ interface MapBottomSheetProps {
   onFilterChange: <K extends keyof MapFilters>(key: K, value: MapFilters[K]) => void
   onResetFilters: () => void
   filteredCount: number
+  /** V11.17.7 — Real bbox total (from server count: 'exact'); used to
+   *  show "X of Y" when filteredCount is capped by API row limits. */
+  bboxTotalCount?: number
   totalCount: number
   categoryCounts?: Record<string, number>
   topCountries?: { name: string; count: number }[]
@@ -72,6 +75,7 @@ export default function MapBottomSheet({
   onFilterChange,
   onResetFilters,
   filteredCount,
+  bboxTotalCount,
   totalCount,
   categoryCounts = {},
   topCountries = [],
@@ -374,8 +378,14 @@ export default function MapBottomSheet({
             handle + X button. */}
         {!isFull && (
           <div className="flex items-center justify-between text-xs text-gray-400 pb-2 px-4">
+            {/* V11.17.7 — When bbox total exceeds what's rendered as
+                pins (API row cap), show "X of Y" so the visitor
+                knows there are more out of view in the data.
+                Otherwise show just the rendered count. */}
             <span>
-              {filteredCount.toLocaleString()} sighting{filteredCount !== 1 ? 's' : ''} mapped
+              {(typeof bboxTotalCount === 'number' && bboxTotalCount > filteredCount)
+                ? filteredCount.toLocaleString() + ' of ' + bboxTotalCount.toLocaleString() + ' sightings here'
+                : filteredCount.toLocaleString() + ' sighting' + (filteredCount !== 1 ? 's' : '') + ' mapped'}
             </span>
             {selectedReport && (
               <button
