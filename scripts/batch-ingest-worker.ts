@@ -42,6 +42,9 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { spawn } from 'child_process'
+import * as fs from 'fs'
+import * as path from 'path'
 import {
   CONSOLIDATED_SYSTEM_PROMPT,
   buildConsolidatedUserPrompt,
@@ -83,6 +86,7 @@ interface CliArgs {
   pollIntervalSec: number
   maxWaitSec: number
   resumeBatchId: string | null
+  noClassify: boolean
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -94,6 +98,7 @@ function parseArgs(argv: string[]): CliArgs {
     pollIntervalSec: 30,
     maxWaitSec: 3600,
     resumeBatchId: null,
+    noClassify: false,
   }
   for (var i = 2; i < argv.length; i++) {
     var a = argv[i]
@@ -104,6 +109,7 @@ function parseArgs(argv: string[]): CliArgs {
     else if (a === '--poll-interval') { args.pollIntervalSec = parseInt(argv[++i], 10) || 30 }
     else if (a === '--max-wait') { args.maxWaitSec = parseInt(argv[++i], 10) || 3600 }
     else if (a === '--resume') { args.resumeBatchId = argv[++i]; args.backfill = false }
+    else if (a === '--no-classify') { args.noClassify = true }
     else if (a === '--help' || a === '-h') {
       console.log('Usage: tsx scripts/batch-ingest-worker.ts [--backfill] [--status <s>] [--limit <n>] [--dry-run] [--poll-interval <s>] [--max-wait <s>] [--resume <batch_id>]')
       process.exit(0)
@@ -573,9 +579,92 @@ async function main() {
       console.log('API errored:  ' + stats.errored)
       console.log('Total batch cost: $' + stats.totalCost.toFixed(4))
       console.log('Avg per succeeded report: $' + (stats.succeeded > 0 ? (stats.totalCost / stats.succeeded).toFixed(5) : 'n/a'))
+
+      // V11.15.4 (Stage D) — auto-classify newly-approved reports into
+      // the encyclopedia so the next ingestion doesn't leave a backlog
+      // of unclassified reports.
+      if (!args.noClassify) {
+        await spawnClassifierAfterRun(stats.succeeded)
+      } else {
+        console.log('\n[Auto-classify] --no-classify set — skipping post-ingestion classifier.')
+      }
       return
     }
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// V11.15.4 (Stage D) — Post-ingestion phenomenon classification
+// ─────────────────────────────────────────────────────────────────────
+//
+// After the batch worker finishes promoting reports to status='approved',
+// fire the phenomenon classifier so freshly-approved reports get linked
+// into the encyclopedia automatically. The classifier filters by
+// status='approved' AND skips reports that already have report_phenomena
+// rows, so this is idempotent — re-running on a fully-classified corpus
+// is a fast no-op.
+//
+// Gated by --no-classify CLI flag and PARADOCS_AUTO_CLASSIFY env var
+// (set to 'false' to disable). Default: enabled.
+//
+// Why spawn vs. import: keeps the classifier as a self-contained CLI
+// (one place to debug, one place to update Anthropic API quirks). The
+// child process inherits env and writes its own log.
+
+function spawnClassifierAfterRun(succeeded: number): Promise<void> {
+  return new Promise(function (resolve) {
+    if (succeeded === 0) {
+      console.log('\n[Auto-classify] No reports promoted to approved — skipping classifier.')
+      resolve()
+      return
+    }
+    if (process.env.PARADOCS_AUTO_CLASSIFY === 'false') {
+      console.log('\n[Auto-classify] Disabled via PARADOCS_AUTO_CLASSIFY=false — skipping.')
+      resolve()
+      return
+    }
+    console.log('\n=== Post-ingestion phenomenon classifier (Stage D) ===')
+    console.log('Promoting ' + succeeded + ' newly-approved reports into the encyclopedia.')
+    console.log('Classifier filters internally to only-unlinked reports — safe to re-run.')
+
+    var ts = Date.now()
+    var logPath = path.join('outputs', 'orchestrator-classifier-' + ts + '.log')
+    var out: number
+    try {
+      // Ensure outputs dir exists (idempotent)
+      try { fs.mkdirSync('outputs', { recursive: true }) } catch (_e) { /* exists */ }
+      out = fs.openSync(logPath, 'a')
+    } catch (e: any) {
+      console.warn('[Auto-classify] could not open log file: ' + (e?.message || e))
+      resolve()
+      return
+    }
+    console.log('Classifier log → ' + logPath)
+
+    var child = spawn(
+      'npx',
+      ['tsx', 'scripts/classify-phenomena-batch.ts', '--all'],
+      {
+        detached: false,
+        stdio: ['ignore', out, out],
+        env: process.env,
+      },
+    )
+    child.on('exit', function (code) {
+      try { fs.closeSync(out) } catch (_e) { /* ignore */ }
+      if (code === 0) {
+        console.log('[Auto-classify] ✓ Classifier finished cleanly (log: ' + logPath + ')')
+      } else {
+        console.warn('[Auto-classify] ! Classifier exited with code=' + code + ' (log: ' + logPath + ')')
+      }
+      resolve()
+    })
+    child.on('error', function (err) {
+      try { fs.closeSync(out) } catch (_e) { /* ignore */ }
+      console.warn('[Auto-classify] spawn error: ' + (err.message || err))
+      resolve()
+    })
+  })
 }
 
 async function logBatchCost(
