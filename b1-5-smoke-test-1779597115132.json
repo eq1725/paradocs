@@ -1,0 +1,52 @@
+[
+  {
+    "adapter": "oberf",
+    "sourceUuid": "34f11cb9-e000-4242-b698-bae624024947",
+    "ingestSucceeded": true,
+    "ingestedCount": 0,
+    "ingestedIds": [
+      "2dc29476-3253-4a1c-9272-c1bd4dd4dbdd",
+      "904e0727-43db-445c-a840-844aa6711123",
+      "f68382f2-9cd2-486f-859e-72ca799f3a53",
+      "8a3cdeb8-7935-4139-95cf-36701793ce62",
+      "f8cd7787-9b31-404a-b0fd-4356b9333241"
+    ],
+    "errors": [],
+    "verifications": [
+      {
+        "name": "report_type = ingested",
+        "status": "PASS",
+        "details": "5 rows all marked ingested"
+      },
+      {
+        "name": "phenomenon_type_id resolution",
+        "status": "PASS",
+        "details": "5/5 rows have phenomenon_type_id. Resolved slugs: [out-of-body-experience, out-of-body-experience, out-of-body-experience, out-of-body-experience, out-of-body-experience]"
+      },
+      {
+        "name": "report_phenomena junction links",
+        "status": "PASS",
+        "details": "5/5 rows have at least one phenomena link. All rows link to canonical encyclopedia entries."
+      },
+      {
+        "name": "paradocs_narrative generation",
+        "status": "PASS",
+        "details": "5/5 rows have a non-trivial paradocs_narrative. All rows have meaningful Paradocs-voice narrative."
+      },
+      {
+        "name": "OBERF sub-typing fires",
+        "status": "WARN",
+        "details": "0 rows have archive→effective type reassignment. MANUAL SPOT-CHECK REQUIRED — read the narratives for each reassigned row and confirm the new type is defensible."
+      }
+    ],
+    "spotCheckNotes": [
+      "CRITICAL: spot-check subtypeDBVArchive() reassignments — ",
+      "  if metadata.archiveTypeSlug = deathbed-vision but metadata.experienceTypeSlug = ",
+      "  after-death-communication / nearing-end-of-life-experience, confirm the narrative ",
+      "  actually supports the reassignment. False positives = adapter bug.",
+      "Same for subtypeDreamArchive() — dream→premonition reassignments need narrative ",
+      "  cues about foresight/confirmation."
+    ],
+    "durationMs": 154111
+  }
+]

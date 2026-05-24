@@ -1,0 +1,44 @@
+[
+  {
+    "adapter": "nderf",
+    "sourceUuid": "b383828f-6cbd-44ce-94a1-769c84c13a17",
+    "ingestSucceeded": true,
+    "ingestedCount": 0,
+    "ingestedIds": [
+      "1c9181e1-fb9d-438f-95b8-5247337e81a6",
+      "afe6f636-6193-4e03-8558-ad6073c9dc89",
+      "269cb37f-3e76-4131-84ab-2c77b842d064",
+      "ab1875ff-1e3a-41f9-a5bd-b4fa95e5ae03",
+      "ffc119a0-26c4-431b-b6fe-c25c9e1ba104"
+    ],
+    "errors": [],
+    "verifications": [
+      {
+        "name": "report_type = ingested",
+        "status": "PASS",
+        "details": "5 rows all marked ingested"
+      },
+      {
+        "name": "phenomenon_type_id resolution",
+        "status": "PASS",
+        "details": "5/5 rows have phenomenon_type_id. Resolved slugs: [near-death-experience, near-death-experience, near-death-experience, near-death-experience, near-death-experience]"
+      },
+      {
+        "name": "report_phenomena junction links",
+        "status": "PASS",
+        "details": "5/5 rows have at least one phenomena link. All rows link to canonical encyclopedia entries."
+      },
+      {
+        "name": "paradocs_narrative generation",
+        "status": "PASS",
+        "details": "5/5 rows have a non-trivial paradocs_narrative. All rows have meaningful Paradocs-voice narrative."
+      }
+    ],
+    "spotCheckNotes": [
+      "Verify NDE vs Distressing-NDE branching by reading the narrative.",
+      "Confirm reports.phenomenon_type_id matches expected slug.",
+      "Confirm /phenomena/near-death-experience renders the new report."
+    ],
+    "durationMs": 132470
+  }
+]
