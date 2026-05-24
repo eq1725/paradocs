@@ -882,7 +882,7 @@ export function assessQuality(
   // and non-experience filters. These Reddit-tuned patterns cause false positives
   // on structured questionnaire content (e.g., NDERF/OBERF pages mention "survey"
   // in page chrome, triggering the meta-post heuristic).
-  var isCuratedSource = ['bfro', 'nuforc', 'nderf', 'oberf', 'iands', 'erowid'].indexOf(report.source_type) !== -1;
+  var isCuratedSource = ['bfro', 'nuforc', 'nderf', 'oberf', 'adcrf', 'iands', 'erowid'].indexOf(report.source_type) !== -1;
 
   // First run content filter with source-specific min length
   const filterResult = filterContent(
@@ -929,6 +929,9 @@ var SOURCE_THRESHOLDS: Record<string, { approve: number; review: number; minDesc
   'nderf':  { approve: 55, review: 35, minDescLength: 200 },
   'iands':  { approve: 55, review: 35, minDescLength: 200 },
   'oberf':  { approve: 55, review: 35, minDescLength: 200 },
+  // V11.17.15 — ADCRF (Dr. Long's After-Death Communication archive).
+  // Same questionnaire format as NDERF/OBERF; same moderate threshold.
+  'adcrf':  { approve: 55, review: 35, minDescLength: 200 },
 
   // Investigation orgs — established standards, moderate bar
   'bfro':   { approve: 60, review: 40, minDescLength: 150 },
@@ -1037,11 +1040,11 @@ export function smartReEvaluate(
   // Sources where EVERY submission is inherently a first-hand witness report.
   // These get a significant baseline boost because the source itself provides
   // structural credibility that the scoring dimensions can't capture.
-  var witnessReportSources = ['nuforc', 'bfro', 'mufon', 'nderf', 'iands', 'oberf'];
+  var witnessReportSources = ['nuforc', 'bfro', 'mufon', 'nderf', 'iands', 'oberf', 'adcrf'];
   var isWitnessSource = witnessReportSources.indexOf(report.source_type) !== -1;
 
   // Broader set of trusted, moderated sources (includes witness + government/academic)
-  var trustedSources = ['nuforc', 'bfro', 'mufon', 'nderf', 'iands', 'oberf', 'government', 'blackvault', 'geipan', 'foia', 'bluebook'];
+  var trustedSources = ['nuforc', 'bfro', 'mufon', 'nderf', 'iands', 'oberf', 'adcrf', 'government', 'blackvault', 'geipan', 'foia', 'bluebook'];
   var isTrusted = trustedSources.indexOf(report.source_type) !== -1;
 
   // 1. Witness-report source baseline boost
