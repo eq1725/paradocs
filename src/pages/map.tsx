@@ -190,8 +190,15 @@ export default function MapPage() {
         </button>
 
         {/* ─── Desktop: Filter panel drawer ─── */}
+        {/* V11.17.14 — bottom-[68px] clears the timeline bar so the
+            filter panel's sticky footer (Reset button + count) sits
+            above it instead of being occluded. Timeline height is
+            py-3 (24px) + slider (~36px) + border (1px) ≈ 61px;
+            68px leaves a small visual gap so the two surfaces don't
+            touch flush. Paired with the timeline's left-[320px]
+            below so the two regions don't visually overlap either. */}
         {filterPanelOpen && (
-          <div className="hidden lg:block absolute top-0 left-0 bottom-0 z-20">
+          <div className="hidden lg:block absolute top-0 left-0 bottom-[68px] z-20">
             <MapFilterPanel
               filters={filters}
               onFilterChange={setFilter}
@@ -211,7 +218,15 @@ export default function MapPage() {
         )}
 
         {/* ─── Desktop: Timeline bar (bottom of map) ─── */}
-        <div className="hidden lg:block absolute bottom-0 left-0 right-0 z-20 px-16 py-3 bg-gray-950/80 backdrop-blur-sm border-t border-gray-800/30">
+        {/* V11.17.14 — left edge shifts to 320px (filter panel width)
+            when the filter panel is open, so the two surfaces sit
+            side-by-side at the bottom instead of overlapping. */}
+        <div
+          className={
+            'hidden lg:block absolute bottom-0 right-0 z-20 px-16 py-3 bg-gray-950/80 backdrop-blur-sm border-t border-gray-800/30 transition-[left] duration-200 ' +
+            (filterPanelOpen ? 'left-[320px]' : 'left-0')
+          }
+        >
           <MapTimeline
             dateFrom={filters.dateFrom}
             dateTo={filters.dateTo}

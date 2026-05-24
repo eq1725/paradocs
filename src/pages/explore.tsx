@@ -1459,8 +1459,15 @@ function ExploreBrowseMode() {
               <div>
                 <h2 className="text-xl font-bold text-white">{(CATEGORY_CONFIG as any)[selectedCategoryForPhenomena]?.label || selectedCategoryForPhenomena}</h2>
                 {/* T1.4 — count reflects phenomena WITH tagged reports only */}
+                {/* V11.17.14 — while loading, show neutral text instead
+                    of a transient "0 phenomena" that flashes before
+                    data lands. */}
                 <p className="text-sm text-gray-500">
-                  {phenomena.length === 1 ? '1 phenomenon with reports' : phenomena.length.toLocaleString() + ' phenomena with reports'}
+                  {phenomenaLoading
+                    ? 'Loading…'
+                    : phenomena.length === 1
+                      ? '1 phenomenon with reports'
+                      : phenomena.length.toLocaleString() + ' phenomena with reports'}
                 </p>
               </div>
             </div>
@@ -1520,25 +1527,31 @@ function ExploreBrowseMode() {
             </p>
           )}
 
-          {phenomenaLoading ? (
+          {/* V11.17.14 — Show skeleton when explicitly loading OR when
+              phenomena is transiently empty (between user-tap and data
+              arrival). Empty-state messaging only fires when we've
+              definitively confirmed an empty result. Prevents the
+              "0 phenomena with reports / No tagged reports in this
+              category yet" flash that could appear if React rendered
+              between handleViewPhenomena's setPhenomena([]) and
+              loadPhenomena's data arrival. */}
+          {phenomenaLoading || phenomena.length === 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {[1,2,3,4,5,6].map(function(i) { return <div key={i} className="h-28 skeleton rounded-xl" /> })}
             </div>
           ) : sorted.length === 0 ? (
             <div className="text-center py-12">
-              {/* T1.4 — empty state reflects "no tagged reports yet" rather
-                  than "no entries exist". Categories may have many encyclopedia
-                  entries that simply have no tagged reports yet. */}
+              {/* T1.4 — empty state reflects "filter excluded all" since
+                  we've already verified phenomena.length > 0 above. The
+                  pre-V11.17.14 "no tagged reports yet" branch is now
+                  unreachable here; categories with 0 phenomena render
+                  the skeleton instead (a clean visual stall vs. a
+                  potentially misleading empty-state message). */}
               <p className="text-gray-400">
                 {phenomenaFilter
                   ? 'No phenomena match your filter.'
-                  : 'No tagged reports in this category yet.'}
+                  : 'No matches in this category.'}
               </p>
-              {!phenomenaFilter && (
-                <p className="text-xs text-gray-500 mt-2 max-w-sm mx-auto">
-                  As reports get submitted or indexed and tagged with phenomena in this category, they&apos;ll show up here.
-                </p>
-              )}
             </div>
           ) : (
             // V11.17.12 — Breakpoint-swap layout (panel rec A+D):

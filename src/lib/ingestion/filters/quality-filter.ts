@@ -142,6 +142,25 @@ export const NON_EXPERIENCE_PATTERNS = [
   /\b(cosplay|costume|dressed as|dressed up as)\b/i,
   // News/articles (not personal experiences)
   /\b(according to|scientists|researchers found|study shows|report says)\b/i,
+  // V11.17.14 — Meta-commentary / news-summary / press-release /
+  // legislative-policy posts (Kecksburg-style). Reddit r/UFOs in
+  // particular floods with these: link-shares of Wired articles,
+  // congressional amendment discussions, scientific coalition
+  // press releases, etc. None are first-person witness accounts.
+  /\b(this|the)\s+\d{4}\s+(wired|atlantic|guardian|nytimes|nyt|wsj|forbes|cnn|bbc|npr|pbs|fox|cbs|nbc|abc|ap|associated\s+press|reuters)\s+article\b/i,
+  /\b(wired|atlantic|guardian|new\s+york\s+times|washington\s+post|cnn|bbc|forbes|reuters|associated\s+press)\s+article\s+(documents|reveals|reports|states|describes|details|recounts)\b/i,
+  /\bpress\s+release\s+(announces|reads|states|reveals|details)\b/i,
+  /\b(today|recently|yesterday)[,.]?\s+\w+\s+(released|announced|published|issued)\s+(the\s+)?(following\s+)?press\s+release\b/i,
+  /\bobtained\s+and\s+released\s+(those|the|these|these)\b/i,
+  /\bcongressional\s+(hearing|testimony|amendment|record|committee|subcommittee)\b/i,
+  /\b(senate|house)\s+(amendment|hearing|committee|subcommittee|floor)\b/i,
+  /\b(advisory|disclosure|standing|select|special)\s+(committee|subcommittee|panel|task\s+force)\b/i,
+  /\bamendment\s+(in\s+nature\s+of\s+(a\s+)?substitute|proposal|filed)\b/i,
+  /\b(submitted|filed|proposed)\s+an?\s+amendment\b/i,
+  // Reddit r/UFOs convention — Submission Statements are the
+  // mandatory blurb for LINK posts (always non-experience).
+  /\b(?:^|\n)\s*submission\s+statement\s*[:|\-—]/i,
+  /\bsubmission\s+statement\b.*\b(this|the)\s+(article|video|post|paper|study|report)\b/i,
   // V11 — help/advice-request posts. "Woman Seeks Exorcism Help for
   // Mother in Phoenix" type — a real person genuinely needs help, but
   // it isn't an experience report we can archive editorially.
@@ -297,6 +316,25 @@ export const DESCRIPTION_LEAD_PATTERNS = [
   /^\s*what\s+(?:are|is)\s+the\s+(?:odds|chances|probability|likelihood)\s+(?:that|of)\b/i,
   /^\s*could\s+(?:it\s+be|this\s+be|there\s+be|that\s+be)\s+that\b/i,
   /^\s*is\s+it\s+(?:possible|conceivable|plausible)\s+that\b/i,
+  // V11.17.14 — Meta-commentary openers (Kecksburg-style leak).
+  // These are body-leads that signal "this is a link-share / news
+  // commentary post, not a first-person witness account."
+  //
+  // "Okay so, somebody on a other post mentioned..." — referencing
+  // other Reddit posts as the subject (Kecksburg report's opener).
+  /^\s*ok(?:ay)?[,.!]?\s+so[,.]?\s+(?:somebody|someone|a\s+person|this\s+\w+|the\s+\w+)\s+(?:on|in|from)\s+(?:a|an|the|another|other)\s+(?:post|thread|sub|video|article)/i,
+  // "I can't believe it took me X to notice..." — rhetorical news commentary
+  /^\s*i\s+can'?t\s+believe\s+(?:it|how)\s+(?:took|long)\s+/i,
+  // "Today, X released the following..." — press release dump
+  /^\s*today[,.]?\s+\w+\s+(?:released|announced|published|posted|issued)\s+(?:the\s+following\s+)?(?:press\s+release|statement|announcement)\b/i,
+  // "I found this Y and thought..." / "I found this fascinating and..."
+  /^\s*i\s+found\s+this\s+\w+\s+(?:fascinating|interesting|incredible|amazing|disturbing|striking|important|fasinating)/i,
+  // "This is just a..." / "This is an amendment proposal..." — link-share preamble
+  /^\s*this\s+is\s+(?:just\s+)?an?\s+\w+\s+(?:proposal|amendment|article|link|share|update|news|press)/i,
+  // "I'm looking into / I was looking at / I came across" — research/curation framing
+  /^\s*i\s+(?:was|am)\s+(?:looking\s+(?:into|at|up)|reading|researching|going\s+through)\s+(?:a|an|the|this)\s+(?:article|paper|study|book|wiki|website|sub|thread|post)/i,
+  // "Submission statement:" (Reddit r/UFOs convention for link-share posts)
+  /^\s*submission\s+statement\s*[:|\-—]/i,
 ];
 
 // Fiction markers - stories that are explicitly fictional
