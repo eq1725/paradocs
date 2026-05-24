@@ -491,6 +491,15 @@ export function parseLocation(text: string): ParsedLocation {
   const CITY_TOKEN = '[A-Z][a-zA-Z]+(?:[\\s-][A-Z][a-zA-Z]+){0,2}'  // 1-3 cap words
   const CITY_PREP = '(?:in|at|near|from|to|outside|throughout|across|around)'
 
+  // V11.17.25 — Bug #12 fix: cardinal directions captured as "city" are
+  // almost always regional descriptors ("North Florida" = the northern
+  // part of FL), not actual cities. Treating them as cities causes the
+  // geocoder to find tiny same-named towns in unrelated states (e.g.,
+  // "North, FL" → North, TX in Hidalgo County). When the CITY_TOKEN match
+  // is one of these tokens, drop the city + return state-only — the
+  // geocoder will then land on the state centroid, which is correct.
+  const CARDINAL_OR_REGIONAL_CITY = /^(north|south|east|west|central|upper|lower|northern|southern|eastern|western|northeast|northwest|southeast|southwest|mid|middle|coastal|rural|interior|downtown|uptown|greater)$/i
+
   // [City], [ST] pattern (state code)
   const usCityStateCodeRegex = new RegExp(
     `\\b${CITY_PREP}\\s+(${CITY_TOKEN}),?\\s*([A-Z]{2})(?:,?\\s*(?:USA|US|United States))?\\b`
@@ -500,6 +509,16 @@ export function parseLocation(text: string): ParsedLocation {
     const city = usLocationMatch[1].trim()
     const stateCode = usLocationMatch[2].toUpperCase()
     if (US_STATE_CODES.has(stateCode)) {
+      // V11.17.25 — Cardinal-direction guard
+      if (CARDINAL_OR_REGIONAL_CITY.test(city)) {
+        return {
+          locationName: stateCode,
+          city: undefined,
+          stateProvince: stateCode,
+          country: 'United States',
+          isInternational: false,
+        }
+      }
       return {
         locationName: `${city}, ${stateCode}`,
         city: city,
@@ -519,9 +538,22 @@ export function parseLocation(text: string): ParsedLocation {
     )
     const match = text.match(stateRegex)
     if (match) {
+      const city = match[1].trim()
+      // V11.17.25 — Cardinal-direction guard (mirrors the state-code path
+      // above). "in North Florida" → city="North" → land in TX. Drop city,
+      // return state-only so geocoder lands on Florida centroid.
+      if (CARDINAL_OR_REGIONAL_CITY.test(city)) {
+        return {
+          locationName: stateCode,
+          city: undefined,
+          stateProvince: stateCode,
+          country: 'United States',
+          isInternational: false,
+        }
+      }
       return {
-        locationName: `${match[1].trim()}, ${stateCode}`,
-        city: match[1].trim(),
+        locationName: `${city}, ${stateCode}`,
+        city: city,
         stateProvince: stateCode,
         country: 'United States',
         isInternational: false,
