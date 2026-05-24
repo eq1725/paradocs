@@ -231,7 +231,14 @@ interface ReportMetadata {
 }
 
 // Extract wpDataTable AJAX configuration from the page HTML
-function findWpDataTableConfig(html: string): { tableId: string; ajaxUrl: string } | null {
+//
+// V11.17.23 — also extracts the nonce from the hidden input
+// `wdtNonceFrontendServerSide_<tableId>`. wpdatatables requires this
+// nonce to be POSTed as the body parameter `wdtNonce` (NOT the full
+// input name), or the AJAX call silently returns 0 bytes (WP's classic
+// nonce-failure mode). The shard-page fetch we already do gives us
+// the nonce for free — no extra request needed.
+function findWpDataTableConfig(html: string): { tableId: string; ajaxUrl: string; nonce: string | null } | null {
   // Look for wpDataTables initialization in script blocks
   // Common patterns: wpdatatables_init_XXX, wpDataTablesGlobalData, data-wpdatatable_id
 
@@ -252,45 +259,89 @@ function findWpDataTableConfig(html: string): { tableId: string; ajaxUrl: string
 
   var tableId = tableIdMatch[1];
 
+  // V11.17.23 — Extract the wpdatatables nonce. Field name in HTML is
+  // `wdtNonceFrontendServerSide_<tableId>`; we capture the value to POST
+  // as `wdtNonce`. WordPress AJAX silently returns empty 200 OK when
+  // nonce check fails.
+  var nonce: string | null = null;
+  var nonceRe = new RegExp('wdtNonceFrontendServerSide_' + tableId + '[^>]*value=["\']([a-f0-9]{8,})["\']', 'i');
+  var nonceMatch = html.match(nonceRe);
+  if (nonceMatch) nonce = nonceMatch[1];
+
   // Find the AJAX URL — usually wp-admin/admin-ajax.php or similar
   var ajaxUrlMatch = html.match(/["'](https?:\/\/[^"']*admin-ajax\.php)["']/i);
   if (!ajaxUrlMatch) {
     // Default WordPress AJAX endpoint
     var siteUrlMatch = html.match(/(https?:\/\/nuforc\.org)/i);
     var siteUrl = siteUrlMatch ? siteUrlMatch[1] : 'https://nuforc.org';
-    return { tableId: tableId, ajaxUrl: siteUrl + '/wp-admin/admin-ajax.php' };
+    return { tableId: tableId, ajaxUrl: siteUrl + '/wp-admin/admin-ajax.php', nonce: nonce };
   }
 
-  return { tableId: tableId, ajaxUrl: ajaxUrlMatch[1] };
+  return { tableId: tableId, ajaxUrl: ajaxUrlMatch[1], nonce: nonce };
 }
 
-// Fetch wpDataTable data via AJAX endpoint (server-side processing)
-async function fetchWpDataTableData(config: { tableId: string; ajaxUrl: string }, monthUrl: string): Promise<ReportMetadata[]> {
+// Fetch wpDataTable data via AJAX endpoint (server-side processing).
+//
+// V11.17.23 — Three correctness fixes (vs the original empty-200 version):
+//   1. Filter params (`action`, `table_id`, `wdt_var1`, `wdt_var2`)
+//      go in the URL query string, NOT the POST body. The wdt_ajax_object
+//      JSON embedded in the page proves this: `ajax.url` ends in
+//      `?action=get_wdtable&table_id=1&wdt_var1=YearMonth&wdt_var2=<YYYYMM>`
+//      and method=POST. WordPress reads these from $_GET regardless of method.
+//   2. Nonce field is `wdtNonce` in the POST body. The HTML hidden input
+//      is named `wdtNonceFrontendServerSide_<tableId>` but wpdatatables JS
+//      remaps it to `wdtNonce` before sending. Without it, WP returns 200
+//      with 0 bytes (silent nonce-fail).
+//   3. The `wdt_var2` URL param is the YYYYMM string extracted from monthUrl
+//      (e.g. /subndx/?id=e202509 → 202509). This is what filters the global
+//      160k-row wpDataTable down to the ~345 reports for that specific
+//      month. Without it, the AJAX returns the unfiltered 160k.
+//
+// Net win vs the prior HTML-pagination path: each AJAX call returns the
+// FULL ~345 reports for the month (3.5x the 100 that pagination showed)
+// AND includes the structured fields we previously scraped per-report
+// (date, city, state, country, shape, summary teaser, explanation).
+async function fetchWpDataTableData(config: { tableId: string; ajaxUrl: string; nonce: string | null }, monthUrl: string): Promise<ReportMetadata[]> {
   var reports: ReportMetadata[] = [];
 
+  // Extract YYYYMM from the month URL (/subndx/?id=eYYYYMM)
+  var monthIdMatch = monthUrl.match(/[?&]id=e?(\d{6})/);
+  if (!monthIdMatch) {
+    console.log('[NUFORC] AJAX skipped: could not extract YYYYMM from monthUrl=' + monthUrl);
+    return reports;
+  }
+  var yyyymm = monthIdMatch[1];
+
+  if (!config.nonce) {
+    console.log('[NUFORC] AJAX skipped: wdtNonce not extracted from page HTML (will fall back to HTML parsing)');
+    return reports;
+  }
+
   try {
-    // wpDataTables uses DataTables server-side processing
-    // The AJAX endpoint expects POST with DataTables parameters
-    var params = new URLSearchParams();
-    params.append('action', 'get_wdtable');
-    params.append('table_id', config.tableId);
-    params.append('draw', '1');
-    params.append('start', '0');
-    params.append('length', '500'); // Get up to 500 rows per request
-    params.append('wdtNonce', ''); // May need nonce — try without first
+    // V11.17.23 — Filter params on the URL, DataTables pagination + nonce in body
+    var urlWithParams = config.ajaxUrl
+      + '?action=get_wdtable'
+      + '&table_id=' + encodeURIComponent(config.tableId)
+      + '&wdt_var1=YearMonth'
+      + '&wdt_var2=' + encodeURIComponent(yyyymm);
+    var body = new URLSearchParams();
+    body.append('draw', '1');
+    body.append('start', '0');
+    body.append('length', '500');  // Cap per request; wpdatatables returns whatever is filtered
+    body.append('wdtNonce', config.nonce);
 
-    console.log('[NUFORC] Attempting wpDataTable AJAX fetch: ' + config.ajaxUrl + ' (table_id: ' + config.tableId + ')');
+    console.log('[NUFORC] Attempting wpDataTable AJAX fetch: ' + config.ajaxUrl + ' (table_id: ' + config.tableId + ', month: ' + yyyymm + ', nonce: ' + config.nonce.substring(0, 4) + '...)');
 
-    var response = await fetch(config.ajaxUrl, {
+    var response = await fetch(urlWithParams, {
       method: 'POST',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json',
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         'Referer': monthUrl,
         'X-Requested-With': 'XMLHttpRequest'
       },
-      body: params.toString()
+      body: body.toString()
     });
 
     if (!response.ok) {
@@ -298,7 +349,19 @@ async function fetchWpDataTableData(config: { tableId: string; ajaxUrl: string }
       return reports;
     }
 
-    var json = await response.json() as any;
+    // V11.17.23 — Empty 200 body = silent nonce-fail. Surface it explicitly.
+    var text = await response.text();
+    if (!text || text.length === 0) {
+      console.log('[NUFORC] AJAX returned 200 OK with empty body (likely nonce-verification failed silently). Falling back.');
+      return reports;
+    }
+    var json: any;
+    try {
+      json = JSON.parse(text);
+    } catch (e) {
+      console.log('[NUFORC] AJAX response was not valid JSON (got ' + text.length + ' bytes). Falling back.');
+      return reports;
+    }
 
     // DataTables response format: { data: [[cell1, cell2, ...], ...] } or { data: [{col: val}, ...] }
     if (!json.data || !Array.isArray(json.data)) {
@@ -306,7 +369,7 @@ async function fetchWpDataTableData(config: { tableId: string; ajaxUrl: string }
       return reports;
     }
 
-    console.log('[NUFORC] AJAX returned ' + json.data.length + ' rows');
+    console.log('[NUFORC] AJAX returned ' + json.data.length + ' rows (recordsFiltered=' + json.recordsFiltered + ', recordsTotal=' + json.recordsTotal + ')');
 
     for (var row of json.data) {
       try {

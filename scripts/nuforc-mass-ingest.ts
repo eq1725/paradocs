@@ -104,6 +104,7 @@ interface CliArgs {
   strictMode: boolean;
   strictMinDescLen: number;
   strictMinScore: number;
+  noFullDetails: boolean;  // V11.17.23 — opt-out of per-report fetch_full_details (Cloudflare-paranoid mode)
 }
 
 function parseArgs(): CliArgs {
@@ -133,6 +134,7 @@ function parseArgs(): CliArgs {
     strictMode: bool('--strict-mode'),
     strictMinDescLen: parseInt(flag('--strict-min-desc-len', '300') || '300'),
     strictMinScore: parseInt(flag('--strict-min-score', '65') || '65'),
+    noFullDetails: bool('--no-full-details'),
   };
 }
 
@@ -291,11 +293,18 @@ async function processShard(
 ): Promise<ProcessResult> {
   const result: ProcessResult = { scraped: 0, inserted: 0, duplicates: 0, filtered: 0, errors: 0, rejectionReasons: {} };
 
-  // 1. Scrape this month's reports via the adapter (targetMonths fast path)
+  // 1. Scrape this month's reports via the adapter (targetMonths fast path).
+  // V11.17.23 — fetch_full_details defaults TRUE (better data quality) but can be
+  // opted out via --no-full-details for Cloudflare-paranoid runs. The wpDataTable
+  // AJAX fix (also V11.17.23) now correctly returns all ~345 reports per month
+  // in one call with their structured metadata + 135-char summary teaser; with
+  // fetch_full_details=true we additionally fetch the per-sighting page for the
+  // FULL narrative (200-1000+ chars typically), which is what passes the engine
+  // quality filter's minDescLen=200 threshold. Without it most reports filter out.
   const scrapeResult = await nuforcAdapter.scrape({
     target_months: [monthId],
     rate_limit_ms: args.rateLimitMs,
-    fetch_full_details: true,
+    fetch_full_details: !args.noFullDetails,
   }, args.maxPerMonth);
 
   if (!scrapeResult.success) {
