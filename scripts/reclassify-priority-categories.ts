@@ -264,38 +264,45 @@ interface Candidate {
 async function findCandidates(
   supabase: SupabaseClient,
   category: string,
-  limit: number,
+  totalLimit: number,
 ): Promise<Candidate[]> {
   const targets = TARGETS[category];
   if (!targets) throw new Error('Unknown category: ' + category);
+
+  // V11.17.16 — distribute the limit fairly across phenomena rather than
+  // exhausting it on the first one. perPhen = totalLimit / phenomena count
+  // (rounded up so small leftover doesn't get truncated).
+  const perPhenLimit = Math.max(1, Math.ceil(totalLimit / targets.length));
 
   const candidates: Candidate[] = [];
   const seenIds = new Set<string>();
 
   for (const target of targets) {
-    if (candidates.length >= limit) break;
+    if (candidates.length >= totalLimit) break;
+    const { data: phen } = await supabase.from('phenomena').select('id').eq('slug', target.slug).single();
+    if (!phen) {
+      console.warn('  no phenomena row for slug=' + target.slug + ' — skipping');
+      continue;
+    }
+    let perPhenCount = 0;
     for (const keyword of target.keywords) {
-      if (candidates.length >= limit) break;
-      // Find Reddit reports matching this keyword + NOT already linked to this phenomenon
-      const { data: phen } = await supabase.from('phenomena').select('id').eq('slug', target.slug).single();
-      if (!phen) continue;
-
-      // Pull matches in pages of 50 — stops once we have enough or run out
-      const remaining = limit - candidates.length;
+      if (perPhenCount >= perPhenLimit) break;
+      if (candidates.length >= totalLimit) break;
+      const remaining = perPhenLimit - perPhenCount;
       const { data: matches } = await supabase
         .from('reports')
         .select('id, slug, title, description')
         .eq('source_type', 'reddit')
         .eq('status', 'approved')
         .ilike('description', '%' + keyword + '%')
-        .limit(remaining * 2); // over-fetch since some will already be linked
+        .limit(remaining * 3); // over-fetch since some will be already-linked or dups
 
       if (!matches) continue;
 
-      // Filter out reports already linked to this phenomenon
       for (const r of matches) {
+        if (perPhenCount >= perPhenLimit) break;
+        if (candidates.length >= totalLimit) break;
         if (seenIds.has(r.id)) continue;
-        if (candidates.length >= limit) break;
         const { data: existing } = await supabase
           .from('report_phenomena')
           .select('report_id')
@@ -313,6 +320,7 @@ async function findCandidates(
           matchedKeyword: keyword,
         });
         seenIds.add(r.id);
+        perPhenCount++;
       }
     }
   }
