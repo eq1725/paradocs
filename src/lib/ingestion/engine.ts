@@ -47,6 +47,21 @@ let cachedPhenomena: PhenomenonPattern[] | null = null;
 let cacheTimestamp = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// V11.17.13 — withTimeout wrapper for best-effort post-insert calls.
+// Some Haiku/network calls have hung indefinitely in smoke runs (the
+// witness-profile, anchor-case, and push-copy paths). A hung call must
+// never block ingestion. This races the promise against a setTimeout
+// and rejects on whichever wins, so the caller's try/catch can log +
+// skip just like any other failure mode.
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>(function (_, reject) {
+      setTimeout(function () { reject(new Error('Timed out after ' + ms + 'ms: ' + label)); }, ms);
+    }),
+  ]);
+}
+
 // Get phenomena patterns with caching
 async function getPhenomenaPatterns(supabase: SupabaseClient): Promise<PhenomenonPattern[]> {
   if (cachedPhenomena && Date.now() - cacheTimestamp < CACHE_TTL) {
@@ -1213,17 +1228,28 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                 //    secondary encyclopedia links (e.g. an NDE report that
                 //    also mentions "tunnel of light" or "deceased relatives"
                 //    as distinct phenomena, once we add those).
-                const linked = await identifyPhenomenaForReport(
-                  supabase,
-                  insertedReport.id,
-                  finalTitle,
-                  report.summary,
-                  report.description,
-                  report.category
-                );
-                if (linked > 0) {
-                  phenomenaLinked += linked;
-                  console.log(`[Ingestion] Linked report to ${linked} phenomena`);
+                //
+                // V11.17.13 — gate OFF for NUFORC. The adapter's shape map
+                // is authoritative for NUFORC's primary phenomenon and the
+                // sighting genre rarely has meaningful secondary phenomena
+                // worth surfacing. Running the pattern matcher across NUFORC
+                // at scale would create thousands of false-positive links
+                // (e.g. jamais-vu firing on "I've never seen anything like
+                // that before"). Other sources continue to use it.
+                var skipSecondaryMatcher = report.source_type === 'nuforc';
+                if (!skipSecondaryMatcher) {
+                  const linked = await identifyPhenomenaForReport(
+                    supabase,
+                    insertedReport.id,
+                    finalTitle,
+                    report.summary,
+                    report.description,
+                    report.category
+                  );
+                  if (linked > 0) {
+                    phenomenaLinked += linked;
+                    console.log(`[Ingestion] Linked report to ${linked} phenomena`);
+                  }
                 }
               } catch (phenError) {
                 // Don't fail ingestion if phenomenon linking fails
@@ -1400,7 +1426,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                 // + claim-citation + audit log. Best-effort: failure doesn't
                 // block ingestion (UI handles null answer_line gracefully).
                 try {
-                  await generateAndSaveAnswerLine(insertedReport.id);
+                  await withTimeout(generateAndSaveAnswerLine(insertedReport.id), 30000, 'answer_line ' + slug);
                 } catch (answerError) {
                   console.log('[Ingestion] answer_line generation failed for ' + slug + ':', answerError);
                 }
@@ -1412,7 +1438,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                 // block ingestion; the UI hides the pill when profile
                 // is null. ~$0.001/row (Haiku, ~400 output tokens).
                 try {
-                  await generateAndSaveWitnessProfile(insertedReport.id);
+                  await withTimeout(generateAndSaveWitnessProfile(insertedReport.id), 30000, 'witness_profile ' + slug);
                 } catch (witnessError) {
                   console.log('[Ingestion] witness_profile generation failed for ' + slug + ':', witnessError);
                 }
@@ -1437,28 +1463,28 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                 var adminKey = process.env.ADMIN_API_KEY;
                 if (adminKey) {
                   // 1) Anchor case
-                  var anchorResp = await fetch(siteUrl + '/api/admin/ai/generate-anchor-cases?type=reports', {
+                  var anchorResp = await withTimeout(fetch(siteUrl + '/api/admin/ai/generate-anchor-cases?type=reports', {
                     method: 'POST',
                     headers: {
                       'x-admin-key': adminKey,
                       'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({ action: 'single', id: insertedReport.id }),
-                  });
+                  }), 30000, 'anchor-case ' + slug);
                   if (!anchorResp.ok) {
                     console.log('[Ingestion] Anchor-case endpoint returned ' + anchorResp.status + ' for ' + slug);
                   }
 
                   // 2) Push copy (depends on anchor case being populated)
                   try {
-                    var pushResp = await fetch(siteUrl + '/api/admin/ai/generate-push-copy?type=reports', {
+                    var pushResp = await withTimeout(fetch(siteUrl + '/api/admin/ai/generate-push-copy?type=reports', {
                       method: 'POST',
                       headers: {
                         'x-admin-key': adminKey,
                         'Content-Type': 'application/json',
                       },
                       body: JSON.stringify({ action: 'single', id: insertedReport.id }),
-                    });
+                    }), 30000, 'push-copy ' + slug);
                     if (!pushResp.ok) {
                       console.log('[Ingestion] Push-copy endpoint returned ' + pushResp.status + ' for ' + slug);
                     }
@@ -1477,7 +1503,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
 
               // Vector embedding for semantic search
               try {
-                await embedReport(insertedReport.id);
+                await withTimeout(embedReport(insertedReport.id), 30000, 'embed ' + slug);
               } catch (embedError) {
                 console.log('[Ingestion] Embedding failed for ' + slug + ', will catch in batch');
               }

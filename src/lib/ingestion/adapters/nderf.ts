@@ -1057,44 +1057,58 @@ export const nderfAdapter: SourceAdapter = {
   async scrape(config: Record<string, any>, limit: number = 100): Promise<AdapterResult> {
     const reports: ScrapedReport[] = [];
     const rateLimitMs = config.rate_limit_ms || 500;
+    // V11.17.13 — Per-archive shard support for mass-ingest orchestrator.
+    // If targetArchives is provided (array of NDERF archive URLs), the
+    // adapter ONLY scrapes those archives and ignores the default list.
+    // skipExperiences skips the first N experience entries within the
+    // archive (used for resuming a partially-completed archive).
+    const targetArchives: string[] | undefined = Array.isArray(config.target_archives) ? config.target_archives : undefined;
+    const skipExperiences: number = typeof config.skip_experiences === 'number' ? config.skip_experiences : 0;
 
     try {
-      console.log(`[NDERF] Starting scrape. Limit: ${limit}`);
+      console.log('[NDERF] Starting scrape. Limit: ' + limit + (targetArchives ? ' (target_archives: ' + targetArchives.length + ')' : '') + (skipExperiences > 0 ? ' (skip_experiences: ' + skipExperiences + ')' : ''));
 
       // NDERF archive URLs - updated April 2026
       // The site reorganized from /Experiences/ to /Archives/ and /NDERF/
-      const archiveUrls = [
+      const defaultArchiveUrls = [
         'https://www.nderf.org/Archives/NDERF_NDEs.html',
         'https://www.nderf.org/Archives/exceptional.html',
         'https://www.nderf.org/NDERF/NDE_Archives/archives_main.htm',
         'https://www.nderf.org/Experiences/exceptional.htm',
       ];
+      const archiveUrls = (targetArchives && targetArchives.length > 0) ? targetArchives : defaultArchiveUrls;
 
       for (const archiveUrl of archiveUrls) {
         if (reports.length >= limit) break;
 
-        console.log(`[NDERF] Fetching archive: ${archiveUrl}`);
+        console.log('[NDERF] Fetching archive: ' + archiveUrl);
         const archiveHtml = await fetchWithHeaders(archiveUrl);
 
         if (!archiveHtml) {
-          console.log(`[NDERF] Failed to fetch archive: ${archiveUrl}`);
+          console.log('[NDERF] Failed to fetch archive: ' + archiveUrl);
           continue;
         }
 
         // Parse index to get experience links
-        const experiences = await parseArchiveIndex(archiveHtml);
-        console.log(`[NDERF] Found ${experiences.length} experiences in archive`);
+        const allExperiences = await parseArchiveIndex(archiveHtml);
+        console.log('[NDERF] Found ' + allExperiences.length + ' experiences in archive');
+
+        // Apply skip + limit for shard resumability
+        const experiences = skipExperiences > 0 ? allExperiences.slice(skipExperiences) : allExperiences;
+        if (skipExperiences > 0) {
+          console.log('[NDERF] Skipping first ' + skipExperiences + ' experiences (resuming partial archive)');
+        }
 
         for (const exp of experiences) {
           if (reports.length >= limit) break;
 
           await delay(rateLimitMs);
 
-          console.log(`[NDERF] Fetching experience: ${exp.id}`);
+          console.log('[NDERF] Fetching experience: ' + exp.id);
           const expHtml = await fetchWithHeaders(exp.url);
 
           if (!expHtml) {
-            console.log(`[NDERF] Failed to fetch experience: ${exp.id}`);
+            console.log('[NDERF] Failed to fetch experience: ' + exp.id);
             continue;
           }
 
@@ -1103,7 +1117,7 @@ export const nderfAdapter: SourceAdapter = {
             reports.push(report);
 
             if (reports.length % 20 === 0) {
-              console.log(`[NDERF] Processed ${reports.length} reports...`);
+              console.log('[NDERF] Processed ' + reports.length + ' reports...');
             }
           }
         }

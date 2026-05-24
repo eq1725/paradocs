@@ -387,7 +387,13 @@ export async function normalizeLocation(
  * We request limit=1 and bias by country when available.
  */
 export const maptilerGeocoder: MapTilerGeocodeFn = async function (query, countryCode) {
-  const apiKey = process.env.MAPTILER_API_KEY || process.env.NEXT_PUBLIC_MAPTILER_KEY
+  // V11.17.13 — Prefer the server-side geocoding key (no Origin
+  // restriction) over the public browser key (which has Origin
+  // restriction that 403s server-side calls). Fall back to public
+  // key if dedicated server key isn't configured.
+  const apiKey = process.env.MAPTILER_GEOCODING_KEY
+    || process.env.MAPTILER_API_KEY
+    || process.env.NEXT_PUBLIC_MAPTILER_KEY
   if (!apiKey) return null
   const url = new URL('https://api.maptiler.com/geocoding/' + encodeURIComponent(query) + '.json')
   url.searchParams.set('key', apiKey)

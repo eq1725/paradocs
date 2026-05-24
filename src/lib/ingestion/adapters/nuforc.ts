@@ -4,6 +4,13 @@
 import { SourceAdapter, AdapterResult, ScrapedReport, ScrapedMediaItem } from '../types';
 import { extractDate, type DateExtractionSource } from '../utils/extract-date';
 
+// V11.17.13 — NUFORC's own "Explanation" column. When NUFORC themselves
+// have investigated a sighting and concluded it was a mundane object,
+// they tag it with one of these terms (or marks it as a confirmed hoax).
+// We treat any non-empty explanation that matches as a hard reject —
+// no point ingesting a UFO report NUFORC has already debunked.
+const NUFORC_DEBUNKED_PATTERNS = /\b(hoax|i\.?f\.?o\.?|identified flying object|aircraft|airplane|airline|helicopter|drone|balloon|satellite|space.?x|spacex|starlink|venus|jupiter|mars|iss|international space station|astronomical|planet|stars?|meteor|fireworks|chinese lantern|sky lantern|advertising|searchlight|kite)\b/i;
+
 // US State abbreviations to full names mapping
 const STATE_MAP: Record<string, string> = {
   'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas', 'CA': 'California',
@@ -42,6 +49,46 @@ const SHAPE_TAGS: Record<string, string[]> = {
   'flash': ['bright', 'momentary'],
   'unknown': [],
   'other': [],
+  'square': ['rectangular', 'box-shaped'],
+  'egg': ['oval', 'egg-shaped'],
+};
+
+// V11.17.13 — Shape → canonical encyclopedia phenomenon slug.
+// Set as metadata.experienceTypeSlug so the engine's deterministic
+// linker (resolvePhenomenonTypeBySlug + linkReportToCanonicalPhenomenonBySlug)
+// fires for NUFORC the same way it does for NDERF/OBERF. Bypasses the
+// brittle pattern matcher entirely for the primary type. Coverage: all
+// 22 NUFORC shapes mapped to active phenomena that exist in prod.
+//
+// Mapping rationale: pick the most descriptive specific phenomenon that
+// matches the witness's chosen shape word. "Star" and "Flash" both map
+// to nocturnal-light (the 3,687-report bucket NUFORC's archive feeds).
+// "Circle" maps to disc-ufo (round-from-front classic). "Light" alone
+// (no shape) is the most common NUFORC tag and also lands at
+// nocturnal-light. "Unknown"/"Other" deliberately unmapped — let the
+// engine leave phenomenon_type_id null rather than mis-attribute.
+const SHAPE_TO_PHENOMENON_SLUG: Record<string, string> = {
+  'light': 'nocturnal-light',
+  'circle': 'disc-ufo',
+  'triangle': 'triangular-ufo',
+  'fireball': 'fireball-ufo',
+  'sphere': 'sphere-ufo',
+  'oval': 'egg-ufo',
+  'disk': 'disc-ufo',
+  'cigar': 'cigar-ufo',
+  'rectangle': 'rectangle-ufo',
+  'chevron': 'chevron-ufo',
+  'formation': 'multi-light-formation',
+  'changing': 'shape-shifting-ufo',
+  'diamond': 'diamond-ufo',
+  'cylinder': 'cylindrical-ufo',
+  'teardrop': 'teardrop-ufo',
+  'cone': 'cone-ufo',
+  'orb': 'orb-ufo',
+  'star': 'nocturnal-light',
+  'flash': 'nocturnal-light',
+  'egg': 'egg-ufo',
+  'square': 'square-ufo',
 };
 
 function parseDate(dateStr: string): string | undefined {
@@ -689,39 +736,56 @@ export const nuforcAdapter: SourceAdapter = {
     var rateLimitMs = config.rate_limit_ms || 500; // 500ms default — respects NUFORC server
     var fetchFullDetails = config.fetch_full_details === true; // Default to FALSE for speed
     var maxMonths = config.max_months || 6; // Fewer months by default to avoid timeout
+    // V11.17.13 — Per-month shard support for mass-ingest orchestrator.
+    // If targetMonths is provided (array of YYYYMM strings), the adapter
+    // ONLY scrapes those months and ignores max_months. Used by the mass
+    // ingest runner to fan out scraping across many months in parallel
+    // without re-fetching the index page for every shard.
+    var targetMonths: string[] | undefined = Array.isArray(config.target_months) ? config.target_months : undefined;
 
     try {
       console.log('[NUFORC] Starting scrape. Limit: ' + limit + ', Max months: ' + maxMonths);
 
-      // Fetch the main index page
-      var indexUrl = 'https://nuforc.org/ndx/?id=event';
-      var indexHtml = await fetchWithHeaders(indexUrl);
+      // V11.17.13 — fast path for orchestrator shards. When targetMonths
+      // is provided, skip the index-page fetch entirely and process
+      // exactly those months. This avoids hitting the index ~624 times
+      // during a full-corpus mass ingest.
+      var months: Array<{ monthId: string; count: number }>;
+      if (targetMonths && targetMonths.length > 0) {
+        months = targetMonths.map(function (mid) { return { monthId: mid, count: 0 }; });
+        console.log('[NUFORC] Using ' + months.length + ' target month(s): ' + targetMonths.join(', '));
+      } else {
+        // Fetch the main index page (orchestrator-less path)
+        var indexUrl = 'https://nuforc.org/ndx/?id=event';
+        var indexHtml = await fetchWithHeaders(indexUrl);
 
-      if (!indexHtml) {
-        return {
-          success: false,
-          reports: [],
-          error: 'Failed to fetch NUFORC index page'
-        };
-      }
-
-      // Parse available months
-      var months = await parseMainIndex(indexHtml);
-      console.log('[NUFORC] Found ' + months.length + ' months in index');
-
-      if (months.length === 0) {
-        // Fallback: Try known recent months
-        var now = new Date();
-        for (var i = 0; i < maxMonths; i++) {
-          var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-          var monthId = '' + d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0');
-          months.push({ monthId: monthId, count: 100 });
+        if (!indexHtml) {
+          return {
+            success: false,
+            reports: [],
+            error: 'Failed to fetch NUFORC index page'
+          };
         }
-        console.log('[NUFORC] Using fallback months: ' + months.map(function(m) { return m.monthId; }).join(', '));
+
+        // Parse available months
+        months = await parseMainIndex(indexHtml);
+        console.log('[NUFORC] Found ' + months.length + ' months in index');
+
+        if (months.length === 0) {
+          // Fallback: Try known recent months
+          var now = new Date();
+          for (var i = 0; i < maxMonths; i++) {
+            var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            var monthId = '' + d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0');
+            months.push({ monthId: monthId, count: 100 });
+          }
+          console.log('[NUFORC] Using fallback months: ' + months.map(function(m) { return m.monthId; }).join(', '));
+        }
       }
 
-      // Process months until we have enough reports
-      var monthsToProcess = months.slice(0, maxMonths);
+      // Process months until we have enough reports.
+      // targetMonths bypasses maxMonths limit (orchestrator already picked them).
+      var monthsToProcess = targetMonths ? months : months.slice(0, maxMonths);
 
       for (var month of monthsToProcess) {
         if (reports.length >= limit) break;
@@ -738,9 +802,11 @@ export const nuforcAdapter: SourceAdapter = {
         var monthReports = await parseMonthPage(monthHtml, monthUrl);
         console.log('[NUFORC] Found ' + monthReports.length + ' reports in month ' + month.monthId);
 
-        // Check if descriptions are long enough to pass quality filtering (min 150 chars to match quality-filter.ts threshold)
-        // NUFORC table summaries are typically 50-130 chars — NOT enough for the quality filter
-        var hasUsableDescriptions = monthReports.some(function(r) { return r.summary.length > 150; });
+        // V11.17.13 — bumped 150 → 200 to match raised quality-filter
+        // minDescLength for NUFORC. Table summaries are typically 50-130
+        // chars; if every report in the month is below 200, auto-fetch
+        // the detail page to recover the longer narrative.
+        var hasUsableDescriptions = monthReports.some(function(r) { return r.summary.length > 200; });
         var needFullDetails = fetchFullDetails || !hasUsableDescriptions;
         if (!hasUsableDescriptions && monthReports.length > 0) {
           console.log('[NUFORC] Descriptions too short (max: ' + Math.max.apply(null, monthReports.map(function(r) { return r.summary.length; })) + ' chars) — auto-enabling fetch_full_details');
@@ -750,6 +816,15 @@ export const nuforcAdapter: SourceAdapter = {
           if (reports.length >= limit) break;
 
           try {
+            // V11.17.13 — drop reports NUFORC themselves have debunked.
+            // If the row's explanation column already names a mundane
+            // cause (hoax, IFO, aircraft, balloon, Starlink, Venus, etc),
+            // skip before paying the detail-page fetch cost.
+            if (meta.explanation && NUFORC_DEBUNKED_PATTERNS.test(meta.explanation)) {
+              console.log('[NUFORC] Skipping NUFORC-debunked report ' + meta.id + ' (explanation: ' + meta.explanation + ')');
+              continue;
+            }
+
             var description = meta.summary;
             var duration = '';
             var mediaItems: ScrapedMediaItem[] = [];
@@ -798,12 +873,19 @@ export const nuforcAdapter: SourceAdapter = {
             var titleDate = eventDate ? ' (' + eventDate + ')' : '';
             // Build NUFORC-specific metadata from detail page fields
             var hasDetails = !!(details && details.description);
+            // V11.17.13 — set experienceTypeSlug from shape so the engine's
+            // deterministic linker fires (skips brittle pattern matcher).
+            var shapeLowerForSlug = (meta.shape || '').toLowerCase().trim();
+            var experienceTypeSlug = SHAPE_TO_PHENOMENON_SLUG[shapeLowerForSlug];
             var nuforcMeta: Record<string, any> = {
               shape: meta.shape,
               hasMedia: meta.hasMedia || mediaItems.length > 0,
               duration: duration,
               reportId: meta.id
             };
+            if (experienceTypeSlug) {
+              nuforcMeta.experienceTypeSlug = experienceTypeSlug;
+            }
             // Add structured fields if we fetched the detail page
             if (hasDetails) {
               if (details!.estimatedSpeed) nuforcMeta.estimatedSpeed = details!.estimatedSpeed;

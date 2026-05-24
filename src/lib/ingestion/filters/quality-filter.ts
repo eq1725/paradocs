@@ -894,7 +894,13 @@ var SOURCE_THRESHOLDS: Record<string, { approve: number; review: number; minDesc
 
   // Investigation orgs — established standards, moderate bar
   'bfro':   { approve: 60, review: 40, minDescLength: 150 },
-  'nuforc': { approve: 60, review: 40, minDescLength: 100 },
+  // V11.17.13 — NUFORC bar raised pre-mass-ingestion. Table summaries are
+  // 50-130 chars; the adapter auto-fetches the detail page to recover the
+  // longer narrative. Lifting minDescLength 100 → 200 drops thin "saw a
+  // light, 3 seconds" stubs that scored high only via the structural
+  // +date/+location boosts. See nuforc.ts for paired detail-page auto-fetch
+  // threshold and NUFORC-debunked-explanation rejection.
+  'nuforc': { approve: 60, review: 40, minDescLength: 200 },
   'mufon':  { approve: 60, review: 40, minDescLength: 150 },
 
   // News — editorial oversight, moderate-high bar
