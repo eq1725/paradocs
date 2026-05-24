@@ -1,9 +1,9 @@
-// OBERF (Out-of-Body Experience Research Foundation) Adapter
-// Fetches experience reports from oberf.org — the sister site to NDERF run
+// ADCRF (After-Death Communication Research Foundation) Adapter
+// Fetches experience reports from adcrf.org — the sister site to NDERF run
 // by the same research foundation.
 //
-// Why OBERF vs NDERF:
-//   NDERF hosts only Near-Death Experiences. OBERF hosts the foundation's
+// Why ADCRF vs NDERF:
+//   NDERF hosts only Near-Death Experiences. ADCRF hosts the foundation's
 //   non-NDE archives: OBE, STE, SDE, DBV, pre-birth memory, NDE-like,
 //   prayer, dream, UFO-contact, and other spiritually transformative
 //   experience families.
@@ -14,7 +14,7 @@
 //   - Archive URLs are per-experience-type (stories_obe.htm, ste.htm, etc.)
 //   - Individual experience URLs use name-based filenames
 //     (e.g. /alessa_s_obe.htm) rather than NDERF's numeric IDs.
-//   - No evaluative tier concept (OBERF doesn't do Exceptional/Probable).
+//   - No evaluative tier concept (ADCRF doesn't do Exceptional/Probable).
 //   - Experience-type label is derived from the archive the link came from,
 //     not from page content, which makes type detection reliable.
 //
@@ -49,7 +49,7 @@ function cleanText(text: string): string {
     .trim();
 }
 
-// Strip the OBERF/NDERF page-header chrome that can leak into `content`
+// Strip the ADCRF/NDERF page-header chrome that can leak into `content`
 // when the primary narrative regex fails and the <p>-join fallback fires.
 // On those pages the rendered text starts with some variant of:
 //   "<Name/Title prefix> Home Page Share Experience New Experiences
@@ -68,7 +68,7 @@ function cleanText(text: string): string {
 // never accidentally clip a real narrative opener.
 //
 // Exported for the backfill script so historical rows can be cleaned.
-export function stripOBERFHeaderChrome(content: string): string {
+export function stripADCRFHeaderChrome(content: string): string {
   if (!content) return content;
   const headerRe = /^[^\n]{0,120}Home\s+Page\s+Share\s+Experience\s+New\s+Experiences\s+Experience\s+description:?\s*/i;
   const cleaned = content.replace(headerRe, '').trim();
@@ -86,9 +86,9 @@ async function fetchWithHeaders(url: string, retries: number = 3): Promise<strin
         },
       });
       if (response.ok) return await response.text();
-      console.log(`[OBERF] Fetch failed (attempt ${i + 1}): ${url} — Status: ${response.status}`);
+      console.log(`[ADCRF] Fetch failed (attempt ${i + 1}): ${url} — Status: ${response.status}`);
     } catch (e) {
-      console.error(`[OBERF] Fetch error (attempt ${i + 1}):`, url);
+      console.error(`[ADCRF] Fetch error (attempt ${i + 1}):`, url);
     }
     if (i < retries - 1) await delay(1000);
   }
@@ -96,12 +96,12 @@ async function fetchWithHeaders(url: string, retries: number = 3): Promise<strin
 }
 
 // ---------------------------------------------------------------------------
-// Experience type taxonomy (OBERF-specific)
+// Experience type taxonomy (ADCRF-specific)
 // ---------------------------------------------------------------------------
 // Map: archive-page filename → { slug, label }
 // Labels are neutral phenomenological terms drawn from the NDE/consciousness
-// studies literature (Ring, Greyson, Moody, etc.) — they predate OBERF and
-// are not OBERF's editorial trademark.
+// studies literature (Ring, Greyson, Moody, etc.) — they predate ADCRF and
+// are not ADCRF's editorial trademark.
 interface ArchiveConfig {
   url: string;
   typeSlug: string;          // kebab-case slug for tags + metadata
@@ -109,273 +109,43 @@ interface ArchiveConfig {
   defaultCategory: 'psychological_experiences' | 'psychic_phenomena';
 }
 
-// All OBERF experience-type archives. URLs confirmed from oberf.org index
+// All ADCRF experience-type archives. URLs confirmed from adcrf.org index
 // audit (April 2026). The adapter logs per-archive fetch failures and
 // continues, so if any URL 404s in the future the run will still complete.
-const OBERF_ARCHIVES: ArchiveConfig[] = [
+const ADCRF_ARCHIVES: ArchiveConfig[] = [
+  // V11.17.15 — ADCRF is overwhelmingly After-Death Communication (87% of
+  // 1,815 indexed pages). Single canonical source: indexcontents.htm.
+  // The _adc / _adcs suffixes capture the ADCRF-native experiences;
+  // cross-references to other Dr. Long sites (_obe, _ste, etc.) are
+  // intentionally skipped — those will be picked up by their own
+  // adapter (OBERF / NDERF).
   {
-    url: 'https://www.oberf.org/stories_obe.htm',
-    typeSlug: 'out-of-body-experience',
-    typeLabel: 'Out-of-Body Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/ste.htm',
-    typeSlug: 'spiritually-transformative-experience',
-    typeLabel: 'Spiritually Transformative Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/sobe_stories.htm',
-    typeSlug: 'sudden-obe',
-    typeLabel: 'Sudden Out-of-Body Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/dbv.htm',
-    typeSlug: 'deathbed-vision',
-    typeLabel: 'Deathbed Vision',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/nde_like_stories.htm',
-    typeSlug: 'nde-like-experience',
-    typeLabel: 'NDE-Like Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/prebirth.htm',
-    typeSlug: 'pre-birth-memory',
-    typeLabel: 'Pre-Birth Memory',
+    url: 'https://www.adcrf.org/indexcontents.htm',
+    typeSlug: 'after-death-communication',
+    typeLabel: 'After-Death Communication',
     defaultCategory: 'psychic_phenomena',
   },
+  // Shared Death Experience: 3 _sde links exist. Folded into the
+  // shared-death-experience phenomenon type.
   {
-    url: 'https://www.oberf.org/prayer.htm',
-    typeSlug: 'prayer-experience',
-    typeLabel: 'Prayer Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/dream_stories.htm',
-    typeSlug: 'dream-experience',
-    typeLabel: 'Dream Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/other_stories.htm',
-    typeSlug: 'other-experience',
-    typeLabel: 'Other Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  // UFO category: listed on the NDERF index page and hosted under OBERF.
-  // Added April 2026 as part of B1.5 pre-QA audit. Defaults to
-  // `psychic_phenomena` category rather than `ufos_aliens` because
-  // OBERF's UFO archive is primarily consciousness/contact-adjacent
-  // narrative reports, not raw sighting data — the NUFORC/MUFON adapters
-  // own traditional sighting ingestion.
-  {
-    url: 'https://www.oberf.org/ufo.htm',
-    typeSlug: 'ufo-encounter',
-    typeLabel: 'UFO Encounter',
+    url: 'https://www.adcrf.org/indexcontents.htm',
+    typeSlug: 'shared-death-experience',
+    typeLabel: 'Shared Death Experience',
     defaultCategory: 'psychic_phenomena',
-  },
-  // V11.17.15 — Sudden OBE pagination. The main `sobe_stories.htm`
-  // contains ~153 links but OBERF paginated this archive into 3 numbered
-  // sub-pages with significantly more entries (~514 combined). Adapter
-  // discovery missed these. Dedup-by-original_report_id at insert time
-  // handles any cross-page overlap with the base sobe_stories.htm.
-  {
-    url: 'https://www.oberf.org/sobe_stories1.htm',
-    typeSlug: 'sudden-obe',
-    typeLabel: 'Sudden Out-of-Body Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/sobe_stories2.htm',
-    typeSlug: 'sudden-obe',
-    typeLabel: 'Sudden Out-of-Body Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/sobe_stories3.htm',
-    typeSlug: 'sudden-obe',
-    typeLabel: 'Sudden Out-of-Body Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  // V11.17.15 — new_stories.html is a cross-type "recent additions"
-  // index. Lists ~258 experience links mixing obe/ste/dbv/prebirth/
-  // dream/ufo/prayer/etc. by filename suffix. Add one entry per existing
-  // typeSlug so each scrape run pulls the matching subset from this
-  // index via the suffix-filter regex. Dedup handles any overlap with
-  // the per-type archives.
-  {
-    url: 'https://www.oberf.org/new_stories.html',
-    typeSlug: 'out-of-body-experience',
-    typeLabel: 'Out-of-Body Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/new_stories.html',
-    typeSlug: 'spiritually-transformative-experience',
-    typeLabel: 'Spiritually Transformative Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/new_stories.html',
-    typeSlug: 'sudden-obe',
-    typeLabel: 'Sudden Out-of-Body Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/new_stories.html',
-    typeSlug: 'deathbed-vision',
-    typeLabel: 'Deathbed Vision',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/new_stories.html',
-    typeSlug: 'nde-like-experience',
-    typeLabel: 'NDE-Like Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/new_stories.html',
-    typeSlug: 'pre-birth-memory',
-    typeLabel: 'Pre-Birth Memory',
-    defaultCategory: 'psychic_phenomena',
-  },
-  {
-    url: 'https://www.oberf.org/new_stories.html',
-    typeSlug: 'prayer-experience',
-    typeLabel: 'Prayer Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/new_stories.html',
-    typeSlug: 'dream-experience',
-    typeLabel: 'Dream Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/new_stories.html',
-    typeSlug: 'other-experience',
-    typeLabel: 'Other Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/new_stories.html',
-    typeSlug: 'ufo-encounter',
-    typeLabel: 'UFO Encounter',
-    defaultCategory: 'psychic_phenomena',
-  },
-  // V11.17.15 — indexcontents.htm is the canonical alphabetic index of
-  // ALL OBERF experience pages (~2,313 unique links). Adding one entry
-  // per typeSlug so every shard runs the suffix-filter regex against
-  // this superset. Dedup-by-filename inside parseOBERFArchiveIndex
-  // skips any overlap with the per-type archives + sobe pagination +
-  // new_stories.html above. This is where we pick up meditation,
-  // waking-vision, premonition, NELE, and lucid-dream experiences that
-  // don't have dedicated archive pages.
-  {
-    url: 'https://www.oberf.org/indexcontents.htm',
-    typeSlug: 'out-of-body-experience',
-    typeLabel: 'Out-of-Body Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/indexcontents.htm',
-    typeSlug: 'spiritually-transformative-experience',
-    typeLabel: 'Spiritually Transformative Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/indexcontents.htm',
-    typeSlug: 'sudden-obe',
-    typeLabel: 'Sudden Out-of-Body Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/indexcontents.htm',
-    typeSlug: 'deathbed-vision',
-    typeLabel: 'Deathbed Vision',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/indexcontents.htm',
-    typeSlug: 'nde-like-experience',
-    typeLabel: 'NDE-Like Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/indexcontents.htm',
-    typeSlug: 'pre-birth-memory',
-    typeLabel: 'Pre-Birth Memory',
-    defaultCategory: 'psychic_phenomena',
-  },
-  {
-    url: 'https://www.oberf.org/indexcontents.htm',
-    typeSlug: 'prayer-experience',
-    typeLabel: 'Prayer Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/indexcontents.htm',
-    typeSlug: 'dream-experience',
-    typeLabel: 'Dream Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/indexcontents.htm',
-    typeSlug: 'other-experience',
-    typeLabel: 'Other Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/indexcontents.htm',
-    typeSlug: 'ufo-encounter',
-    typeLabel: 'UFO Encounter',
-    defaultCategory: 'psychic_phenomena',
-  },
-  // V11.17.15 — NEW typeSlugs (no dedicated OBERF archive page —
-  // only surfaced via indexcontents.htm's alphabetic flat list).
-  // phenomenon_types + phenomena rows for all four now exist in prod.
-  {
-    url: 'https://www.oberf.org/indexcontents.htm',
-    typeSlug: 'meditation-experience',
-    typeLabel: 'Meditation Experience',
-    defaultCategory: 'consciousness_practices',
-  },
-  {
-    url: 'https://www.oberf.org/indexcontents.htm',
-    typeSlug: 'premonition-experience',
-    typeLabel: 'Premonition / Waking Vision',
-    defaultCategory: 'psychic_phenomena',
-  },
-  {
-    url: 'https://www.oberf.org/indexcontents.htm',
-    typeSlug: 'nearing-end-of-life-experience',
-    typeLabel: 'Nearing End-of-Life Experience',
-    defaultCategory: 'psychological_experiences',
-  },
-  {
-    url: 'https://www.oberf.org/indexcontents.htm',
-    typeSlug: 'lucid-dreaming',
-    typeLabel: 'Lucid Dreaming',
-    defaultCategory: 'psychological_experiences',
   },
 ];
 
 // ---------------------------------------------------------------------------
-// OBERF field extraction — colour-based, not class-based
+// ADCRF field extraction — colour-based, not class-based
 // ---------------------------------------------------------------------------
-// NDERF wraps question labels in <span class="m105">…</span>. OBERF does NOT —
+// NDERF wraps question labels in <span class="m105">…</span>. ADCRF does NOT —
 // it wraps question labels in inline-styled spans with color:green, and the
 // following answer in inline-styled spans with color:blue. E.g.:
 //
 //   <span style="...color:green...">Did you see a light?</span>
 //   <b><span style="...color:blue...">No</span></b>
 //
-// So we parse OBERF pages by slicing the HTML into green-span → blue-span
+// So we parse ADCRF pages by slicing the HTML into green-span → blue-span
 // pairs, and build a Map<normalizedLabel, answerText>. All case-profile
 // extractions then read from this map.
 //
@@ -393,11 +163,11 @@ function normalizeLabel(s: string): string {
     .trim();
 }
 
-export function buildOBERFFieldMap(html: string): Map<string, string> {
+export function buildADCRFFieldMap(html: string): Map<string, string> {
   const map = new Map<string, string>();
 
   // Collect all green-span positions + their label text. The regex is
-  // permissive about whitespace inside the style attribute since OBERF
+  // permissive about whitespace inside the style attribute since ADCRF
   // pages contain mso-exported HTML with sprawling inline styles.
   const greenRe = /<span[^>]*color\s*:\s*green[^>]*>([\s\S]*?)<\/span>/gi;
   interface GreenHit { pos: number; endPos: number; label: string; }
@@ -417,7 +187,7 @@ export function buildOBERFFieldMap(html: string): Map<string, string> {
     const end = i + 1 < greens.length ? greens[i + 1].pos : Math.min(start + 4000, html.length);
     const region = html.slice(start, end);
     const value = cleanText(region);
-    // Trim to reasonable size — free-text answers on OBERF rarely exceed 1.5KB,
+    // Trim to reasonable size — free-text answers on ADCRF rarely exceed 1.5KB,
     // anything larger is almost certainly the trailing page footer.
     const trimmed = value.length > 2000 ? value.substring(0, 2000) : value;
     if (trimmed.length > 0) {
@@ -429,15 +199,15 @@ export function buildOBERFFieldMap(html: string): Map<string, string> {
 }
 
 // Resolver closure that looks up any of several candidate labels against an
-// already-built map. Shared with buildCaseProfile so OBERF gets structured
+// already-built map. Shared with buildCaseProfile so ADCRF gets structured
 // Yes/No and free-text answers identical in shape to NDERF's output.
-export function oberfLabelResolver(fieldMap: Map<string, string>): LabelResolver {
+export function adcrfLabelResolver(fieldMap: Map<string, string>): LabelResolver {
   return (labels: string[]) => {
     for (const label of labels) {
       const key = normalizeLabel(label);
       const direct = fieldMap.get(key);
       if (direct) return direct;
-      // Fuzzy prefix match — OBERF's label text sometimes has trailing
+      // Fuzzy prefix match — ADCRF's label text sometimes has trailing
       // verbiage beyond the canonical question wording. E.g., we query
       // "Did you meet or see any other beings" but the page contains
       // "Did you meet or see any other beings during your experience".
@@ -455,57 +225,44 @@ export function oberfLabelResolver(fieldMap: Map<string, string>): LabelResolver
 // ---------------------------------------------------------------------------
 // Archive-index parsing
 // ---------------------------------------------------------------------------
-// OBERF individual experience URLs use name-based filenames like
+// ADCRF individual experience URLs use name-based filenames like
 // /alessa_s_obe.htm, /a_k_obe.htm, /fatimeh_obes.htm.
 // Pattern: /{word(s)}_{obe|obes|ste|nde|etc}.htm
 
 // Skip-set: the archive index pages themselves match the link regex
 // (e.g. stories_obe.htm matches /*_obe.htm), so without this the adapter
 // wastes a 100KB+ fetch on the index page and logs a "content too long"
-// skip. Derived programmatically from OBERF_ARCHIVES.
+// skip. Derived programmatically from ADCRF_ARCHIVES.
 const ARCHIVE_BASENAMES: Set<string> = new Set(
-  OBERF_ARCHIVES.map(a => {
+  ADCRF_ARCHIVES.map(a => {
     const m = a.url.match(/\/([a-z0-9_-]+)\.htm[l]?$/i);
     return m ? m[1].toLowerCase() : '';
   }).filter(Boolean)
 );
 
-function parseOBERFArchiveIndex(html: string, typeSlug: string): Array<{ id: string; url: string }> {
+function parseADCRFArchiveIndex(html: string, typeSlug: string): Array<{ id: string; url: string }> {
   const results: Array<{ id: string; url: string }> = [];
   const seen = new Set<string>();
 
   // Narrow the pattern by type: if we're scraping stories_obe.htm, we only
   // want /*_obe.htm or /*_obes.htm links (plural allowed). This keeps us
   // from picking up cross-links to other experience types on the same page.
-  // V11.17.15 — expanded suffix mapping to handle plurals (_obes, _sobes,
-  // _stes, _dreams, _others) and new categories surfaced via
-  // indexcontents.htm scrape (_meditation, _wv waking-vision, _ld lucid
-  // dream, _premonition, _nele nearing-end-of-life-experience).
-  const typeSuffix = typeSlug === 'out-of-body-experience' ? '(?:obe|obes)'
-    : typeSlug === 'spiritually-transformative-experience' ? '(?:ste|stes)'
-    : typeSlug === 'sudden-obe' ? '(?:sobe|sobes|sudden_obe)'
-    : typeSlug === 'deathbed-vision' ? '(?:dbv|deathbed)'
-    : typeSlug === 'nde-like-experience' ? '(?:nde_like|nde-like|ndelike)'
-    : typeSlug === 'pre-birth-memory' ? '(?:prebirth|pre_birth)'
-    : typeSlug === 'prayer-experience' ? 'prayer'
-    : typeSlug === 'dream-experience' ? '(?:dream|dreams)'
-    : typeSlug === 'ufo-encounter' ? 'ufo'
-    : typeSlug === 'other-experience' ? '(?:other|others)'
-    : typeSlug === 'meditation-experience' ? 'meditation'
-    : typeSlug === 'premonition-experience' ? '(?:premonition|wv)'
-    : typeSlug === 'nearing-end-of-life-experience' ? '(?:nele|eole)'
-    : typeSlug === 'lucid-dreaming' ? '(?:ld|lucid_dream)'
+  // V11.17.15 — ADCRF native suffixes only. The indexcontents.htm has
+  // cross-references to other Dr. Long sites (_obe, _ste, etc.) — those
+  // are caught by their own adapter and intentionally skipped here.
+  const typeSuffix = typeSlug === 'after-death-communication' ? '(?:adc|adcs)'
+    : typeSlug === 'shared-death-experience' ? '(?:sde|sadc)'
     : '[a-z_]+';
 
   const pattern = new RegExp(
-    '<a[^>]+href=["\']([^"\']*oberf\\.org\\/[^"\']*_' + typeSuffix + '\\.htm[l]?)["\']',
+    '<a[^>]+href=["\']([^"\']*adcrf\\.org\\/[^"\']*_' + typeSuffix + '\\.htm[l]?)["\']',
     'gi'
   );
 
   let match;
   while ((match = pattern.exec(html)) !== null) {
     const rawUrl = match[1];
-    const url = rawUrl.startsWith('http') ? rawUrl : `https://www.oberf.org${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+    const url = rawUrl.startsWith('http') ? rawUrl : `https://www.adcrf.org${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
     // Extract filename stem as ID (e.g., "alessa_s_obe")
     const fileMatch = url.match(/\/([a-z0-9_-]+)\.htm[l]?$/i);
     if (!fileMatch) continue;
@@ -523,13 +280,13 @@ function parseOBERFArchiveIndex(html: string, typeSlug: string): Array<{ id: str
 
 // ---------------------------------------------------------------------------
 // Date extraction — V10.8.B delegates to the unified extractDate utility.
-// OBERF's structured "Date of Experience" field uses MM/DD/YYYY with 0
+// ADCRF's structured "Date of Experience" field uses MM/DD/YYYY with 0
 // sentinels for unknown parts (e.g. "04/00/2007" = month precision). Prose
 // fallback now captures month-name forms like "On April 28th 2007" that
 // the previous year-only regex threw away. Returns the extractDate audit
 // source so the engine can store it in reports.event_date_extracted_from.
 // ---------------------------------------------------------------------------
-function extractOBERFDate(
+function extractADCRFDate(
   getField: LabelResolver,
   content: string,
 ): {
@@ -556,11 +313,11 @@ function extractOBERFDate(
 }
 
 // ---------------------------------------------------------------------------
-// Title generation — no tier logic (OBERF doesn't tier), no "During X"
+// Title generation — no tier logic (ADCRF doesn't tier), no "During X"
 // trigger logic (OBE/STE typically have no life-threatening event). Just
 // neutral label + optional location + optional year.
 // ---------------------------------------------------------------------------
-function generateOBERFTitle(
+function generateADCRFTitle(
   typeLabel: string,
   location: { location_name?: string },
   dateStr: string | undefined,
@@ -599,8 +356,8 @@ function determineCredibility(content: string): 'low' | 'medium' | 'high' {
 // ---------------------------------------------------------------------------
 // Tag generation — type-slug + structural signals. No evaluative tags.
 // ---------------------------------------------------------------------------
-function generateOBERFTags(content: string, typeSlug: string): string[] {
-  const tags = new Set<string>(['oberf', typeSlug]);
+function generateADCRFTags(content: string, typeSlug: string): string[] {
+  const tags = new Set<string>(['adcrf', typeSlug]);
   const lower = content.toLowerCase();
   if (lower.includes('tunnel') || lower.includes('darkness')) tags.add('tunnel-experience');
   if (lower.includes('light') && (lower.includes('bright') || lower.includes('white'))) tags.add('being-of-light');
@@ -617,7 +374,7 @@ function generateOBERFTags(content: string, typeSlug: string): string[] {
 // ---------------------------------------------------------------------------
 // Narrative-cue sub-typing
 // ---------------------------------------------------------------------------
-// Several OBERF archives lump phenomenologically distinct experience types
+// Several ADCRF archives lump phenomenologically distinct experience types
 // into a single archive page:
 //
 //   dbv.htm          → Deathbed Vision, After-Death Communication, NELE
@@ -628,7 +385,7 @@ function generateOBERFTags(content: string, typeSlug: string): string[] {
 // distinction by inspecting the narrative for timing / temporal-position
 // cues after the shared questionnaire has been parsed. Default is always
 // the archive's own type (so a narrative lacking clear cues stays DBV or
-// Dream, which matches OBERF's own classification).
+// Dream, which matches ADCRF's own classification).
 //
 // These helpers are deliberately conservative — only reassign when a clear
 // cue is present. False reassignment risk is higher than false retention.
@@ -692,7 +449,7 @@ function subtypeDreamArchive(content: string): Subtype | null {
 // ---------------------------------------------------------------------------
 // Individual experience-page parser
 // ---------------------------------------------------------------------------
-async function parseOBERFExperiencePage(
+async function parseADCRFExperiencePage(
   html: string,
   id: string,
   archive: ArchiveConfig,
@@ -700,7 +457,7 @@ async function parseOBERFExperiencePage(
   // Narrative extraction — same markers as NDERF (same questionnaire form).
   //
   // Previous terminator was hardcoded to "Background Information" or
-  // "NDE/OBE/Experience Elements". Some short-form OBERF pages (e.g.
+  // "NDE/OBE/Experience Elements". Some short-form ADCRF pages (e.g.
   // margaret_b_other.htm) omit both sections entirely, which caused the
   // regex to fail and the fallback <p>-join path to grab the page's
   // header nav ("<Name> Experience | Home Page | Share Experience | ...").
@@ -719,28 +476,28 @@ async function parseOBERFExperiencePage(
   }
 
   let content = cleanText(narrativeHtml);
-  // Defense-in-depth: strip the OBERF page header boilerplate if it leaked
+  // Defense-in-depth: strip the ADCRF page header boilerplate if it leaked
   // into `content` via the <p>-join fallback path. The header is always:
   //   "<First> <LastInitial[.]> Experience Home Page Share Experience
   //    New Experiences Experience description:"
   // Anchored to the start, with very tight tolerances so we never strip a
   // legitimate narrative opener.
-  content = stripOBERFHeaderChrome(content);
+  content = stripADCRFHeaderChrome(content);
   if (content.length < 100) {
-    console.log(`[OBERF] Skipping ${id}: content too short (${content.length} chars)`);
+    console.log(`[ADCRF] Skipping ${id}: content too short (${content.length} chars)`);
     return null;
   }
   if (content.length > 40000) {
-    console.log(`[OBERF] Skipping ${id}: content too long (${content.length} chars) — likely an index page`);
+    console.log(`[ADCRF] Skipping ${id}: content too long (${content.length} chars) — likely an index page`);
     return null;
   }
   if (content.length > 15000) content = content.substring(0, 15000) + '...';
 
   // Build the green/blue field map ONCE per page and reuse for every lookup.
-  const fieldMap = buildOBERFFieldMap(html);
-  const getField = oberfLabelResolver(fieldMap);
+  const fieldMap = buildADCRFFieldMap(html);
+  const getField = adcrfLabelResolver(fieldMap);
 
-  const { date: eventDate, precision: datePrecision, source: dateSource } = extractOBERFDate(getField, content);
+  const { date: eventDate, precision: datePrecision, source: dateSource } = extractADCRFDate(getField, content);
   const gender = getField(['Gender']) || undefined;
   // LLM-first event-location extraction so multi-location narratives
   // resolve to where the experience actually happened, not where the
@@ -748,7 +505,7 @@ async function parseOBERFExperiencePage(
   const location = await extractLocationSmart(content, html, archive.typeLabel);
 
   // OBE reports rarely have a "life-threatening event" trigger; try anyway
-  // in case the experiencer filled it in. OBERF uses "At the time of this
+  // in case the experiencer filled it in. ADCRF uses "At the time of this
   // experience, was there an associated life threatening event?" (no hyphen),
   // NDERF uses "At the time of your experience, was there an associated
   // life-threatening event" — list both.
@@ -786,7 +543,7 @@ async function parseOBERFExperiencePage(
     }
   }
 
-  const title = generateOBERFTitle(effectiveTypeLabel, location, eventDate);
+  const title = generateADCRFTitle(effectiveTypeLabel, location, eventDate);
   // Reuse NDERF's buildCaseProfile via the LabelResolver contract — the
   // questionnaire content is the same; only the HTML markup differs.
   // Passing the effective type label means the profile renders with the
@@ -794,7 +551,7 @@ async function parseOBERFExperiencePage(
   const caseProfile: NDERFCaseProfile = buildCaseProfile(getField, effectiveTypeLabel, triggerEvent);
 
   // Archive-type → case-profile inference.
-  // OBERF organizes reports into type-specific archives; the archive itself
+  // ADCRF organizes reports into type-specific archives; the archive itself
   // is a curator-assigned classification signal. Propagate it to the profile
   // ONLY when the questionnaire doesn't already contain a contradicting
   // explicit value — we never overwrite the experiencer's own answer.
@@ -803,7 +560,7 @@ async function parseOBERFExperiencePage(
   //   Many pages on these archives submitted on the NDERF-variant form don't
   //   include a "separation from body" question (see violette_g_obes), or
   //   are narrative-only (see remata_j_obe). Defaulting outOfBody to 'yes'
-  //   from archive membership is faithful to the source (OBERF published
+  //   from archive membership is faithful to the source (ADCRF published
   //   these under stories_obe.htm / sobe_stories.htm).
   if (
     (archive.typeSlug === 'out-of-body-experience' || archive.typeSlug === 'sudden-obe') &&
@@ -813,7 +570,7 @@ async function parseOBERFExperiencePage(
   }
 
   const summary = content.length > 300 ? content.substring(0, 297) + '...' : content;
-  const tags = generateOBERFTags(content, effectiveTypeSlug);
+  const tags = generateADCRFTags(content, effectiveTypeSlug);
   if (gender) tags.push('experiencer-' + gender.toLowerCase());
 
   return {
@@ -831,15 +588,15 @@ async function parseOBERFExperiencePage(
     // V10.8.B audit trail — how extractDate arrived at the date above.
     event_date_extracted_from: dateSource,
     credibility: determineCredibility(content),
-    source_type: 'oberf',
-    // Use a hash-like slug based on the filename stem — OBERF's filenames
+    source_type: 'adcrf',
+    // Use a hash-like slug based on the filename stem — ADCRF's filenames
     // encode first name + last initial which is low-PII but we still
     // prefer not to echo them verbatim into our URL space. The prefix
     // keeps reports distinct from NDERF's namespace.
-    original_report_id: `oberf-${id}`,
+    original_report_id: `adcrf-${id}`,
     tags: Array.from(new Set(tags)),
-    source_label: 'OBERF',
-    source_url: `https://www.oberf.org/${id}.htm`,
+    source_label: 'ADCRF',
+    source_url: `https://www.adcrf.org/${id}.htm`,
     metadata: {
       // Effective type (may differ from archive.typeSlug when narrative
       // sub-typing fired — e.g. a dbv.htm page reassigned to ADC).
@@ -859,8 +616,8 @@ async function parseOBERFExperiencePage(
 // ---------------------------------------------------------------------------
 // Adapter entry point
 // ---------------------------------------------------------------------------
-export const oberfAdapter: SourceAdapter = {
-  name: 'oberf',
+export const adcrfAdapter: SourceAdapter = {
+  name: 'adcrf',
 
   async scrape(config: Record<string, any>, limit: number = 100): Promise<AdapterResult> {
     const reports: ScrapedReport[] = [];
@@ -874,26 +631,26 @@ export const oberfAdapter: SourceAdapter = {
     const archiveSlugFilter: string | undefined =
       typeof config.archive_slug === 'string' ? config.archive_slug : undefined;
     const archivesToRun = archiveSlugFilter
-      ? OBERF_ARCHIVES.filter(a => a.typeSlug === archiveSlugFilter)
-      : OBERF_ARCHIVES;
+      ? ADCRF_ARCHIVES.filter(a => a.typeSlug === archiveSlugFilter)
+      : ADCRF_ARCHIVES;
 
     try {
       console.log(
-        `[OBERF] Starting scrape. Limit: ${limit}. Archives enabled: ${archivesToRun.length}` +
+        `[ADCRF] Starting scrape. Limit: ${limit}. Archives enabled: ${archivesToRun.length}` +
           (archiveSlugFilter ? ` (filtered to archive_slug="${archiveSlugFilter}")` : ''),
       );
 
       for (const archive of archivesToRun) {
         if (reports.length >= limit) break;
-        console.log(`[OBERF] Fetching archive: ${archive.url} (${archive.typeLabel})`);
+        console.log(`[ADCRF] Fetching archive: ${archive.url} (${archive.typeLabel})`);
         const archiveHtml = await fetchWithHeaders(archive.url);
         if (!archiveHtml) {
-          console.log(`[OBERF] Failed to fetch archive: ${archive.url}`);
+          console.log(`[ADCRF] Failed to fetch archive: ${archive.url}`);
           continue;
         }
 
-        const experiences = parseOBERFArchiveIndex(archiveHtml, archive.typeSlug);
-        console.log(`[OBERF] Found ${experiences.length} ${archive.typeLabel} experiences in ${archive.url}`);
+        const experiences = parseADCRFArchiveIndex(archiveHtml, archive.typeSlug);
+        console.log(`[ADCRF] Found ${experiences.length} ${archive.typeLabel} experiences in ${archive.url}`);
 
         for (const exp of experiences) {
           if (reports.length >= limit) break;
@@ -901,33 +658,33 @@ export const oberfAdapter: SourceAdapter = {
 
           const expHtml = await fetchWithHeaders(exp.url);
           if (!expHtml) {
-            console.log(`[OBERF] Failed to fetch experience: ${exp.id}`);
+            console.log(`[ADCRF] Failed to fetch experience: ${exp.id}`);
             continue;
           }
 
-          const report = await parseOBERFExperiencePage(expHtml, exp.id, archive);
+          const report = await parseADCRFExperiencePage(expHtml, exp.id, archive);
           if (report) {
             reports.push(report);
             if (reports.length % 20 === 0) {
-              console.log(`[OBERF] Processed ${reports.length} reports...`);
+              console.log(`[ADCRF] Processed ${reports.length} reports...`);
             }
           }
         }
       }
 
-      console.log(`[OBERF] Scrape complete. Total: ${reports.length} reports`);
+      console.log(`[ADCRF] Scrape complete. Total: ${reports.length} reports`);
 
       if (reports.length === 0) {
         return {
           success: false,
           reports,
-          error: 'No reports found — OBERF archive URLs may have changed. Check site structure.',
+          error: 'No reports found — ADCRF archive URLs may have changed. Check site structure.',
         };
       }
 
       return { success: true, reports };
     } catch (error) {
-      console.error('[OBERF] Scrape error:', error);
+      console.error('[ADCRF] Scrape error:', error);
       return {
         success: false,
         reports,
@@ -937,4 +694,4 @@ export const oberfAdapter: SourceAdapter = {
   },
 };
 
-export default oberfAdapter;
+export default adcrfAdapter;

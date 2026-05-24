@@ -1,22 +1,22 @@
 #!/usr/bin/env tsx
 /**
- * OBERF Mass Ingestion Runner (V11.17.13)
+ * ADCRF Mass Ingestion Runner (V11.17.13)
  *
- * Fork of scripts/nuforc-mass-ingest.ts adapted for OBERF (oberf.org).
+ * Fork of scripts/nuforc-mass-ingest.ts adapted for ADCRF (adcrf.org).
  *
  * KEY DIFFERENCES vs NUFORC orchestrator:
- *   - Shards by archive URL (OBERF has ~4 archive pages), not by month.
- *   - Default concurrency=1: OBERF is a single academic-host site (Dr.
+ *   - Shards by archive URL (ADCRF has ~4 archive pages), not by month.
+ *   - Default concurrency=1: ADCRF is a single academic-host site (Dr.
  *     Long, radiation oncologist) — politeness matters more than speed.
  *     Cloudflare-tier hammering would be a much worse-neighbor move
  *     than at NUFORC. ~1 req/sec is the right ballpark.
- *   - No shape-map needed: OBERF adapter already sets
+ *   - No shape-map needed: ADCRF adapter already sets
  *     metadata.experienceTypeSlug = 'near-death-experience' (or
  *     'distressing-nde'), so engine's deterministic linker fires
  *     directly. No pattern-matcher dependence.
- *   - No --strict-mode default: OBERF narratives are naturally
+ *   - No --strict-mode default: ADCRF narratives are naturally
  *     1000-5000 chars; the base 200-char floor is irrelevant.
- *   - Adds HTTP-error-aware backoff: any 429/503 from OBERF triggers
+ *   - Adds HTTP-error-aware backoff: any 429/503 from ADCRF triggers
  *     a 60-second cooldown before retrying.
  *
  * ── Usage ───────────────────────────────────────────────────────────
@@ -24,20 +24,20 @@
  *   set -a; source .env.local; set +a
  *
  *   # Dry run — list shards only
- *   tsx scripts/oberf-mass-ingest.ts --dry-run
+ *   tsx scripts/adcrf-mass-ingest.ts --dry-run
  *
  *   # Full corpus, polite single-worker (~1 req/sec), $500 cap
- *   tsx scripts/oberf-mass-ingest.ts \
+ *   tsx scripts/adcrf-mass-ingest.ts \
  *     --target 10000 \
  *     --rate-limit-ms 1000 \
  *     --cost-cap 500
  *
  *   # Resume an interrupted run
- *   tsx scripts/oberf-mass-ingest.ts --resume
+ *   tsx scripts/adcrf-mass-ingest.ts --resume
  *
  * ── Architecture ────────────────────────────────────────────────────
  *
- * Each shard = one OBERF archive URL. Worker fetches the archive's
+ * Each shard = one ADCRF archive URL. Worker fetches the archive's
  * index page, enumerates experience links, then per-experience: fetches
  * detail page (rate-limited), parses, PII redacts, enriches, geocodes,
  * quality assesses, smart-re-evaluates, inserts as pending_review.
@@ -46,7 +46,7 @@
  * --batch-trigger inserts to fill in paradocs_narrative via Anthropic
  * Batch API (50% off).
  *
- * State persisted to outputs/oberf-mass-ingest-state.json. Resume-safe.
+ * State persisted to outputs/adcrf-mass-ingest-state.json. Resume-safe.
  *
  * ── Stop conditions ─────────────────────────────────────────────────
  *  - Global target reached (--target inserts)
@@ -63,7 +63,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
-import { oberfAdapter } from '../src/lib/ingestion/adapters/oberf';
+import { adcrfAdapter } from '../src/lib/ingestion/adapters/adcrf';
 import { redactReportPii } from '../src/lib/ingestion/utils/redact-pii';
 import { enrichReport } from '../src/lib/ingestion/enrichment/report-enricher';
 import {
@@ -82,41 +82,25 @@ import {
 // CONFIG
 // ─────────────────────────────────────────────────────────────────────
 
-const OBERF_SOURCE_TYPE = 'oberf';
-const STATE_FILE = path.resolve(process.cwd(), 'outputs/oberf-mass-ingest-state.json');
+const ADCRF_SOURCE_TYPE = 'adcrf';
+const STATE_FILE = path.resolve(process.cwd(), 'outputs/adcrf-mass-ingest-state.json');
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const DEFAULT_CONCURRENCY = 1;
 const DEFAULT_BATCH_TRIGGER = 500;
 const DEFAULT_COST_CAP_USD = 500;
 const DEFAULT_RATE_LIMIT_MS = 1000;
 
-// OBERF archive slugs — matches the adapter's OBERF_ARCHIVES list.
-// Unlike NDERF (53 date-range archives discovered dynamically),
-// OBERF has 10 fixed experience-type archives. No discovery needed.
-// Each shard = one experience type. The adapter accepts
-// config.archive_slug to scrape exactly one archive at a time.
-//
-// Ordered: largest archives first (OBE is biggest historically) so
-// throughput data shows up early, and smallest last.
-// V11.17.15 — expanded slugs after indexcontents.htm refactor.
-// Adds: meditation, waking-vision/premonition, NELE, lucid-dream.
-// These only surface via indexcontents.htm (no dedicated archive page).
-const OBERF_ARCHIVE_SLUGS = [
-  'out-of-body-experience',
-  'spiritually-transformative-experience',
-  'sudden-obe',
-  'nde-like-experience',
-  'deathbed-vision',
-  'dream-experience',
-  'prayer-experience',
-  'pre-birth-memory',
-  'ufo-encounter',
-  'other-experience',
-  // V11.17.15 additions — surfaced via indexcontents.htm only
-  'meditation-experience',
-  'premonition-experience',
-  'nearing-end-of-life-experience',
-  'lucid-dreaming',
+// ADCRF archive slugs — matches the adapter's ADCRF_ARCHIVES list.
+// ADCRF is overwhelmingly After-Death Communication (87% of 1,815 indexed
+// pages). Two typeSlugs cover the ADCRF-native experiences:
+//   - after-death-communication: 1,576 reports (_adc + _adcs suffix)
+//   - shared-death-experience:  ~4 reports (_sde + _sadc suffix)
+// Cross-references on indexcontents.htm to other Dr. Long sites
+// (_obe, _ste, _dbv, etc.) are intentionally skipped — they're caught
+// by the OBERF / NDERF adapters.
+const ADCRF_ARCHIVE_SLUGS = [
+  'after-death-communication',
+  'shared-death-experience',
 ];
 
 interface CliArgs {
@@ -146,13 +130,13 @@ function parseArgs(): CliArgs {
   function bool(name: string): boolean {
     return argv.indexOf(name) >= 0;
   }
-  // --archives accepts comma-separated slugs from OBERF_ARCHIVE_SLUGS
+  // --archives accepts comma-separated slugs from ADCRF_ARCHIVE_SLUGS
   // (e.g. --archives "out-of-body-experience,deathbed-vision")
   const archivesArg = flag('--archives', null);
   return {
     target: parseInt(flag('--target', '20000') || '20000'),
     concurrency: parseInt(flag('--concurrency', String(DEFAULT_CONCURRENCY)) || String(DEFAULT_CONCURRENCY)),
-    archiveSlugs: archivesArg ? archivesArg.split(',').map(s => s.trim()).filter(Boolean) : OBERF_ARCHIVE_SLUGS.slice(),
+    archiveSlugs: archivesArg ? archivesArg.split(',').map(s => s.trim()).filter(Boolean) : ADCRF_ARCHIVE_SLUGS.slice(),
     archivesExplicit: !!archivesArg,
     dryRun: bool('--dry-run'),
     resume: bool('--resume'),
@@ -172,7 +156,7 @@ function parseArgs(): CliArgs {
 // ─────────────────────────────────────────────────────────────────────
 
 interface ShardState {
-  archiveSlug: string;       // OBERF experience-type slug (e.g. 'out-of-body-experience')
+  archiveSlug: string;       // ADCRF experience-type slug (e.g. 'out-of-body-experience')
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
   scraped: number;
   inserted: number;
@@ -216,7 +200,7 @@ function loadState(): MassIngestState | null {
   try {
     return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
   } catch (e) {
-    console.error('[oberf-mass-ingest] Could not parse state file, ignoring:', (e as any)?.message);
+    console.error('[adcrf-mass-ingest] Could not parse state file, ignoring:', (e as any)?.message);
     return null;
   }
 }
@@ -243,7 +227,7 @@ interface ProcessResult {
 // V11.17.13 — Deterministic phenomenon-linker for the orchestrator path.
 // Mirrors what engine.ts does in runIngestion (lines ~1188-1210) but
 // adapted for our bulk-insert flow. For every inserted row whose metadata
-// has experienceTypeSlug (OBERF/OBERF always set this), creates the
+// has experienceTypeSlug (ADCRF/ADCRF always set this), creates the
 // canonical phenomena junction + sets reports.phenomenon_type_id.
 //
 // Without this, the orchestrator inserts go in without encyclopedia
@@ -251,7 +235,7 @@ interface ProcessResult {
 // is non-deterministic, slower, and can miss reports.
 //
 // Slug cache prevents N redundant lookups: each unique slug is queried
-// once (~3 slugs total for OBERF), then reused across thousands of rows.
+// once (~3 slugs total for ADCRF), then reused across thousands of rows.
 const phenomenonSlugCache = new Map<string, { phenomenonId: string | null; phenomenonTypeId: string | null }>();
 
 async function resolveSlugCached(supabase: SupabaseClient, slug: string): Promise<{ phenomenonId: string | null; phenomenonTypeId: string | null }> {
@@ -307,10 +291,10 @@ async function processShard(
 ): Promise<ProcessResult> {
   const result: ProcessResult = { scraped: 0, inserted: 0, duplicates: 0, filtered: 0, errors: 0, rejectionReasons: {} };
 
-  // 1. Scrape this archive's experiences via the adapter. OBERF
+  // 1. Scrape this archive's experiences via the adapter. ADCRF
   //    adapter accepts config.archive_slug (singular) to target one
   //    experience-type archive at a time.
-  const scrapeResult = await oberfAdapter.scrape({
+  const scrapeResult = await adcrfAdapter.scrape({
     archive_slug: archiveSlug,
     rate_limit_ms: args.rateLimitMs,
   }, args.maxPerArchive);
@@ -334,7 +318,7 @@ async function processShard(
       const { data } = await supabase
         .from('reports')
         .select('original_report_id')
-        .eq('source_type', OBERF_SOURCE_TYPE)
+        .eq('source_type', ADCRF_SOURCE_TYPE)
         .in('original_report_id', chunk);
       (data || []).forEach((r: any) => dedupSet.add(r.original_report_id));
     }
@@ -463,7 +447,7 @@ async function processShard(
         original_report_id: report.original_report_id,
         status: 'pending_review',
         tags: report.tags || [],
-        source_label: report.source_label || 'OBERF',
+        source_label: report.source_label || 'ADCRF',
         source_url: report.source_url,
         upvotes: 0,
         view_count: 0,
@@ -481,7 +465,7 @@ async function processShard(
       toInsert.push(insertData);
     } catch (perReportErr: any) {
       result.errors++;
-      console.warn('[oberf-mass-ingest] per-report error: ' + (perReportErr?.message || perReportErr));
+      console.warn('[adcrf-mass-ingest] per-report error: ' + (perReportErr?.message || perReportErr));
     }
   }
 
@@ -561,7 +545,7 @@ function triggerBatchWorker(insertCount: number): void {
   const now = Date.now();
   if (now - lastBatchSpawnAt < 60_000) return;
   lastBatchSpawnAt = now;
-  console.log('[oberf-mass-ingest] Triggering batch worker (cumulative inserts: ' + insertCount + ')');
+  console.log('[adcrf-mass-ingest] Triggering batch worker (cumulative inserts: ' + insertCount + ')');
   const child = spawn('npx', ['tsx', 'scripts/batch-ingest-worker.ts', '--backfill', '--limit', '500'], {
     stdio: 'ignore',
     detached: true,
@@ -620,7 +604,7 @@ async function runWorkerPool(
 ): Promise<void> {
   const pendingShards = state.shards.filter(s => s.status === 'pending' || s.status === 'in_progress');
   if (pendingShards.length === 0) {
-    console.log('[oberf-mass-ingest] No pending shards. Run complete.');
+    console.log('[adcrf-mass-ingest] No pending shards. Run complete.');
     return;
   }
 
@@ -651,7 +635,7 @@ async function runWorkerPool(
       }
 
       shard.status = 'in_progress';
-      console.log('[oberf-mass-ingest] Worker ' + workerId + ' starting archive: ' + shard.archiveSlug);
+      console.log('[adcrf-mass-ingest] Worker ' + workerId + ' starting archive: ' + shard.archiveSlug);
       const tStart = Date.now();
       try {
         const r = await processShard(supabase, shard.archiveSlug, args);
@@ -662,7 +646,7 @@ async function runWorkerPool(
         shard.errors = r.errors;
         shard.ms = Date.now() - tStart;
         shard.status = 'completed';
-        console.log('[oberf-mass-ingest] Worker ' + workerId + ' completed ' + shard.archiveSlug + ' in ' + formatDuration(shard.ms) + ' — scraped=' + r.scraped + ' inserted=' + r.inserted + ' dup=' + r.duplicates + ' filtered=' + r.filtered);
+        console.log('[adcrf-mass-ingest] Worker ' + workerId + ' completed ' + shard.archiveSlug + ' in ' + formatDuration(shard.ms) + ' — scraped=' + r.scraped + ' inserted=' + r.inserted + ' dup=' + r.duplicates + ' filtered=' + r.filtered);
 
         state.totals.scraped += r.scraped;
         state.totals.inserted += r.inserted;
@@ -691,7 +675,7 @@ async function runWorkerPool(
         shard.ms = Date.now() - tStart;
         state.totals.errors++;
         saveState(state);
-        console.error('[oberf-mass-ingest] Worker ' + workerId + ' shard ' + shard.archiveSlug + ' FAILED: ' + shard.error);
+        console.error('[adcrf-mass-ingest] Worker ' + workerId + ' shard ' + shard.archiveSlug + ' FAILED: ' + shard.error);
       }
     }
   }
@@ -709,15 +693,15 @@ async function runWorkerPool(
 
 async function main() {
   const args = parseArgs();
-  console.log('OBERF Mass Ingest — V11.17.13');
+  console.log('ADCRF Mass Ingest — V11.17.13');
   console.log('Args: ' + JSON.stringify(args));
 
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    console.error('[oberf-mass-ingest] Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. Source .env.local first.');
+    console.error('[adcrf-mass-ingest] Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. Source .env.local first.');
     process.exit(1);
   }
   if (!process.env.ANTHROPIC_API_KEY) {
-    console.warn('[oberf-mass-ingest] WARNING: ANTHROPIC_API_KEY missing. Batch worker will fail when triggered.');
+    console.warn('[adcrf-mass-ingest] WARNING: ANTHROPIC_API_KEY missing. Batch worker will fail when triggered.');
   }
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
@@ -726,40 +710,40 @@ async function main() {
   if (args.resume) {
     const loaded = loadState();
     if (!loaded) {
-      console.error('[oberf-mass-ingest] --resume requested but no state file at ' + STATE_FILE);
+      console.error('[adcrf-mass-ingest] --resume requested but no state file at ' + STATE_FILE);
       process.exit(1);
     }
     state = loaded;
     state.args = args;
     const completedCount = state.shards.filter(s => s.status === 'completed').length;
     const failedCount = state.shards.filter(s => s.status === 'failed').length;
-    console.log('[oberf-mass-ingest] Resuming: ' + completedCount + ' completed, ' + failedCount + ' failed, ' + state.totals.inserted + ' inserted so far');
+    console.log('[adcrf-mass-ingest] Resuming: ' + completedCount + ' completed, ' + failedCount + ' failed, ' + state.totals.inserted + ' inserted so far');
     state.shards.forEach(s => { if (s.status === 'in_progress') s.status = 'pending'; });
   } else {
     state = emptyState(args);
-    // OBERF has 10 fixed experience-type archives — no dynamic
+    // ADCRF has 10 fixed experience-type archives — no dynamic
     // discovery needed (unlike NDERF's 53 date-range archives).
     // Each shard = one experience type slug.
     const archiveSlugs = args.archiveSlugs;
     if (args.archivesExplicit) {
-      console.log('[oberf-mass-ingest] Using explicit archive list (' + archiveSlugs.length + ' slugs)');
+      console.log('[adcrf-mass-ingest] Using explicit archive list (' + archiveSlugs.length + ' slugs)');
     } else {
-      console.log('[oberf-mass-ingest] Using all ' + archiveSlugs.length + ' OBERF experience-type archives');
+      console.log('[adcrf-mass-ingest] Using all ' + archiveSlugs.length + ' ADCRF experience-type archives');
     }
     state.shards = archiveSlugs.map(slug => ({
       archiveSlug: slug, status: 'pending', scraped: 0, inserted: 0, duplicates: 0, filtered: 0, errors: 0, ms: 0,
     }));
-    console.log('[oberf-mass-ingest] Enumerated ' + state.shards.length + ' archive-shards');
+    console.log('[adcrf-mass-ingest] Enumerated ' + state.shards.length + ' archive-shards');
     state.shards.forEach(s => console.log('  - ' + s.archiveSlug));
   }
 
   if (args.dryRun) {
-    console.log('[oberf-mass-ingest] --dry-run; exiting');
+    console.log('[adcrf-mass-ingest] --dry-run; exiting');
     return;
   }
 
   state.totals.costUsd = await pollTodaysCost(supabase);
-  console.log('[oberf-mass-ingest] Starting today\'s cost: $' + state.totals.costUsd.toFixed(2) + ' (cap: $' + args.costCapUsd.toFixed(2) + ')');
+  console.log('[adcrf-mass-ingest] Starting today\'s cost: $' + state.totals.costUsd.toFixed(2) + ' (cap: $' + args.costCapUsd.toFixed(2) + ')');
 
   const runStartMs = Date.now();
   const controller: RunController = { abort: false, reason: '' };
@@ -768,11 +752,11 @@ async function main() {
   process.on('SIGINT', () => {
     sigintCount++;
     if (sigintCount === 1) {
-      console.log('\n[oberf-mass-ingest] Caught SIGINT, finishing in-flight shards and saving state. Press Ctrl+C again to force-exit.');
+      console.log('\n[adcrf-mass-ingest] Caught SIGINT, finishing in-flight shards and saving state. Press Ctrl+C again to force-exit.');
       controller.abort = true;
       controller.reason = 'SIGINT';
     } else {
-      console.log('[oberf-mass-ingest] Force exit on second SIGINT.');
+      console.log('[adcrf-mass-ingest] Force exit on second SIGINT.');
       saveState(state);
       process.exit(130);
     }
@@ -787,7 +771,7 @@ async function main() {
     saveState(state);
   }
 
-  console.log('\n=== OBERF Mass Ingest Complete ===');
+  console.log('\n=== ADCRF Mass Ingest Complete ===');
   console.log('Stop reason: ' + (controller.reason || 'all shards processed'));
   console.log('Elapsed: ' + formatDuration(Date.now() - runStartMs));
   console.log('Total shards: ' + state.shards.length);
@@ -805,12 +789,12 @@ async function main() {
   }
 
   if (!args.noBatchTrigger && state.totals.inserted > state.lastBatchTriggerInserts) {
-    console.log('\n[oberf-mass-ingest] Triggering final batch worker drain...');
+    console.log('\n[adcrf-mass-ingest] Triggering final batch worker drain...');
     triggerBatchWorker(state.totals.inserted);
   }
 }
 
 main().catch(err => {
-  console.error('[oberf-mass-ingest] Fatal:', err);
+  console.error('[adcrf-mass-ingest] Fatal:', err);
   process.exit(1);
 });

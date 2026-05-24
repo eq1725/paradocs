@@ -9,6 +9,7 @@ import { redditAdapter } from './reddit';
 import { wikipediaAdapter } from './wikipedia';
 import { nderfAdapter } from './nderf';
 import { oberfAdapter } from './oberf';
+import { adcrfAdapter } from './adcrf';
 import { iandsAdapter } from './iands';
 // Session 10: New adapters for expanded source coverage
 import { redditV2Adapter } from './reddit-v2';
@@ -26,6 +27,7 @@ const adapters: Record<string, SourceAdapter> = {
   wikipedia: wikipediaAdapter,
   nderf: nderfAdapter,
   oberf: oberfAdapter,
+  adcrf: adcrfAdapter,
   iands: iandsAdapter,
   // Session 10: Expanded adapters
   'reddit-v2': redditV2Adapter,
@@ -55,6 +57,7 @@ export {
   wikipediaAdapter,
   nderfAdapter,
   oberfAdapter,
+  adcrfAdapter,
   iandsAdapter,
   // Session 10
   redditV2Adapter,
