@@ -587,8 +587,13 @@ function ExploreMapMode() {
       </button>
 
       {/* Desktop: Filter panel drawer */}
+      {/* V11.17.24 — Bug #11 fix: drawer extends full-height (bottom-0)
+          and the timeline below shifts to left-[320px] when this drawer
+          is open. Mirrors the pattern in src/pages/map.tsx so the filter's
+          sticky-footer Reset button has room AND the timeline stays
+          visible side-by-side instead of stacking. */}
       {filterPanelOpen && (
-        <div className="hidden lg:block absolute top-0 left-0 bottom-[52px] z-20">
+        <div className="hidden lg:block absolute top-0 left-0 bottom-0 z-20">
           <MapFilterPanel
             filters={filters}
             onFilterChange={setFilter}
@@ -609,7 +614,17 @@ function ExploreMapMode() {
       )}
 
       {/* Desktop: Timeline bar */}
-      <div className="hidden lg:block absolute bottom-0 left-0 right-0 z-20 px-16 py-3 bg-gray-950/80 backdrop-blur-sm border-t border-gray-800/30">
+      {/* V11.17.24 — Bug #11 fix: left edge shifts to 320px (filter
+          panel width) when the filter drawer is open, so the two
+          surfaces sit side-by-side at the bottom instead of the
+          timeline crossing under the filter drawer and obstructing
+          the sticky-footer Reset button. Matches src/pages/map.tsx. */}
+      <div
+        className={
+          'hidden lg:block absolute bottom-0 right-0 z-20 px-16 py-3 bg-gray-950/80 backdrop-blur-sm border-t border-gray-800/30 transition-[left] duration-200 ' +
+          (filterPanelOpen ? 'left-[320px]' : 'left-0')
+        }
+      >
         <MapTimeline
           dateFrom={filters.dateFrom}
           dateTo={filters.dateTo}
