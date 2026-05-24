@@ -116,6 +116,22 @@ var EXPECTATIONS: Record<string, AdapterExpectation> = {
       'Verify paradocs_narrative generated successfully.',
     ],
   },
+  adcrf: {
+    sourceSlugPattern: '%adcrf%',
+    defaultLimit: 5,
+    requiresPhenomenonTypeId: true,
+    requiresPhenomenaLink: true,
+    expectedTypeSlugs: [
+      'after-death-communication',
+      'shared-death-experience',
+    ],
+    spotCheckNotes: [
+      'Confirm narratives describe a perceived contact from a deceased loved one',
+      '  (dream visit, voice, smell, touch, electrical anomaly, etc).',
+      'Verify reports.phenomenon_type_id resolves to after-death-communication.',
+      'Confirm /phenomena/after-death-communication renders the new reports.',
+    ],
+  },
   bfro: {
     sourceSlugPattern: '%bfro%',
     defaultLimit: 5,
