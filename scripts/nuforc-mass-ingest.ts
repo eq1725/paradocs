@@ -180,6 +180,59 @@ function emptyState(args: CliArgs): MassIngestState {
   };
 }
 
+// V11.17.15 — Deterministic phenomenon-linker (mirrors the NDERF/OBERF
+// orchestrator pattern). NUFORC adapter sets metadata.experienceTypeSlug
+// from the shape→phenomenon-slug map (egg→egg-ufo, orb→orb-ufo, etc).
+// Without this linker, NUFORC reports would land WITHOUT phenomenon
+// junctions and rely on the AI classifier to add them — non-deterministic
+// and slower. Slug cache keeps lookups to ~21 unique queries even at
+// 200k-report scale.
+const phenomenonSlugCache = new Map<string, { phenomenonId: string | null; phenomenonTypeId: string | null }>();
+
+async function resolveSlugCached(supabase: SupabaseClient, slug: string): Promise<{ phenomenonId: string | null; phenomenonTypeId: string | null }> {
+  if (phenomenonSlugCache.has(slug)) return phenomenonSlugCache.get(slug)!;
+  let phenomenonId: string | null = null;
+  let phenomenonTypeId: string | null = null;
+  try {
+    const { data: phen } = await supabase.from('phenomena').select('id').eq('slug', slug).eq('status', 'active').maybeSingle();
+    phenomenonId = phen ? (phen as any).id : null;
+  } catch { /* ignore */ }
+  try {
+    const { data: ptype } = await supabase.from('phenomenon_types').select('id').eq('slug', slug).maybeSingle();
+    phenomenonTypeId = ptype ? (ptype as any).id : null;
+  } catch { /* ignore */ }
+  const result = { phenomenonId, phenomenonTypeId };
+  phenomenonSlugCache.set(slug, result);
+  return result;
+}
+
+interface InsertedRowMin { id: string; metadata: any }
+
+async function linkExperienceTypeForRow(supabase: SupabaseClient, row: InsertedRowMin): Promise<boolean> {
+  const slug = row.metadata && row.metadata.experienceTypeSlug;
+  if (!slug || typeof slug !== 'string') return false;
+  const { phenomenonId, phenomenonTypeId } = await resolveSlugCached(supabase, slug);
+  if (!phenomenonId) return false;
+  try {
+    await supabase.from('report_phenomena').upsert(
+      {
+        report_id: row.id,
+        phenomenon_id: phenomenonId,
+        confidence: 0.95,
+        tagged_by: 'auto',
+        is_primary: true,
+      },
+      { onConflict: 'report_id,phenomenon_id', ignoreDuplicates: true },
+    );
+  } catch { return false; }
+  if (phenomenonTypeId) {
+    try {
+      await supabase.from('reports').update({ phenomenon_type_id: phenomenonTypeId }).eq('id', row.id).is('phenomenon_type_id', null);
+    } catch { /* ignore */ }
+  }
+  return true;
+}
+
 function loadState(): MassIngestState | null {
   if (!fs.existsSync(STATE_FILE)) return null;
   try {
@@ -438,14 +491,16 @@ async function processShard(
     }
   }
 
-  // 4. Bulk insert in chunks of 100
+  // 4. Bulk insert in chunks of 100 — request id+metadata back via .select()
+  //    so we can deterministically link each inserted row to its canonical
+  //    encyclopedia phenomenon via metadata.experienceTypeSlug.
   for (let batchStart = 0; batchStart < toInsert.length; batchStart += 100) {
     const chunk = toInsert.slice(batchStart, batchStart + 100);
-    const ins = await supabase.from('reports').insert(chunk);
+    const ins = await supabase.from('reports').insert(chunk).select('id, metadata');
     if (ins.error) {
-      // Bulk failed — retry per-row to identify duplicates
+      // Bulk failed — retry per-row to count duplicates accurately + still link successful ones
       for (const row of chunk) {
-        const solo = await supabase.from('reports').insert(row);
+        const solo = await supabase.from('reports').insert(row).select('id, metadata').single();
         if (solo.error) {
           if (solo.error.message && solo.error.message.indexOf('duplicate key') !== -1) {
             result.duplicates++;
@@ -454,10 +509,15 @@ async function processShard(
           }
         } else {
           result.inserted++;
+          if (solo.data) await linkExperienceTypeForRow(supabase, solo.data as InsertedRowMin);
         }
       }
     } else {
       result.inserted += chunk.length;
+      const rows = (ins.data || []) as InsertedRowMin[];
+      for (const row of rows) {
+        await linkExperienceTypeForRow(supabase, row);
+      }
     }
   }
 
