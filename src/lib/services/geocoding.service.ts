@@ -32,9 +32,22 @@ interface MapTilerResponse {
 // At scale, the same city appears in many reports — cache prevents redundant API calls
 var geocodeCache = new Map<string, GeocodingResult | null>();
 
-// MapTiler API key — works in both NEXT_PUBLIC_ (build-time) and server-side contexts
+// MapTiler API key — V11.17.20 env precedence (aligned with
+// src/lib/ingestion/utils/normalize-location.ts):
+//   1. MAPTILER_GEOCODING_KEY — server-side key with geocoding scope, no
+//      Allowed-Origins restriction (preferred for backend calls).
+//   2. MAPTILER_API_KEY — generic server-side key (fallback).
+//   3. NEXT_PUBLIC_MAPTILER_KEY — browser map-tiles key. Often has
+//      Origin/Referrer restrictions configured at MapTiler Cloud which
+//      cause 403 on server-side calls (the exact failure mode that
+//      caused the NUFORC Nominatim 429 cascade earlier in V11.17.x).
+//   4. MAPTILER_KEY — legacy alias.
 function getMapTilerKey(): string | null {
-  return process.env.NEXT_PUBLIC_MAPTILER_KEY || process.env.MAPTILER_KEY || null;
+  return process.env.MAPTILER_GEOCODING_KEY
+    || process.env.MAPTILER_API_KEY
+    || process.env.NEXT_PUBLIC_MAPTILER_KEY
+    || process.env.MAPTILER_KEY
+    || null;
 }
 
 /**

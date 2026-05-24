@@ -58,6 +58,37 @@ var supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 )
 
+// V11.17.21 — Subreddit → category mapping for Reddit archive imports.
+// parseRedditPost doesn't set category; some posts get one from downstream
+// keyword detection but most don't. The reports.category column is NOT NULL,
+// so we fall back to a subreddit-inferred category before insert. Priority
+// subs map to the underserved priority categories (Path B targets);
+// everything else lands in 'psychological_experiences' (the catch-all for
+// "anomalous first-person experience reports that don't fit a specific
+// cryptid/UFO/ghost cat").
+function inferCategoryFromSubreddit(subreddit: string | null | undefined): string {
+  if (!subreddit) return 'psychological_experiences'
+  var sub = subreddit.toLowerCase().replace(/^r\//, '').replace(/^\//, '')
+  // Consciousness practices
+  if (['astralprojection', 'luciddreaming', 'meditation', 'oobe', 'outofbody', 'oobs'].indexOf(sub) >= 0) return 'consciousness_practices'
+  // Psychic phenomena
+  if (['psychic', 'mediums', 'psychicabilities', 'precognition', 'telepathy', 'esp'].indexOf(sub) >= 0) return 'psychic_phenomena'
+  // Perception / sensory
+  if (['glitch_in_the_matrix', 'mandela_effect', 'sleepparalysisstories', 'derealization', 'depersonalization', 'dpdr'].indexOf(sub) >= 0) return 'perception_sensory'
+  // Religion / mythology
+  if (['paganism', 'exorcism', 'demonology', 'spirituality', 'angels', 'archangels'].indexOf(sub) >= 0) return 'religion_mythology'
+  // Esoteric practices
+  if (['witchcraft', 'wicca', 'occult', 'tarot', 'ouija', 'magick'].indexOf(sub) >= 0) return 'esoteric_practices'
+  // Cryptids
+  if (['cryptids', 'cryptozoology', 'bigfoot', 'sasquatch', 'dogman', 'mothman', 'skinwalkers'].indexOf(sub) >= 0) return 'cryptids'
+  // UFOs / aliens
+  if (['ufos', 'ufob', 'aliens', 'aliensjustsayhi', 'experiencers'].indexOf(sub) >= 0) return 'ufos_aliens'
+  // Ghosts / hauntings
+  if (['ghosts', 'paranormal', 'thetruthishere', 'hauntings', 'ghoststories'].indexOf(sub) >= 0) return 'ghosts_hauntings'
+  // Catch-all for any unrecognized sub
+  return 'psychological_experiences'
+}
+
 // Generate a slug the same way engine.ts does (so the archive-import
 // path produces slugs interoperable with live ingestion slugs).
 function generateSlug(title: string, originalId: string | null, sourceType: string): string {
@@ -299,7 +330,11 @@ async function processBatch(posts: ArcticShiftPost[]): Promise<ImportResult> {
         slug: slug,
         summary: report.summary,
         description: report.description,
-        category: report.category,
+        // V11.17.21 — Fallback to subreddit-inferred category when the
+        // parser/keyword-detector didn't set one. Satisfies the
+        // reports.category NOT NULL constraint without dropping otherwise-
+        // valid Reddit experience reports.
+        category: report.category || inferCategoryFromSubreddit((post as any).subreddit),
         location_name: normalizedLocation ? normalizedLocation.location_name : locName,
         country: normalizedLocation ? normalizedLocation.country : (report.country || null),
         country_code: normalizedLocation ? normalizedLocation.country_code : (report as any).country_code || null,

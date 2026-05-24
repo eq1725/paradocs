@@ -1,6 +1,28 @@
 #!/usr/bin/env tsx
 /**
- * Priority-Category Classifier Re-pass (V11.17.16)
+ * Priority-Category Classifier Re-pass (V11.17.19)
+ *
+ * V11.17.19 — --phenomena <slug1,slug2,...> flag for targeted sweeps.
+ *   Builds a synthetic TARGETS subset with only the requested phens,
+ *   then runs the standard processCategory loop. Lets us classify
+ *   newly-added phenomena without re-spending on already-rejected
+ *   candidates in the same category. Use when you've added a new phen
+ *   or want to re-run a single phen with a tuned prompt.
+ *
+ * V11.17.18 — TARGETS audit fixes from V11.17.17 sweep postmortem:
+ *   - witchcraft-practice → witchcraft (only real slug bug)
+ *   - Expanded religion_mythology beyond exorcism (added demonic-possession,
+ *     archangel-michael, djinn/jinn)
+ *   - Re-bucketed tarot-reading from esoteric_practices → psychic_phenomena
+ *     (matches actual DB category; was producing misleading log totals)
+ *   - Re-bucketed sleep-paralysis + mandela-effect comment marker
+ *     (slugs unchanged; DB category is psychological_experiences but TARGETS
+ *     keeps perception_sensory grouping for thematic priority bucket)
+ *
+ * V11.17.17 — Bounded-parallel batch submission (default 8 in flight) +
+ * incremental per-batch apply. Drops sequential 1900-candidate wall time
+ * from ~95min to ~12min. Override concurrency with --parallel-batches N
+ * (use 1 for legacy sequential behavior).
  *
  * Re-classifies existing approved Reddit reports against the 5 priority
  * categories that are dramatically under-served:
@@ -36,6 +58,18 @@
  *
  *   # All 5 priority categories, 1000 each
  *   tsx scripts/reclassify-priority-categories.ts --all --limit 1000
+ *
+ *   # Force legacy sequential (1 batch in flight) for debugging
+ *   tsx scripts/reclassify-priority-categories.ts --all --limit 1000 --parallel-batches 1
+ *
+ *   # Aggressive parallelism (only if your Anthropic workspace tolerates it)
+ *   tsx scripts/reclassify-priority-categories.ts --all --limit 5000 --parallel-batches 16
+ *
+ *   # Targeted sweep on specific phenomena (V11.17.19) — avoids re-rejecting
+ *   # already-classified candidates from other phens in the same category.
+ *   tsx scripts/reclassify-priority-categories.ts \
+ *     --phenomena witchcraft,demonic-possession,archangel-michael,djinn,tarot-reading \
+ *     --limit 5000
  *
  * ── Cost estimate ───────────────────────────────────────────────────
  *
@@ -169,6 +203,20 @@ const TARGETS: Record<string, PhenomenonTarget[]> = {
       ],
       description: 'Direct mental transmission of specific information between people',
     },
+    // V11.17.18 — re-bucketed from esoteric_practices. Actual DB category
+    // is psychic_phenomena. The TARGETS bucket name now matches the
+    // phenomenon's home category so log totals make sense.
+    {
+      slug: 'tarot-reading',
+      name: 'Tarot Reading',
+      keywords: ['tarot reading', 'tarot card', 'tarot deck', 'tarot spread', 'pulled the death card'],
+      evidenceRules: [
+        'The narrator received or performed a tarot reading',
+        'Often describes specific cards drawn or interpretations that proved meaningful',
+        'NOT general references to tarot as a topic',
+      ],
+      description: 'Tarot reading session with notable interpretation or subsequent confirmation',
+    },
   ],
 
   religion_mythology: [
@@ -181,6 +229,43 @@ const TARGETS: Record<string, PhenomenonTarget[]> = {
         'NOT a general blessing or cleansing — must reference actual exorcism procedure',
       ],
       description: 'Formal religious ritual to expel a perceived entity from person or location',
+    },
+    // V11.17.18 — added 3 more religion_mythology targets. Previously this
+    // category had only exorcism; postmortem flagged the rest of the
+    // category as unprocessed despite being a Chase priority.
+    {
+      slug: 'demonic-possession',
+      name: 'Demonic Possession',
+      keywords: ['demonic possession', 'possessed by a demon', 'demon possessed me', 'i was possessed', 'demonic entity took control'],
+      evidenceRules: [
+        'The narrator (or a person the narrator witnessed firsthand) experienced loss of bodily control attributed to a demonic or evil entity',
+        'Often describes voice changes, involuntary movement, unfamiliar language, or extreme behavior',
+        'NOT general mention of "feeling possessed by anger" or metaphorical possession',
+        'NOT just witnessing an exorcism (those go to exorcism)',
+      ],
+      description: 'First-hand or close-witness experience of demonic possession with concrete behavioral phenomena',
+    },
+    {
+      slug: 'archangel-michael',
+      name: 'Archangel Michael',
+      keywords: ['archangel michael', 'saint michael', 'st. michael the archangel', 'michael the archangel'],
+      evidenceRules: [
+        'The narrator describes an encounter, vision, or felt presence of Archangel Michael specifically',
+        'May include protection request, sword/armor imagery, or named identification',
+        'NOT generic angel encounters (those would go to angelic-encounter if it existed)',
+      ],
+      description: 'Encounter, vision, or felt presence identified specifically as Archangel Michael',
+    },
+    {
+      slug: 'djinn',
+      name: 'Djinn',
+      keywords: ['djinn', 'jinn', 'i saw a genie', 'djinn possession', 'jinn attack', 'jinn entity'],
+      evidenceRules: [
+        'The narrator describes an encounter with or experience attributed to a djinn / jinn (Middle-Eastern / Islamic supernatural entity)',
+        'Often references specific djinn behaviors (shapeshifting, fire/smoke association, contracts, household haunting)',
+        'NOT general "genie in a lamp" pop-culture references',
+      ],
+      description: 'Encounter or experience attributed to djinn / jinn entities from Islamic / Middle-Eastern tradition',
     },
   ],
 
@@ -196,20 +281,13 @@ const TARGETS: Record<string, PhenomenonTarget[]> = {
       ],
       description: 'Use of a Ouija board or spirit board for attempted contact, with experienced phenomena',
     },
+    // V11.17.18 — slug fix: 'witchcraft-practice' was missing from DB.
+    // Actual slug is 'witchcraft'. Previously this entry was silently
+    // skipped at candidate-finding, costing $0 but missing all potential
+    // surfacing from witchcraft-keyword reports.
     {
-      slug: 'tarot-reading',
-      name: 'Tarot Reading',
-      keywords: ['tarot reading', 'tarot card', 'tarot deck', 'tarot spread', 'pulled the death card'],
-      evidenceRules: [
-        'The narrator received or performed a tarot reading',
-        'Often describes specific cards drawn or interpretations that proved meaningful',
-        'NOT general references to tarot as a topic',
-      ],
-      description: 'Tarot reading session with notable interpretation or subsequent confirmation',
-    },
-    {
-      slug: 'witchcraft-practice',
-      name: 'Witchcraft Practice',
+      slug: 'witchcraft',
+      name: 'Witchcraft',
       keywords: ['witchcraft', 'witch ritual', 'cast a spell', 'spell work', 'sigil', 'magick working', 'banishing ritual', 'wiccan'],
       evidenceRules: [
         'The narrator practiced witchcraft, spellwork, or related ritual magic',
@@ -231,6 +309,8 @@ interface CliArgs {
   limit: number;
   dryRun: boolean;
   batchSize: number;
+  parallelBatches: number;  // V11.17.17 — concurrent Anthropic batches in flight (1 = sequential = legacy)
+  phenomena: string[] | null;  // V11.17.19 — narrow sweep to specific phenomenon slugs (comma-separated)
 }
 
 function parseArgs(): CliArgs {
@@ -239,12 +319,15 @@ function parseArgs(): CliArgs {
     const idx = argv.indexOf(name);
     return idx < 0 ? def : argv[idx + 1];
   }
+  const phenomenaRaw = flag('--phenomena');
   return {
     category: flag('--category'),
     all: argv.indexOf('--all') >= 0,
     limit: parseInt(flag('--limit', '500') || '500'),
     dryRun: argv.indexOf('--dry-run') >= 0,
     batchSize: parseInt(flag('--batch-size', '100') || '100'),
+    parallelBatches: parseInt(flag('--parallel-batches', '8') || '8'),
+    phenomena: phenomenaRaw ? phenomenaRaw.split(',').map(s => s.trim()).filter(Boolean) : null,
   };
 }
 
@@ -525,6 +608,7 @@ async function processCategory(
   limit: number,
   dryRun: boolean,
   batchSize: number,
+  parallelBatches: number,
 ): Promise<void> {
   console.log('\n=== Category: ' + category + ' ===');
   console.log('Finding candidates (max ' + limit + ')...');
@@ -547,26 +631,71 @@ async function processCategory(
     return;
   }
 
-  // Submit in batches
-  const allResults: any[] = [];
+  // V11.17.17 — bounded-parallel batch submission + incremental apply.
+  //
+  // OLD behavior (parallelBatches=1): submit → poll → apply → submit next.
+  //   At 5min/batch × 19 batches = ~95min for a 1900-candidate category.
+  //
+  // NEW behavior (parallelBatches=8 default): up to 8 batches in flight,
+  //   each pipeline = submit → poll → apply (incremental). When one closes
+  //   we immediately submit the next chunk. Total wall time approaches
+  //   N/parallelBatches × per-batch latency (5min × 19/8 ≈ 12min).
+  //
+  // Anthropic Batch API tolerates many concurrent batches per workspace;
+  // 8 is a conservative default. Override with --parallel-batches.
+  //
+  // Drain-safe: applyResults is the same per-batch path used by the old
+  // serial loop. Junction inserts are idempotent (upsert ignoreDuplicates).
+
+  const chunks: Candidate[][] = [];
   for (let i = 0; i < candidates.length; i += batchSize) {
-    const chunk = candidates.slice(i, i + batchSize);
-    console.log('Submitting batch ' + (Math.floor(i / batchSize) + 1) + '/' + Math.ceil(candidates.length / batchSize) + ' (' + chunk.length + ' candidates)...');
+    chunks.push(candidates.slice(i, i + batchSize));
+  }
+  const totalChunks = chunks.length;
+  console.log('\nProcessing ' + totalChunks + ' batches with up to ' + parallelBatches + ' in flight...');
+
+  let totalLinked = 0, totalRejected = 0, totalErrors = 0;
+  const phenIds = new Set<string>();
+  let nextChunkIdx = 0;
+  let completedCount = 0;
+
+  // Each in-flight pipeline: submit → poll → apply → resolve.
+  async function pipelineOne(chunkIdx: number, chunk: Candidate[]): Promise<void> {
+    const label = '[batch ' + (chunkIdx + 1) + '/' + totalChunks + ']';
+    console.log(label + ' submitting ' + chunk.length + ' candidates...');
     const batchId = await submitBatch(chunk);
-    console.log('  batch_id: ' + batchId);
-    console.log('  polling for completion (up to 1h)...');
+    console.log(label + ' submitted: ' + batchId);
     const results = await pollBatch(batchId);
-    console.log('  got ' + results.length + ' results');
-    allResults.push(...results);
+    console.log(label + ' got ' + results.length + ' results, applying...');
+    const stats = await applyResults(supabase, results, chunk);
+    totalLinked += stats.linked;
+    totalRejected += stats.rejected;
+    totalErrors += stats.errors;
+    for (const pid of stats.phenIds) phenIds.add(pid);
+    completedCount++;
+    console.log(label + ' done: linked=' + stats.linked + ' rejected=' + stats.rejected + ' errors=' + stats.errors +
+      ' | running totals: linked=' + totalLinked + ' rejected=' + totalRejected + ' (' + completedCount + '/' + totalChunks + ' batches)');
   }
 
-  // Apply — pass candidate list through so applyResults can look up
-  // the matchedPhenomenon for each result by report_id.
-  console.log('\nApplying results (drain-safe junction inserts)...');
-  const { linked, rejected, errors, phenIds } = await applyResults(supabase, allResults, candidates);
-  console.log('  linked:   ' + linked);
-  console.log('  rejected: ' + rejected + ' (match=no or confidence<0.7)');
-  console.log('  errors:   ' + errors);
+  // Bounded-concurrency pool: maintain up to N in-flight promises.
+  // When any resolves, submit the next chunk until candidates exhausted.
+  const inFlight = new Set<Promise<void>>();
+  while (nextChunkIdx < totalChunks || inFlight.size > 0) {
+    while (inFlight.size < parallelBatches && nextChunkIdx < totalChunks) {
+      const idx = nextChunkIdx++;
+      const p = pipelineOne(idx, chunks[idx]).catch((err) => {
+        console.error('[batch ' + (idx + 1) + '] FAILED: ' + (err?.message || err));
+        totalErrors += chunks[idx].length;
+      }).finally(() => { inFlight.delete(p); });
+      inFlight.add(p);
+    }
+    if (inFlight.size > 0) await Promise.race(inFlight);
+  }
+
+  console.log('\nCategory ' + category + ' totals:');
+  console.log('  linked:   ' + totalLinked);
+  console.log('  rejected: ' + totalRejected + ' (match=no or confidence<0.7)');
+  console.log('  errors:   ' + totalErrors);
 
   console.log('\nRecomputing report_count for ' + phenIds.size + ' affected phenomena...');
   await recomputePhenomenaCounts(supabase, phenIds);
@@ -575,17 +704,55 @@ async function processCategory(
 
 async function main() {
   const args = parseArgs();
-  if (!args.category && !args.all) {
-    console.error('Must specify --category <name> or --all');
+  if (!args.category && !args.all && !args.phenomena) {
+    console.error('Must specify --category <name>, --all, or --phenomena <slug1,slug2,...>');
     console.error('Categories: ' + Object.keys(TARGETS).join(', '));
     process.exit(1);
   }
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
-  const cats = args.all ? Object.keys(TARGETS) : [args.category!];
+  // V11.17.19 — --phenomena slug-filter: build a synthetic TARGETS subset
+  // containing only the requested phenomena (grouped by their natural cat).
+  // The script's processCategory loop runs unchanged against this subset;
+  // when the bucket has only one phen, perPhenLimit = totalLimit (no math
+  // weirdness). Lets us target newly-added phens without paying to re-reject
+  // already-classified ones in the same category.
+  if (args.phenomena) {
+    const requested = new Set(args.phenomena);
+    const matched: Record<string, PhenomenonTarget[]> = {};
+    const seenSlugs: Set<string> = new Set();
+    for (const [cat, phens] of Object.entries(TARGETS)) {
+      for (const p of phens) {
+        if (requested.has(p.slug)) {
+          if (!matched[cat]) matched[cat] = [];
+          matched[cat].push(p);
+          seenSlugs.add(p.slug);
+        }
+      }
+    }
+    const missing = args.phenomena.filter(s => !seenSlugs.has(s));
+    if (missing.length > 0) {
+      console.warn('WARN: --phenomena slugs not found in TARGETS: ' + missing.join(', '));
+    }
+    if (seenSlugs.size === 0) {
+      console.error('No requested phenomena matched any TARGETS entry. Available slugs:');
+      for (const phens of Object.values(TARGETS)) for (const p of phens) console.error('  ' + p.slug);
+      process.exit(1);
+    }
+    // Replace global TARGETS with the filtered subset so processCategory
+    // (which references TARGETS by category key) sees only requested phens.
+    for (const k of Object.keys(TARGETS)) delete (TARGETS as any)[k];
+    for (const [k, v] of Object.entries(matched)) (TARGETS as any)[k] = v;
+    console.log('Run config: --phenomena filter active — ' + seenSlugs.size + ' phens across ' + Object.keys(matched).length + ' cats');
+  }
+
+  const cats = args.phenomena ? Object.keys(TARGETS) : (args.all ? Object.keys(TARGETS) : [args.category!]);
+  console.log('Run config: cats=' + cats.join(',') + ' limit=' + args.limit +
+    ' batchSize=' + args.batchSize + ' parallelBatches=' + args.parallelBatches +
+    (args.dryRun ? ' (dry-run)' : ''));
   for (const cat of cats) {
-    await processCategory(supabase, cat, args.limit, args.dryRun, args.batchSize);
+    await processCategory(supabase, cat, args.limit, args.dryRun, args.batchSize, args.parallelBatches);
   }
 
   console.log('\n=== All done ===');
