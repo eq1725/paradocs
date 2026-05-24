@@ -372,8 +372,13 @@ interface BatchRequest {
 }
 
 async function submitBatch(candidates: Candidate[]): Promise<string> {
-  const requests: BatchRequest[] = candidates.map((c, i) => ({
-    custom_id: c.id + '|' + c.matchedPhenomenon,
+  // Anthropic Batch API restricts custom_id to /^[a-zA-Z0-9_-]{1,64}$/.
+  // UUID alone (36 chars) is valid; we look up the matched phenomenon
+  // from the in-memory candidate map at apply-time. Each candidate is
+  // tested against exactly one phenomenon (matchedPhenomenon) so the
+  // UUID is uniquely-keyed within a batch.
+  const requests: BatchRequest[] = candidates.map((c) => ({
+    custom_id: c.id,
     params: {
       model: HAIKU_MODEL,
       max_tokens: 300,
@@ -441,7 +446,12 @@ async function pollBatch(batchId: string, maxWaitSec: number = 3600): Promise<an
 async function applyResults(
   supabase: SupabaseClient,
   results: any[],
+  candidates: Candidate[],
 ): Promise<{ linked: number; rejected: number; errors: number; phenIds: Set<string> }> {
+  // Build report_id → matchedPhenomenon lookup from in-memory candidate list
+  const idToPhenSlug = new Map<string, string>();
+  for (const c of candidates) idToPhenSlug.set(c.id, c.matchedPhenomenon);
+
   const phenSlugCache = new Map<string, string | null>();
   async function lookupPhen(slug: string): Promise<string | null> {
     if (phenSlugCache.has(slug)) return phenSlugCache.get(slug) ?? null;
@@ -454,7 +464,8 @@ async function applyResults(
   let linked = 0, rejected = 0, errors = 0;
   const phenIds = new Set<string>();
   for (const r of results) {
-    const [reportId, phenSlug] = (r.custom_id || '').split('|');
+    const reportId = r.custom_id;
+    const phenSlug = idToPhenSlug.get(reportId);
     if (!reportId || !phenSlug) { errors++; continue; }
     const body = r.result?.message?.content?.[0]?.text || '';
     let parsed: any;
@@ -549,9 +560,10 @@ async function processCategory(
     allResults.push(...results);
   }
 
-  // Apply
+  // Apply — pass candidate list through so applyResults can look up
+  // the matchedPhenomenon for each result by report_id.
   console.log('\nApplying results (drain-safe junction inserts)...');
-  const { linked, rejected, errors, phenIds } = await applyResults(supabase, allResults);
+  const { linked, rejected, errors, phenIds } = await applyResults(supabase, allResults, candidates);
   console.log('  linked:   ' + linked);
   console.log('  rejected: ' + rejected + ' (match=no or confidence<0.7)');
   console.log('  errors:   ' + errors);
