@@ -121,7 +121,13 @@ var SENSORY_LABELS: Record<string, SensoryLabelConfig> = {
   'Temperature':          { keywords: ['freezing', 'sudden cold', 'icy', 'temperature dropped', 'heat wave', 'unusually warm'], minHits: 1 },
   'Electromagnetic':      { keywords: ['static electricity', 'hair stood', 'tingling', 'interference', 'battery drained', 'electronics failed'], minHits: 1 },
   'Out of body':          { keywords: ['out of body', 'looking down at myself', 'floating above', 'detached from', 'hovering above my body'], minHits: 1, categories: ['consciousness_practices', 'psychological_experiences'] },
-  'Craft / Vehicle':      { keywords: ['triangle craft', 'disc-shaped', 'saucer', 'silent craft', 'hovering craft', 'formation of lights', 'metallic craft'], minHits: 1, categories: ['ufos_aliens'] },
+  // V11.17.31 PR-2 — widened keyword list. Previously required
+  // specific 2-word phrases ("triangle craft", "hovering craft") so
+  // bare descriptions like "I saw a triangle in the sky" or "it was
+  // a boomerang shape" produced empty sensory profile → 0 overlap
+  // score. Added: bare shape words, formation patterns, light-corner
+  // descriptors common in actual UFO reports.
+  'Craft / Vehicle':      { keywords: ['triangle craft', 'triangular ufo', 'triangle ufo', 'inverted triangle', 'disc-shaped', 'disc shaped', 'saucer', 'saucer-shaped', 'silent craft', 'hovering craft', 'hovered silently', 'formation of lights', 'metallic craft', 'boomerang', 'boomerang-shaped', 'cigar-shaped', 'cigar shaped', 'chevron', 'diamond formation', 'lights at each corner', 'lights at the corners', 'object hovered', 'flying triangle', 'tic tac', 'tic-tac'], minHits: 1, categories: ['ufos_aliens'] },
 }
 
 // Back-compat alias — preserved so any older import sites keep working.
@@ -182,9 +188,20 @@ function computeMatchDimensions(
   var dims: MatchDimResult[] = []
 
   // 1. Category match (weight: 0.25)
+  //
+  // V11.17.31 PR-2 — raised no-type-match score from 0.7 to 0.85.
+  // Bug #88 panel review: most user reports don't get a specific
+  // phenomenon_type set at onboarding (the picker is optional), and
+  // most archive reports don't either, so the category-only path was
+  // hit constantly while permanently capped at 0.7 × 0.25 = 0.175.
+  // Since we ALREADY pre-filter the candidate query by category,
+  // a category match is itself a strong signal — bumping to 0.85
+  // moves the typical user's top matches above the 0.4 Strong-match
+  // threshold without inflating cross-category noise (which can't
+  // happen — non-matching categories still score 0).
   var catScore = 0
   if (source.category === target.category) {
-    catScore = 0.7
+    catScore = 0.85
     if (source.type_name && target.type_name && source.type_name === target.type_name) {
       catScore = 1.0
     }
@@ -222,15 +239,24 @@ function computeMatchDimensions(
   // 4. Content / description similarity (weight: 0.25)
   var targetTokens = tokenize(target.description || '')
   var contentScore = jaccardSimilarity(source.tokens, targetTokens)
-  // Boost for longer matching (more meaningful overlap)
-  contentScore = Math.min(contentScore * 2.5, 1.0)
+  // V11.17.31 PR-2 — boost raised 2.5x → 3.5x. Short user reports
+  // (~200-400 chars) compared against typical archive reports
+  // (~600-2000 chars) get punished by the union denominator in
+  // jaccard; the bigger boost compensates so a meaningful overlap
+  // (~10-15% raw jaccard) lands as a real ~0.4 contribution.
+  contentScore = Math.min(contentScore * 3.5, 1.0)
   dims.push({ label: 'Description similarity', score: contentScore })
 
   // 5. Sensory overlap (weight: 0.25)
   var targetSensory = extractSensoryProfile(target.description || '', target.category)
   var sensoryScore = jaccardSimilarity(source.sensory, targetSensory)
-  // Boost for sensory matches (these are more meaningful)
-  sensoryScore = Math.min(sensoryScore * 2.0, 1.0)
+  // V11.17.31 PR-2 — boost raised 2.0x → 2.5x. Sensory profile
+  // extraction is conservative (minHits=1 or 2 with narrow keyword
+  // lists), so true overlap is small even when reports describe
+  // identical sensory events. The bigger boost rewards genuine
+  // overlap without inflating unrelated matches (which still produce
+  // empty intersections and score 0).
+  sensoryScore = Math.min(sensoryScore * 2.5, 1.0)
 
   // Build specific sensory dimension labels
   var sharedSensory: string[] = []
@@ -243,9 +269,26 @@ function computeMatchDimensions(
     dims.push({ label: 'Sensory overlap', score: sensoryScore })
   }
 
-  // Weighted overall score
-  var overall = catScore * 0.25 + locScore * 0.15 + timeScore * 0.1 +
-    contentScore * 0.25 + sensoryScore * 0.25
+  // V11.17.31 PR-2 — Weighted overall score with null-event-date
+  // redistribution. When the source report has no event_date set
+  // (the picker is optional during onboarding), the temporal axis
+  // can never contribute and silently caps total score at 0.90.
+  // We redistribute its 0.10 weight proportionally to the other
+  // four axes so users without an event date aren't penalized for
+  // a missing field. Same redistribution when target has no event
+  // date — symmetric.
+  var weightCat = 0.25, weightLoc = 0.15, weightTime = 0.10, weightContent = 0.25, weightSensory = 0.25
+  if (!source.event_date || !target.event_date) {
+    // 0.10 / 4 = 0.025 redistributed to each of the other axes
+    var bonus = weightTime / 4
+    weightCat += bonus
+    weightLoc += bonus
+    weightContent += bonus
+    weightSensory += bonus
+    weightTime = 0
+  }
+  var overall = catScore * weightCat + locScore * weightLoc + timeScore * weightTime +
+    contentScore * weightContent + sensoryScore * weightSensory
 
   // Only return the top 4 dimensions for the UI
   dims.sort(function(a, b) { return b.score - a.score })
