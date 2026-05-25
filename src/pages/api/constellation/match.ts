@@ -140,6 +140,51 @@ var SENSORY_LABELS: Record<string, SensoryLabelConfig> = {
   // as a lower-priority companion label.
   'Silent hover':           { keywords: ['silent craft', 'hovering craft', 'hovered silently', 'object hovered', 'hovered in place', 'completely silent', 'no sound', 'made no noise'], minHits: 1, categories: ['ufos_aliens'] },
   'Light formation':        { keywords: ['formation of lights', 'lights at each corner', 'lights at the corners', 'light at each corner', 'lights at the points', 'lights at the tips'], minHits: 1, categories: ['ufos_aliens'] },
+
+  // V11.17.35 PR-5-b — Ghosts & hauntings: shape + behavior + entity
+  // features. Currently the category had ZERO shape-specific sensory
+  // labels — only the generic 'Multiple witnesses' / 'Temperature' /
+  // 'Recurring' / 'Entity aware' applied. User feedback (Chase's
+  // hypothetical "ghost-like face with red eyes flying at me in bed"
+  // example): system should auto-recognize semantic features like
+  // red eyes, face-shape, bedroom intrusion, intentional motion
+  // toward witness. These labels surface those.
+  'Red eyes':                  { keywords: ['red eyes', 'glowing red eyes', 'red orbs', 'red glow from its eyes', 'red eyes glowing', 'crimson eyes', 'eyes glowed red'], minHits: 1, categories: ['ghosts_hauntings', 'cryptids', 'religion_mythology'] },
+  'Glowing eyes':              { keywords: ['glowing eyes', 'luminous eyes', 'shining eyes', 'eyes that glowed', 'bright eyes in the dark', 'eyes lit up'], minHits: 1, categories: ['ghosts_hauntings', 'cryptids', 'religion_mythology'] },
+  'Face-like apparition':      { keywords: ['ghostly face', 'face appeared', 'disembodied face', 'face-like', 'face like', 'just a face', 'face in the dark', 'face hovering', 'face floating'], minHits: 1, categories: ['ghosts_hauntings', 'religion_mythology'] },
+  // 'Shadow figure' already defined at line 108 above (broader coverage —
+  // includes 'humanoid figure' / 'figure standing' / 'figure in the
+  // doorway'). My ghost-specific variant would have duplicated it.
+  'Full-body apparition':      { keywords: ['full-body apparition', 'full body apparition', 'solid figure', 'apparition standing', 'standing at the foot of', 'walked through the wall', 'translucent figure', 'see-through person', 'ghostly figure'], minHits: 1, categories: ['ghosts_hauntings'] },
+  'Bedroom intrusion':         { keywords: ['in my bed', 'in my bedroom', 'foot of my bed', 'foot of the bed', 'by my bed', 'next to my bed', 'standing over me', 'standing above me', 'woke up to', 'woke up and saw', 'while i was sleeping', 'while i slept', 'in the middle of the night'], minHits: 1, categories: ['ghosts_hauntings', 'cryptids', 'consciousness_practices', 'psychological_experiences'] },
+  'Entity moved toward witness': { keywords: ['flew at me', 'came at me', 'lunged at me', 'charged at me', 'rushed toward me', 'moved toward me', 'came right at me', 'came straight at me', 'approached me', 'reaching for me'], minHits: 1, categories: ['ghosts_hauntings', 'cryptids', 'religion_mythology'] },
+  'Disembodied voice':         { keywords: ['heard a voice', 'voice in my head', 'voice with no source', 'voice from nowhere', 'spoke to me', 'whispered my name', 'called my name', 'audible whisper', 'evp', 'electronic voice phenomenon'], minHits: 1, categories: ['ghosts_hauntings', 'psychic_phenomena', 'religion_mythology'] },
+  'Cold spot':                 { keywords: ['cold spot', 'sudden cold', 'temperature dropped', 'air went cold', 'icy chill', 'freezing patch', 'cold patch'], minHits: 1, categories: ['ghosts_hauntings'] },
+  'Object movement':           { keywords: ['object moved on its own', 'moved by itself', 'flew across the room', 'shelf fell', 'objects flew', 'doors opened', 'cabinet door opened', 'thrown across the room', 'objects rearranged'], minHits: 1, categories: ['ghosts_hauntings', 'esoteric_practices'] },
+
+  // Cryptids: morphology + behavior
+  'Tall humanoid':             { keywords: ['7 feet tall', '8 feet tall', '9 feet tall', 'seven feet tall', 'eight feet tall', 'towering figure', 'massive humanoid', 'taller than any man', 'tall figure'], minHits: 1, categories: ['cryptids'] },
+  'Hair / fur covered':        { keywords: ['covered in hair', 'covered in fur', 'matted fur', 'thick fur', 'shaggy', 'hairy creature', 'fur all over', 'thick coat'], minHits: 1, categories: ['cryptids'] },
+  'Bipedal animal':            { keywords: ['walked upright', 'on two legs', 'bipedal', 'standing on hind legs', 'walked like a person', 'human-like gait'], minHits: 1, categories: ['cryptids'] },
+  'Skinwalker / shapeshifter': { keywords: ['skinwalker', 'shapeshifter', 'shape-shifter', 'shape shifted', 'changed form', 'became something else', 'transformed in front'], minHits: 1, categories: ['cryptids', 'religion_mythology'] },
+  'Bone-pale appearance':      { keywords: ['pale as bone', 'corpse-pale', 'sickly pale', 'translucent skin', 'no pigment'], minHits: 1, categories: ['cryptids', 'ghosts_hauntings'] },
+
+  // Consciousness practices / NDE
+  'Tunnel of light':           { keywords: ['tunnel of light', 'light at the end of the tunnel', 'long tunnel', 'rushing through a tunnel', 'tunnel toward light'], minHits: 1, categories: ['consciousness_practices', 'psychological_experiences'] },
+  'Life review':               { keywords: ['life review', 'my whole life flashed', 'every moment of my life', 'reviewed my life', 'life played back', 'panoramic memory'], minHits: 1, categories: ['consciousness_practices', 'psychological_experiences'] },
+  'Departed loved ones':       { keywords: ['saw my grandmother', 'saw my grandfather', 'departed loved ones', 'family members who had passed', 'relatives who had died', 'my deceased mother', 'my deceased father', 'saw my dad who had passed', 'saw my mom who had passed'], minHits: 1, categories: ['consciousness_practices', 'psychological_experiences', 'religion_mythology'] },
+  'Time dilation':             { keywords: ['time stood still', 'time slowed down', 'time stretched', 'time felt frozen', 'seemed to last forever', 'lost track of time'], minHits: 1, categories: ['consciousness_practices', 'perception_sensory', 'psychological_experiences'] },
+  'Beings of light':           { keywords: ['being of light', 'beings of light', 'luminous being', 'radiant figure', 'figure made of light', 'glowing entity'], minHits: 1, categories: ['consciousness_practices', 'religion_mythology', 'psychological_experiences'] },
+
+  // Psychic phenomena
+  'Verifiable detail':         { keywords: ['turned out to be true', 'was confirmed', 'i later found out', 'next day i learned', 'i didn\'t know at the time', 'verified later', 'proved accurate'], minHits: 1, categories: ['psychic_phenomena'] },
+  'Imminent vision':           { keywords: ['minutes before it happened', 'right before', 'just before the accident', 'an hour before', 'days before', 'foresaw'], minHits: 1, categories: ['psychic_phenomena'] },
+  'Thought transmission':      { keywords: ['heard her thoughts', 'thought transmission', 'mind to mind', 'received the message', 'telepathic communication', 'knew what they were thinking'], minHits: 1, categories: ['psychic_phenomena'] },
+
+  // Esoteric / occult practices
+  'Ritual circle':             { keywords: ['cast a circle', 'circle of salt', 'protective circle', 'within the circle', 'pentagram on the floor', 'ritual circle'], minHits: 1, categories: ['esoteric_practices'] },
+  'Spirit attachment':         { keywords: ['something followed me home', 'attachment after the session', 'felt watched ever since', 'hasn\'t left me alone', 'never the same after'], minHits: 1, categories: ['esoteric_practices', 'ghosts_hauntings'] },
+  'Planchette movement':       { keywords: ['planchette moved', 'planchette flew', 'moved on its own', 'spelled out my name', 'spelled out a message', 'started moving fast'], minHits: 1, categories: ['esoteric_practices'] },
 }
 
 // Back-compat alias — preserved so any older import sites keep working.
@@ -177,6 +222,24 @@ interface MatchDimResult {
   score: number
 }
 
+/**
+ * V11.17.35 PR-5-c — cosine similarity helper for embedding-based
+ * semantic matching. Reuses pgvector embeddings stored in vector_chunks.
+ * Returns null when either side has no embedding (handled upstream
+ * as weight-redistributed missing dimension).
+ */
+function cosineSimilarity(a: number[] | null | undefined, b: number[] | null | undefined): number | null {
+  if (!a || !b || a.length === 0 || b.length === 0 || a.length !== b.length) return null
+  var dot = 0, magA = 0, magB = 0
+  for (var i = 0; i < a.length; i++) {
+    dot += a[i] * b[i]
+    magA += a[i] * a[i]
+    magB += b[i] * b[i]
+  }
+  if (magA === 0 || magB === 0) return null
+  return dot / (Math.sqrt(magA) * Math.sqrt(magB))
+}
+
 function computeMatchDimensions(
   source: {
     category: string
@@ -187,6 +250,7 @@ function computeMatchDimensions(
     description: string
     sensory: Set<string>
     tokens: Set<string>
+    embedding?: number[] | null  // V11.17.35 PR-5-c
   },
   target: {
     category: string
@@ -195,6 +259,7 @@ function computeMatchDimensions(
     lng: number | null
     event_date: string | null
     description: string | null
+    embedding?: number[] | null  // V11.17.35 PR-5-c
   }
 ): { overall: number; dimensions: MatchDimResult[] } {
   var dims: MatchDimResult[] = []
@@ -281,42 +346,78 @@ function computeMatchDimensions(
     dims.push({ label: 'Sensory overlap', score: sensoryScore })
   }
 
-  // V11.17.31 PR-2 — Weighted overall score with null-event-date
-  // redistribution. When the source report has no event_date set
-  // (the picker is optional during onboarding), the temporal axis
-  // can never contribute and silently caps total score at 0.90.
-  // We redistribute its 0.10 weight proportionally to the other
-  // four axes so users without an event date aren't penalized for
-  // a missing field. Same redistribution when target has no event
-  // date — symmetric.
-  var weightCat = 0.25, weightLoc = 0.15, weightTime = 0.10, weightContent = 0.25, weightSensory = 0.25
-  if (!source.event_date || !target.event_date) {
-    // 0.10 / 4 = 0.025 redistributed to each of the other axes
-    var bonus = weightTime / 4
+  // V11.17.35 PR-5-c — Semantic similarity dimension (cosine on
+  // text-embedding-3-small vectors). Captures meaning beyond
+  // keyword overlap: "triangular UFO" ≈ "black triangle" (~0.9),
+  // "ghost-like face with red eyes flying at me in bed" ≈
+  // "shadow figure with glowing red eyes that flew toward me while
+  // I slept" (~0.85). Weight 0.20 — meaningful but not dominant.
+  // Treated as missing when either side has no embedding (backfill
+  // not yet run for that report); weight redistributes to other
+  // dimensions same as null event_date pattern.
+  var semCos = cosineSimilarity(source.embedding, target.embedding)
+  var semanticScore = 0
+  var hasSemantic = false
+  if (semCos != null) {
+    hasSemantic = true
+    // Cosine of text-embedding-3-small typically sits in 0.3-0.7 range
+    // for unrelated reports and 0.7-0.95 for genuinely-similar ones.
+    // Linearly remap 0.50→0, 0.95→1.0 so a "neutral" similarity
+    // doesn't dominate; truly similar reports get full credit.
+    semanticScore = Math.max(0, Math.min(1, (semCos - 0.5) / 0.45))
+    dims.push({ label: 'Semantic similarity', score: semanticScore })
+  }
+
+  // V11.17.31 PR-2 → V11.17.35 PR-5-c — Weighted overall score with
+  // null-event-date AND null-embedding redistribution. When either
+  // axis can't contribute (missing data on either side), its weight
+  // redistributes proportionally to the remaining axes so users with
+  // missing fields aren't silently penalized.
+  var weightCat = 0.22, weightLoc = 0.13, weightTime = 0.08, weightContent = 0.20, weightSensory = 0.17, weightSemantic = 0.20
+  // Redistribute weight from any dimensions that can't contribute
+  var skippedWeight = 0
+  if (!source.event_date || !target.event_date) { skippedWeight += weightTime; weightTime = 0 }
+  if (!hasSemantic) { skippedWeight += weightSemantic; weightSemantic = 0 }
+  if (skippedWeight > 0) {
+    // Count active dimensions to split bonus
+    var activeCount = (weightTime > 0 ? 1 : 0) + (weightSemantic > 0 ? 1 : 0) + 4  // 4 = cat+loc+content+sensory always active
+    var bonus = skippedWeight / activeCount
     weightCat += bonus
     weightLoc += bonus
     weightContent += bonus
     weightSensory += bonus
-    weightTime = 0
+    if (weightTime > 0) weightTime += bonus
+    if (weightSemantic > 0) weightSemantic += bonus
   }
   var overall = catScore * weightCat + locScore * weightLoc + timeScore * weightTime +
-    contentScore * weightContent + sensoryScore * weightSensory
+    contentScore * weightContent + sensoryScore * weightSensory + semanticScore * weightSemantic
 
-  // V11.17.34 PR-4-a — Corroborated boolean (Bug #91 panel review).
-  // Replaces the Strong-matches chip with an inline glyph. A match
-  // is "corroborated" when AT LEAST 2 NON-CATEGORY dimensions score
-  // ≥ 0.5 AND the overall score is ≥ 0.45. Category alone doesn't
-  // count toward corroboration because candidates are already
-  // pre-filtered by category in the query — category match is table
-  // stakes, not a signal of true similarity. This prevents the
-  // "Houston UFO scoring 0.45 from category-plus-noise" false-
-  // positive that the old 0.4-threshold chip surfaced.
-  var nonCatStrongDims = 0
+  // V11.17.34 PR-4-a → V11.17.35 PR-5-a — Corroborated boolean.
+  // Original rule (≥2 non-cat dims ≥0.5) was too strict when one
+  // dimension is structurally zero (e.g., a target report with no
+  // coords zeros out location; a source with null event_date zeros
+  // out time). Loosened to recognize EITHER a single very strong
+  // dim (≥0.7) OR two decent dims (≥0.5). Category still doesn't
+  // count toward corroboration (already pre-filtered = table stakes).
+  // Concretely: Lumberton TX triangle (null event_date) vs Black
+  // Triangle TX (null coords) shares perfect shape sensory (1.0) +
+  // decent content — now qualifies on the "single very strong dim"
+  // path even though only 1 non-cat dim crosses 0.5.
+  var nonCatStrongDims = 0      // dims ≥ 0.5
+  var nonCatVeryStrongDims = 0  // dims ≥ 0.7
   if (locScore >= 0.5) nonCatStrongDims++
+  if (locScore >= 0.7) nonCatVeryStrongDims++
   if (timeScore >= 0.5) nonCatStrongDims++
+  if (timeScore >= 0.7) nonCatVeryStrongDims++
   if (contentScore >= 0.5) nonCatStrongDims++
+  if (contentScore >= 0.7) nonCatVeryStrongDims++
   if (sensoryScore >= 0.5) nonCatStrongDims++
-  var corroborated = nonCatStrongDims >= 2 && overall >= 0.45
+  if (sensoryScore >= 0.7) nonCatVeryStrongDims++
+  // V11.17.35 PR-5-c — semantic dimension counts toward corroboration
+  // when present
+  if (hasSemantic && semanticScore >= 0.5) nonCatStrongDims++
+  if (hasSemantic && semanticScore >= 0.7) nonCatVeryStrongDims++
+  var corroborated = (nonCatVeryStrongDims >= 1 || nonCatStrongDims >= 2) && overall >= 0.4
 
   // Only return the top 4 dimensions for the UI
   dims.sort(function(a, b) { return b.score - a.score })
@@ -461,15 +562,67 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     candidates = broadCandidates || []
   }
 
+  // V11.17.35 PR-5-c — Fetch embeddings for source + all candidates
+  // in a single batch query so the per-candidate scoring loop can
+  // include semantic similarity. Missing embeddings (backfill not
+  // yet run for that report) are handled by computeMatchDimensions's
+  // weight redistribution — no error path, gracefully degrades to
+  // 5-dimension scoring.
+  var embeddingMap = new Map<string, number[]>()
+  var allEmbedIds: string[] = []
+  if (reportId) allEmbedIds.push(reportId)
+  for (var ci = 0; ci < candidates.length; ci++) allEmbedIds.push(candidates[ci].id)
+  if (allEmbedIds.length > 0) {
+    // vector_chunks holds 1+ chunks per report; take the first chunk
+    // for now (most reports have a single chunk since they're under
+    // the MAX_CHUNK_TOKENS limit). For longer reports later we can
+    // average chunk embeddings.
+    try {
+      // Chunk into 500-ID batches to stay under PostgREST IN() limit
+      for (var ei = 0; ei < allEmbedIds.length; ei += 500) {
+        var idChunk = allEmbedIds.slice(ei, ei + 500)
+        var { data: chunks } = await supabase
+          .from('vector_chunks')
+          .select('source_id, chunk_index, embedding')
+          .eq('source_table', 'report')
+          .in('source_id', idChunk)
+          .order('chunk_index', { ascending: true })
+        if (chunks) {
+          for (var ck = 0; ck < chunks.length; ck++) {
+            var row = chunks[ck] as any
+            // Only keep first chunk per report (chunk_index=0 by sort)
+            if (embeddingMap.has(row.source_id)) continue
+            var vec = row.embedding
+            // pgvector returns as string '[a,b,c,...]' OR as array
+            // depending on Supabase client version
+            if (typeof vec === 'string') {
+              try {
+                vec = JSON.parse(vec)
+              } catch (_) {
+                // Try comma-split fallback (rare)
+                vec = vec.replace(/^\[|\]$/g, '').split(',').map(function (s: string) { return parseFloat(s) })
+              }
+            }
+            if (Array.isArray(vec)) embeddingMap.set(row.source_id, vec as number[])
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[match] embedding batch fetch failed (continuing without semantic):', (e as any)?.message || e)
+    }
+  }
+  var sourceEmbedding = reportId ? (embeddingMap.get(reportId) || null) : null
+
   // Score each candidate
   var scored = candidates.map(function(c) {
-    var result = computeMatchDimensions(sourceProfile, {
+    var result = computeMatchDimensions(Object.assign({}, sourceProfile, { embedding: sourceEmbedding }), {
       category: c.category,
       type_name: c.phenomenon_type?.name || null,
       lat: c.latitude,
       lng: c.longitude,
       event_date: c.event_date,
       description: c.description || c.summary || '',
+      embedding: embeddingMap.get(c.id) || null,
     })
 
     return {
