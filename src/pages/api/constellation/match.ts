@@ -302,11 +302,27 @@ function computeMatchDimensions(
   var overall = catScore * weightCat + locScore * weightLoc + timeScore * weightTime +
     contentScore * weightContent + sensoryScore * weightSensory
 
+  // V11.17.34 PR-4-a — Corroborated boolean (Bug #91 panel review).
+  // Replaces the Strong-matches chip with an inline glyph. A match
+  // is "corroborated" when AT LEAST 2 NON-CATEGORY dimensions score
+  // ≥ 0.5 AND the overall score is ≥ 0.45. Category alone doesn't
+  // count toward corroboration because candidates are already
+  // pre-filtered by category in the query — category match is table
+  // stakes, not a signal of true similarity. This prevents the
+  // "Houston UFO scoring 0.45 from category-plus-noise" false-
+  // positive that the old 0.4-threshold chip surfaced.
+  var nonCatStrongDims = 0
+  if (locScore >= 0.5) nonCatStrongDims++
+  if (timeScore >= 0.5) nonCatStrongDims++
+  if (contentScore >= 0.5) nonCatStrongDims++
+  if (sensoryScore >= 0.5) nonCatStrongDims++
+  var corroborated = nonCatStrongDims >= 2 && overall >= 0.45
+
   // Only return the top 4 dimensions for the UI
   dims.sort(function(a, b) { return b.score - a.score })
   var topDims = dims.slice(0, 4)
 
-  return { overall: overall, dimensions: topDims }
+  return { overall: overall, dimensions: topDims, corroborated: corroborated } as any
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────
@@ -481,6 +497,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       credibility: c.credibility,
       match_score: result.overall,
       match_dimensions: result.dimensions,
+      // V11.17.34 PR-4-a — corroborated boolean (Bug #91). True when
+      // at least 2 non-category dimensions scored ≥0.5 AND overall
+      // ≥0.45. UI uses this to render an inline "* Strong match"
+      // glyph in place of the removed Strong filter chip.
+      corroborated: (result as any).corroborated || false,
       locked: false,  // will be set below
     }
   })

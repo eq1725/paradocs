@@ -18,7 +18,7 @@ import { useRouter } from 'next/router'
 import { supabase } from '@/lib/supabase'
 import { getApiBase } from '@/lib/utils'
 import dynamic from 'next/dynamic'
-import { ChevronDown, ChevronRight, MapPin, Calendar, ExternalLink, Users, Camera, Plus, User as UserIcon, Activity, Trash2, Loader2, X as XIcon } from 'lucide-react'
+import { ChevronDown, ChevronRight, MapPin, Calendar, ExternalLink, Users, Camera, Plus, User as UserIcon, Activity, Trash2, Loader2, X as XIcon, Bell } from 'lucide-react'
 import Link from 'next/link'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 
@@ -769,6 +769,156 @@ function ManageSubmissionRow(props: { report: any; onDeleted: (id: string) => vo
 // ── New polished RADAR view (V9.11.5 #16) ────────────────────────────────────
 
 /**
+ * V11.17.34 PR-4-b — NewMatchAlertsCard (Bug #91 panel review).
+ *
+ * Replaces the tiny "Notify me of new matches" text link that lived
+ * in the match-count header row. Mobile-first card above the match
+ * list. DEFAULTS TO ON for signed-in users (email channel) per
+ * panel verdict: opt-out is the right default when the cadence cap
+ * (max once a week) is part of the trust contract surfaced inline.
+ *
+ * State persistence: localStorage today (key:
+ * 'paradocs:notify-new-matches:<userEmail||anon>'). PR-4-c will
+ * wire `users.notify_new_matches BOOLEAN DEFAULT TRUE` + PATCH
+ * /api/user/notify-prefs so the preference syncs across devices.
+ *
+ * Anonymous users: stub variant — "Sign in to get notified" with
+ * link to /signin. Keeps the visual anchor consistent.
+ *
+ * Push notifications: explicit-opt-in only via the "Also notify
+ * this device" secondary link. Never auto-prompts on tab visit
+ * (predatory pattern). Reuses the existing SignalAlertsOptInCard
+ * permission flow on the Story tab — out of scope for this PR.
+ */
+function NewMatchAlertsCard(props: { userEmail: string | null; reportId: string }) {
+  var storageKey = 'paradocs:notify-new-matches:' + (props.userEmail || 'anon')
+  // Default ON for signed-in users; OFF (and locked) for anonymous.
+  var defaultOn = !!props.userEmail
+  var [enabled, setEnabled] = useState<boolean | null>(null)  // null = pre-hydration
+  var [busy, setBusy] = useState(false)
+
+  // Hydrate on mount. Read localStorage; fall back to defaultOn for
+  // signed-in users who've never toggled (the opt-out semantics).
+  useEffect(function () {
+    try {
+      var v = window.localStorage.getItem(storageKey)
+      if (v === '1') setEnabled(true)
+      else if (v === '0') setEnabled(false)
+      else setEnabled(defaultOn)
+    } catch (e) {
+      setEnabled(defaultOn)
+    }
+  }, [storageKey, defaultOn])
+
+  function persist(next: boolean) {
+    setEnabled(next)
+    // localStorage write is the source of truth offline + during SSR
+    try { window.localStorage.setItem(storageKey, next ? '1' : '0') } catch (e) { /* private mode */ }
+    if (!props.userEmail) return
+    setBusy(true)
+    // PR-4-c — Hit the proper endpoint for cross-device persistence.
+    // Falls back silently to localStorage-only if the migration is
+    // still pending (endpoint returns 503 with _migration_pending=true).
+    supabase.auth.getSession().then(function (s: any) {
+      var token = s && s.data && s.data.session ? s.data.session.access_token : null
+      if (!token) {
+        setBusy(false)
+        return
+      }
+      fetch('/api/user/notify-prefs', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ notify_new_matches: next }),
+      }).catch(function () { /* localStorage already holds the truth */ })
+        .finally(function () { setBusy(false) })
+    }).catch(function () { setBusy(false) })
+  }
+
+  // PR-4-c — On mount (for signed-in users), reconcile the local
+  // preference with the server-side preference. If they differ, the
+  // server wins (it's the cross-device source of truth). If the
+  // endpoint 5xxs or the column doesn't exist yet, the local value
+  // remains canonical until the migration lands.
+  useEffect(function () {
+    if (!props.userEmail) return
+    supabase.auth.getSession().then(function (s: any) {
+      var token = s && s.data && s.data.session ? s.data.session.access_token : null
+      if (!token) return
+      fetch('/api/user/notify-prefs', {
+        method: 'GET',
+        headers: { Authorization: 'Bearer ' + token },
+      }).then(function (r) {
+        if (!r.ok) return null
+        return r.json()
+      }).then(function (data: any) {
+        if (data && typeof data.notify_new_matches === 'boolean' && !data._fallback) {
+          setEnabled(data.notify_new_matches)
+          try { window.localStorage.setItem(storageKey, data.notify_new_matches ? '1' : '0') } catch (e) { /* ignore */ }
+        }
+      }).catch(function () { /* network blip — localStorage stays canonical */ })
+    }).catch(function () { /* ignore */ })
+  }, [props.userEmail, storageKey])
+
+  // Anonymous stub
+  if (!props.userEmail) {
+    return (
+      <div className="rounded-xl border border-gray-800/60 bg-gray-900/40 p-3 mb-4 flex items-start gap-3">
+        <Bell className="w-4 h-4 text-purple-300 mt-0.5 flex-shrink-0" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-white">New-match alerts</p>
+          <p className="text-[12px] text-gray-400 leading-relaxed mt-0.5">
+            <Link href="/signin" className="text-purple-300 hover:text-purple-200 underline underline-offset-2">Sign in</Link> to get notified when new reports strongly match yours.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Pre-hydration: avoid SSR flash
+  if (enabled === null) {
+    return <div className="h-[68px] mb-4" aria-hidden="true" />
+  }
+
+  return (
+    <div className="rounded-xl border border-gray-800/60 bg-gray-900/40 p-3 mb-4 flex items-start gap-3">
+      <Bell className={'w-4 h-4 mt-0.5 flex-shrink-0 ' + (enabled ? 'text-purple-300' : 'text-gray-500')} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium text-white">New-match alerts</p>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            aria-label={enabled ? 'Turn off new-match alerts' : 'Turn on new-match alerts'}
+            disabled={busy}
+            onClick={function () { persist(!enabled) }}
+            className={
+              'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border transition-colors disabled:opacity-50 ' +
+              (enabled
+                ? 'bg-purple-600/70 border-purple-500'
+                : 'bg-gray-800 border-gray-700')
+            }
+          >
+            <span
+              className={
+                'inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform mt-0.5 ' +
+                (enabled ? 'translate-x-[18px]' : 'translate-x-[2px]')
+              }
+            />
+          </button>
+        </div>
+        <p className="text-[12px] text-gray-400 leading-relaxed mt-1">
+          {enabled
+            ? <>We&rsquo;ll email you, no more than once a week, when a new report <span className="text-gray-300">strongly matches</span> yours.</>
+            : <>You&rsquo;ll see new matches when you visit, but we won&rsquo;t reach out.</>
+          }
+        </p>
+      </div>
+    </div>
+  )
+}
+
+/**
  * V9.11.5 #30 — Compact event-date formatter for inline match
  * previews. Examples: "Mar 1972", "Aug 12, 1997". If parsing
  * fails (string is empty / non-date / placeholder), returns ''.
@@ -818,14 +968,14 @@ function PolishedRadarView(props: {
 
   // Apply filter to compute the visible-match count.
   var visibleMatches = (function () {
-    // V11.17.30 PR-1 — threshold lowered from 0.5 → 0.4. Panel analysis
-    // (Bug #88) showed the prior 0.5 cap produced empty High Match for
-    // most real user reports given the current scoring weights — a
-    // strong same-category + similar-content match tops out around
-    // 0.55-0.65 only when location/time align. 0.4 matches the API's
-    // own internal matchCount cutoff (match.ts:446) and yields a
-    // useful set for the typical user.
-    if (filter === 'high') return props.matches.filter(function (m: any) { return m.match_score >= 0.4 })
+    // V11.17.34 PR-4-a — Strong filter removed entirely (Bug #91 panel
+    // review). The filter was redundant with All (same top-N) and
+    // misleading (single-axis matches were qualifying as "strong" just
+    // by category alone). Replaced with an inline "* Strong match"
+    // glyph on cards where m.corroborated === true. Legacy 'high'
+    // filter value mapped to 'all' so any deep-link URL parameters
+    // keep working without 404ing the user.
+    if (filter === 'high') return props.matches
     if (filter === 'nearby') {
       if (typeof props.userExperience.latitude !== 'number' || typeof props.userExperience.longitude !== 'number') return []
       return props.matches.filter(function (m: any) {
@@ -863,7 +1013,8 @@ function PolishedRadarView(props: {
   // never have to guess what each filter actually does or what
   // dimensions are being matched against.
   var filterCaption = (function () {
-    if (filter === 'high') return 'Strong matches: similarity score ≥ 40% across phenomenon type, location, time period, and description.'
+    // V11.17.34 PR-4-a — 'high' caption retained for legacy URL
+    // params that pre-date the filter removal; same caption as 'all'.
     if (filter === 'nearby') return 'Nearby: reports within ' + NEARBY_RADIUS_MI + ' miles of your experience location.'
     return 'Every match in your RADAR, ranked by overall similarity to your experience.'
   })()
@@ -1084,9 +1235,8 @@ function PolishedRadarView(props: {
         <button type="button" onClick={function () { setFilter('all') }} className={chipClass(filter === 'all')}>
           All reports
         </button>
-        <button type="button" onClick={function () { setFilter('high') }} className={chipClass(filter === 'high')}>
-          Strong matches
-        </button>
+        {/* V11.17.34 PR-4-a — Strong matches chip removed. Replaced
+            with inline "* Strong match" glyph on corroborated rows. */}
         <button type="button" onClick={function () { setFilter('nearby') }} className={chipClass(filter === 'nearby')}>
           Nearby
         </button>
@@ -1097,31 +1247,23 @@ function PolishedRadarView(props: {
         {filterCaption}
       </p>
 
-      {/* Match-count + ambient stats */}
-      <div className="flex items-center justify-between gap-3 mb-4 px-1">
+      {/* V11.17.34 PR-4-b — Match-count line (now just the count;
+          notify control moved out into its own card below). */}
+      <div className="flex items-center justify-between gap-3 mb-3 px-1">
         <p className="text-sm text-gray-300">
           <span className="font-semibold text-white">{visibleMatches.length}</span> {visibleMatches.length === 1 ? 'match' : 'matches'}
           <span className="text-gray-500"> · across {props.totalExperiences.toLocaleString()} reports</span>
         </p>
-        <button
-          type="button"
-          onClick={function () {
-            if (notifyToast) return
-            if (props.userEmail) {
-              fetch(getApiBase() + '/api/waitlist', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: props.userEmail, source: 'radar_notify' }),
-              }).catch(function () {})
-            }
-            setNotifyToast('We\'ll ping you when new matches arrive.')
-            setTimeout(function () { setNotifyToast(null) }, 3500)
-          }}
-          className="text-xs text-purple-300 hover:text-purple-200 transition-colors"
-        >
-          Notify me of new matches
-        </button>
       </div>
+
+      {/* V11.17.34 PR-4-b — New-match alerts card (Bug #91 panel).
+          Replaces the tiny header text button with a proper card
+          above the match list. Defaults to ON for signed-in users
+          (panel verdict: opt-out is the right default for trust-by-
+          default cadence cap copy). Persisted to localStorage for
+          now; PR-4-c wires the schema migration + endpoint so the
+          preference syncs across devices. */}
+      <NewMatchAlertsCard userEmail={props.userEmail} reportId={props.userExperience.id || ''} />
 
       {/* Match list (filtered) — V9.11.5 #30 inline expansion */}
       <div className="space-y-2">
@@ -1130,7 +1272,7 @@ function PolishedRadarView(props: {
             {filter === 'nearby'
               ? 'No matches within ' + NEARBY_RADIUS_MI + ' miles. Try All or High match.'
               : filter === 'high'
-                ? 'No matches with similarity ≥ 40%. Try All.'
+                ? 'Listening for matches across the archive…'
                 : 'Listening for matches across the archive…'}
           </div>
         )}
@@ -1166,7 +1308,24 @@ function PolishedRadarView(props: {
                 className="w-full text-left p-3 flex items-start gap-3"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-white truncate">{m.title}</p>
+                  {/* V11.17.34 PR-4-a — Strong match glyph (Bug #91).
+                      Replaces the removed Strong-matches filter chip.
+                      Shows only when match.corroborated is true (≥2
+                      non-category dimensions scored ≥0.5 AND overall
+                      ≥0.45). Tooltip explains the criteria so users
+                      learn what "strong" actually means. */}
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {m.corroborated && (
+                      <span
+                        className="inline-flex items-center gap-0.5 flex-shrink-0 text-[10px] font-semibold uppercase tracking-wider text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-full px-1.5 py-0.5"
+                        title="Two or more dimensions matched strongly — not just the phenomenon type."
+                        aria-label="Strong match"
+                      >
+                        <span aria-hidden="true">★</span> Strong
+                      </span>
+                    )}
+                    <p className="text-sm font-medium text-white truncate">{m.title}</p>
+                  </div>
                   {(function () {
                     // Compose the "why" rationale from the highest-scoring
                     // dimension. dimensions are already sorted desc in
