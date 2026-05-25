@@ -653,25 +653,47 @@ function YourSignalTab() {
           into the elevated slot above RADAR via portal. */}
       <DeltaLineSlot sinceLastVisit={data.since_last_visit} hasReport={true} />
 
-      {/* V10.9 — single hero card. T1.10 — carousel variant when
-          signal-hero-pick-strategy=carousel renders all 4 cards.
-          E0.6 — aiCardsLocked swaps Sonnet context card for a
-          locked-state upgrade CTA on Free 2nd+ submissions. */}
-      {heroCarouselEnabled ? (
-        <HeroCardCarousel
-          data={data}
-          reportId={data.report_id}
-          feedback={data.feedback}
-          aiCardsLocked={aiCardsLocked}
-        />
-      ) : (
-        <HeroCardSlot
-          heroCard={heroCard}
-          reportId={data.report_id}
-          feedback={data.feedback}
-          aiCardsLocked={aiCardsLocked}
-        />
-      )}
+      {/* V11.17.33 PR-3 (Bug #88 panel review) — Your Signal layout
+          regrouped from 4 equal cards into 3 named bands (Your Signature
+          / Near You / Across the Archive). Feature flag 'signal-layout'
+          gates rollout:
+            - 'bands' (DEFAULT, this PR) → YourSignalBands
+            - 'hero' (legacy) → HeroCardSlot + MoreSignalsAccordion
+            - 'carousel' (legacy A/B) → HeroCardCarousel
+          The legacy paths stay wired so we can roll back via flag without
+          re-deploying if any unforeseen regression surfaces. */}
+      {(function () {
+        var layoutVariant = getFeatureFlag('signal-layout') as string | null
+        if (layoutVariant === 'hero') {
+          return (
+            <HeroCardSlot
+              heroCard={heroCard}
+              reportId={data.report_id}
+              feedback={data.feedback}
+              aiCardsLocked={aiCardsLocked}
+            />
+          )
+        }
+        if (layoutVariant === 'carousel' || (heroCarouselEnabled && layoutVariant !== 'bands')) {
+          return (
+            <HeroCardCarousel
+              data={data}
+              reportId={data.report_id}
+              feedback={data.feedback}
+              aiCardsLocked={aiCardsLocked}
+            />
+          )
+        }
+        // Default: 3-band layout (PR-3)
+        return (
+          <YourSignalBands
+            data={data}
+            reportId={data.report_id}
+            feedback={data.feedback}
+            aiCardsLocked={aiCardsLocked}
+          />
+        )
+      })()}
 
       {/* V10.16 (Phase E) — AskTheUnknown removed from Story.
           It now lives exclusively on the ASK tab (Phase D Lab
@@ -679,23 +701,30 @@ function YourSignalTab() {
           Story tab is tighter; users who want to ask navigate to
           the ASK tab directly. */}
 
-      {/* V10.9 — peer card (full width). Kept above the accordion
-          because "X people share this signature" is the strongest
-          articulation of the brand promise (you're not alone). */}
+      {/* V10.9 — peer card (full width). Kept below the 3 bands as a
+          "you're not alone" anchor — the strongest articulation of the
+          brand promise. Separate from the bands because it's not
+          dimension-based (it's a one-line population statement). */}
       <PeopleLikeYouCard data={data.peers} />
 
-      {/* V10.9 — expandable "More signals" strip with the cards
-          NOT picked as hero. T1.10 — hidden when the carousel variant
-          is active (all four cards already in the carousel). */}
-      {!heroCarouselEnabled && (
-        <MoreSignalsAccordion
-          heroKind={heroCard.kind}
-          data={data}
-          reportId={data.report_id}
-          feedback={data.feedback}
-          aiCardsLocked={aiCardsLocked}
-        />
-      )}
+      {/* V11.17.33 PR-3 — MoreSignalsAccordion intentionally removed
+          when bands layout is active. Bands surface all 4 cards
+          directly, no "more signals" overflow needed. Kept rendering
+          for legacy 'hero' variant only. */}
+      {(function () {
+        var layoutVariant = getFeatureFlag('signal-layout') as string | null
+        var isHeroVariant = layoutVariant === 'hero'
+        if (!isHeroVariant) return null
+        return (
+          <MoreSignalsAccordion
+            heroKind={heroCard.kind}
+            data={data}
+            reportId={data.report_id}
+            feedback={data.feedback}
+            aiCardsLocked={aiCardsLocked}
+          />
+        )
+      })()}
 
       {/* V10.16 (Phase E) — three secondary surfaces (push opt-in,
           email opt-in, year-in-review) collapsed into one expandable
@@ -1175,6 +1204,100 @@ function formatSinceLabel(prior: Date): string {
   }
   if (diffDay < 30) return diffDay + ' days ago'
   return prior.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+/**
+ * V11.17.33 PR-3 — Your Signal 3-band regroup (Bug #88 panel review).
+ *
+ * Replaces the prior 4-equal-cards layout with 3 named bands that
+ * cognitively group cards by their relational frame:
+ *
+ *   1. YOUR SIGNATURE — Fingerprint (full-width, top — "is this MINE?")
+ *   2. NEAR YOU       — Cluster / Patterns Near You (regional —
+ *                       contribution callout for foundational/early
+ *                       cases already lives inside ClusterCard, gets
+ *                       prime real estate here)
+ *   3. ACROSS THE ARCHIVE — Context (Sonnet) + Peer Questions
+ *                       (global — both answer "how does mine sit in
+ *                       the bigger phenomenon?")
+ *
+ * Each band has a small uppercase header label so the reader knows
+ * which frame they're in. PeopleLikeYouCard stays as a separate
+ * full-width "you're not alone" anchor below the 3 bands.
+ *
+ * Mobile-first: vertical stack reads better than 2x2 grid; each
+ * band is full-width on every viewport.
+ */
+function YourSignalBands(props: { data: any; reportId: string; feedback: any; aiCardsLocked?: boolean }) {
+  var fb = props.feedback || {}
+  var data = props.data
+  var hasFingerprint = !!(data.fingerprint && data.fingerprint.primary_count)
+  var hasCluster = !!(data.cluster && !data.cluster.skipped)
+  var hasContext = !!(data.context && !data.context.skipped)
+  var hasPeerQ = !!(data.peer_questions && data.peer_questions.questions && data.peer_questions.questions.length > 0)
+  var showContextBand = hasContext || props.aiCardsLocked
+  var hasAcrossBand = showContextBand || hasPeerQ
+
+  function BandHeader(p: { label: string; sublabel?: string }) {
+    return (
+      <div className="flex items-baseline gap-2 mb-2 px-1">
+        <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-purple-300">{p.label}</span>
+        {p.sublabel && <span className="text-[10px] text-gray-500">{p.sublabel}</span>}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* BAND 1: YOUR SIGNATURE — Fingerprint card, full-width, top. */}
+      {hasFingerprint && (
+        <section>
+          <BandHeader label="Your signature" sublabel="What makes your signal yours" />
+          <div className="rounded-xl border bg-gradient-to-br from-cyan-900/25 via-purple-950/25 to-purple-900/30 border-cyan-600/30 p-1">
+            <FingerprintCard data={data.fingerprint} reportId={props.reportId} initialRating={fb.fingerprint || null} />
+          </div>
+        </section>
+      )}
+
+      {/* BAND 2: NEAR YOU — Cluster card (Patterns Near You). The
+          contribution callout (is_foundational / is_early) lives
+          inside ClusterCard at line 1965ish and gets prime real
+          estate here as the band's emotional anchor. */}
+      {hasCluster && (
+        <section>
+          <BandHeader label="Near you" sublabel="Regional patterns in your radius" />
+          <div className="rounded-xl border bg-gradient-to-br from-purple-900/30 via-purple-950/30 to-fuchsia-900/20 border-purple-600/40 p-1">
+            <ClusterCard data={data.cluster} reportId={props.reportId} initialRating={fb.cluster || null} />
+          </div>
+        </section>
+      )}
+
+      {/* BAND 3: ACROSS THE ARCHIVE — Context (Sonnet "Did You Know")
+          + Peer Questions stacked. Both answer "how does mine sit in
+          the bigger phenomenon?" — pairing them in one band makes
+          the framing explicit. */}
+      {hasAcrossBand && (
+        <section>
+          <BandHeader label="Across the archive" sublabel="How your signal sits in the bigger phenomenon" />
+          <div className="space-y-3">
+            {showContextBand && (
+              <div className="rounded-xl border bg-gradient-to-br from-indigo-900/30 via-purple-950/25 to-purple-900/30 border-indigo-500/40 p-1">
+                {props.aiCardsLocked
+                  ? <LockedAICard kind="context" />
+                  : <ContextCard data={data.context} reportId={props.reportId} initialRating={fb.context || null} />
+                }
+              </div>
+            )}
+            {hasPeerQ && (
+              <div className="rounded-xl border bg-gradient-to-br from-rose-900/20 via-purple-950/30 to-purple-900/30 border-rose-500/30 p-1">
+                <PeerQuestionsCard data={data.peer_questions} reportId={props.reportId} initialRating={fb.peer_questions || null} />
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+    </div>
+  )
 }
 
 /**
