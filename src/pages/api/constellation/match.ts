@@ -121,13 +121,25 @@ var SENSORY_LABELS: Record<string, SensoryLabelConfig> = {
   'Temperature':          { keywords: ['freezing', 'sudden cold', 'icy', 'temperature dropped', 'heat wave', 'unusually warm'], minHits: 1 },
   'Electromagnetic':      { keywords: ['static electricity', 'hair stood', 'tingling', 'interference', 'battery drained', 'electronics failed'], minHits: 1 },
   'Out of body':          { keywords: ['out of body', 'looking down at myself', 'floating above', 'detached from', 'hovering above my body'], minHits: 1, categories: ['consciousness_practices', 'psychological_experiences'] },
-  // V11.17.31 PR-2 — widened keyword list. Previously required
-  // specific 2-word phrases ("triangle craft", "hovering craft") so
-  // bare descriptions like "I saw a triangle in the sky" or "it was
-  // a boomerang shape" produced empty sensory profile → 0 overlap
-  // score. Added: bare shape words, formation patterns, light-corner
-  // descriptors common in actual UFO reports.
-  'Craft / Vehicle':      { keywords: ['triangle craft', 'triangular ufo', 'triangle ufo', 'inverted triangle', 'disc-shaped', 'disc shaped', 'saucer', 'saucer-shaped', 'silent craft', 'hovering craft', 'hovered silently', 'formation of lights', 'metallic craft', 'boomerang', 'boomerang-shaped', 'cigar-shaped', 'cigar shaped', 'chevron', 'diamond formation', 'lights at each corner', 'lights at the corners', 'object hovered', 'flying triangle', 'tic tac', 'tic-tac'], minHits: 1, categories: ['ufos_aliens'] },
+  // V11.17.32 PR-2.1 — Shape-specific UFO labels. Replaced single
+  // generic 'Craft / Vehicle' with shape-discriminating labels so
+  // a triangle UFO matches other triangles, not just "any craft."
+  // User feedback (Bug #88): all 11 strong matches for a triangle
+  // UFO came back as 'Craft / Vehicle' with no specific shape match.
+  // Now: jaccard intersects only on shape-aligned labels, so cross-
+  // shape matches lose their sensory contribution (~0.137) — which
+  // is correct: a disc UFO and a triangle UFO aren't the same thing.
+  'Triangle / Chevron UFO': { keywords: ['triangle craft', 'triangular ufo', 'triangle ufo', 'inverted triangle', 'flying triangle', 'black triangle', 'chevron', 'chevron-shaped', 'v-shaped craft', 'v formation', 'arrowhead'], minHits: 1, categories: ['ufos_aliens'] },
+  'Disc / Saucer UFO':      { keywords: ['disc-shaped', 'disc shaped', 'saucer', 'saucer-shaped', 'flying saucer', 'flying disc', 'disk-shaped', 'dish-shaped', 'plate-shaped', 'classic ufo'], minHits: 1, categories: ['ufos_aliens'] },
+  'Sphere / Orb UFO':       { keywords: ['sphere', 'spherical craft', 'orb', 'glowing orb', 'ball of light', 'ball-shaped', 'round craft', 'plasma orb', 'red orb', 'white orb', 'glowing sphere'], minHits: 1, categories: ['ufos_aliens'] },
+  'Cigar / Cylinder UFO':   { keywords: ['cigar-shaped', 'cigar shaped', 'cylinder', 'cylindrical craft', 'cigar ufo', 'tube-shaped', 'tubular craft'], minHits: 1, categories: ['ufos_aliens'] },
+  'Tic Tac UFO':            { keywords: ['tic tac', 'tic-tac', 'tictac', 'pill-shaped', 'pill shaped', 'lozenge'], minHits: 1, categories: ['ufos_aliens'] },
+  'Diamond / Boomerang UFO': { keywords: ['diamond formation', 'diamond-shaped', 'boomerang', 'boomerang-shaped'], minHits: 1, categories: ['ufos_aliens'] },
+  // Generic motion/behavior — applies across shapes and is still
+  // useful for matching "silent hovering UFOs of any shape" → kept
+  // as a lower-priority companion label.
+  'Silent hover':           { keywords: ['silent craft', 'hovering craft', 'hovered silently', 'object hovered', 'hovered in place', 'completely silent', 'no sound', 'made no noise'], minHits: 1, categories: ['ufos_aliens'] },
+  'Light formation':        { keywords: ['formation of lights', 'lights at each corner', 'lights at the corners', 'light at each corner', 'lights at the points', 'lights at the tips'], minHits: 1, categories: ['ufos_aliens'] },
 }
 
 // Back-compat alias — preserved so any older import sites keep working.
