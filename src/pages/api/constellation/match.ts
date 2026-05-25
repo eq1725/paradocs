@@ -185,6 +185,65 @@ var SENSORY_LABELS: Record<string, SensoryLabelConfig> = {
   'Ritual circle':             { keywords: ['cast a circle', 'circle of salt', 'protective circle', 'within the circle', 'pentagram on the floor', 'ritual circle'], minHits: 1, categories: ['esoteric_practices'] },
   'Spirit attachment':         { keywords: ['something followed me home', 'attachment after the session', 'felt watched ever since', 'hasn\'t left me alone', 'never the same after'], minHits: 1, categories: ['esoteric_practices', 'ghosts_hauntings'] },
   'Planchette movement':       { keywords: ['planchette moved', 'planchette flew', 'moved on its own', 'spelled out my name', 'spelled out a message', 'started moving fast'], minHits: 1, categories: ['esoteric_practices'] },
+
+  // V11.17.36 PR-5-d — Comprehensive sensory labels audit. Adds
+  // ~30 high-impact features users actually report, organized by
+  // category. Most are minHits=1 with strict keyword lists. Cross-
+  // category labels (vehicle encounter, child witness, group event)
+  // span multiple buckets — the categories array decides applicability.
+
+  // ufos_aliens — motion + occupants + missing time
+  'Erratic UFO motion':      { keywords: ['90-degree turn', 'right angle turn', 'sudden direction change', 'zigzag', 'sharp turn', 'impossible angle', 'changed direction instantly', 'jumped across the sky', 'instantaneous movement'], minHits: 1, categories: ['ufos_aliens'] },
+  'Beam of light':           { keywords: ['beam of light', 'shaft of light', 'beam shot down', 'beam came from', 'tractor beam', 'light beam from the craft', 'shaft from the sky'], minHits: 1, categories: ['ufos_aliens'] },
+  'Missing time':            { keywords: ['missing time', 'lost time', 'couldn\'t account for', 'hours passed', 'don\'t remember what happened', 'gap in my memory', 'woke up later than'], minHits: 1, categories: ['ufos_aliens', 'consciousness_practices'] },
+  'Alien occupants seen':    { keywords: ['saw aliens', 'saw the occupants', 'gray aliens', 'grays', 'tall whites', 'nordics', 'reptilian', 'mantis being', 'mantid', 'pleiadian', 'small beings', 'large head with big eyes', 'almond eyes', 'three fingers'], minHits: 1, categories: ['ufos_aliens'] },
+  'Daytime sighting':        { keywords: ['broad daylight', 'middle of the day', 'sunny day', 'clear daylight sky', 'in the afternoon', 'noon sighting', 'bright daylight'], minHits: 1, categories: ['ufos_aliens', 'cryptids', 'ghosts_hauntings'] },
+
+  // Specific cryptids by name
+  'Bigfoot / Sasquatch':     { keywords: ['bigfoot', 'sasquatch', 'big foot', 'forest giant', 'wood ape', 'ohio grassman', 'florida skunk ape'], minHits: 1, categories: ['cryptids'] },
+  'Dogman':                  { keywords: ['dogman', 'dog man', 'dog-headed creature', 'wolf man', 'wolfman'], minHits: 1, categories: ['cryptids'] },
+  'Mothman':                 { keywords: ['mothman', 'moth man', 'winged humanoid', 'large winged creature', 'red-eyed flying figure', 'point pleasant'], minHits: 1, categories: ['cryptids'] },
+  'Wendigo':                 { keywords: ['wendigo', 'windigo', 'gaunt skeletal', 'antlered humanoid', 'cannibal spirit'], minHits: 1, categories: ['cryptids'] },
+  'Lake monster':            { keywords: ['lake monster', 'sea serpent', 'loch ness', 'champ', 'ogopogo', 'long-necked creature in the water'], minHits: 1, categories: ['cryptids'] },
+  'Cryptid vocalization':    { keywords: ['wood knock', 'wood knocks', 'rock thrown', 'rocks thrown', 'howl unlike anything', 'inhuman scream', 'banshee scream', 'whoop call', 'samurai chatter', 'tree shake'], minHits: 1, categories: ['cryptids'] },
+  'Sulfur / rotten smell':   { keywords: ['smell of sulfur', 'rotten smell', 'rotting flesh smell', 'overpowering stench', 'sulfurous', 'sulphur', 'smelled like decay', 'wet dog smell', 'putrid smell'], minHits: 1, categories: ['cryptids', 'religion_mythology', 'esoteric_practices'] },
+  'Eye-shine':               { keywords: ['eyes reflected the light', 'eye-shine', 'eyeshine', 'eyes glowed in my headlights', 'eyes caught the flashlight', 'eyes reflected my torch'], minHits: 1, categories: ['cryptids'] },
+  'Stalking behavior':       { keywords: ['stalked me', 'followed me through the woods', 'paralleled my path', 'circled my camp', 'kept pace with my car', 'paced beside my vehicle'], minHits: 1, categories: ['cryptids'] },
+
+  // NDE clinical specifics
+  'Clinical death':          { keywords: ['heart stopped', 'flatlined', 'pronounced dead', 'declared dead', 'no pulse', 'no heartbeat', 'cpr', 'resuscitated', 'brought back', 'doctors said i was dead', 'no brain activity'], minHits: 1, categories: ['psychological_experiences', 'consciousness_practices'] },
+  'Hospital setting':        { keywords: ['operating table', 'hospital bed', 'in the er', 'in the icu', 'surgery', 'during the procedure', 'on the operating', 'cardiac arrest'], minHits: 1, categories: ['psychological_experiences', 'consciousness_practices'] },
+
+  // Perception / glitch-in-the-matrix specifics
+  'Repeating loop':          { keywords: ['saw it happen twice', 'happened again identically', 'replayed exactly', 'same exact sequence', 'identical moment repeated', 'time skipped back', 'rewound a moment'], minHits: 1, categories: ['perception_sensory', 'psychological_experiences'] },
+  'Vanishing object':        { keywords: ['it just disappeared', 'vanished from where i set it', 'gone from where i left it', 'appeared back in the same spot', 'reappeared on the table', 'object vanished and reappeared'], minHits: 1, categories: ['perception_sensory', 'ghosts_hauntings', 'psychological_experiences'] },
+  'Time slip era':           { keywords: ['horse-drawn carriage', 'people dressed in period clothing', 'building was different', 'street looked like the past', 'old-fashioned car', 'felt like the 1800s', 'historic clothing', 'walked into a different decade'], minHits: 1, categories: ['perception_sensory', 'psychological_experiences'] },
+  'Deja vu intense':         { keywords: ['intense deja vu', 'lived this moment before', 'absolutely certain i had been here', 'overwhelming familiarity'], minHits: 1, categories: ['perception_sensory'] },
+
+  // Religion / mythology — divine + demonic
+  'Divine encounter':        { keywords: ['saw god', 'saw jesus', 'saw a vision of mary', 'saw an angel', 'angel appeared', 'archangel', 'saw a deity', 'krishna appeared', 'shiva appeared', 'the buddha appeared', 'a holy figure', 'glorious figure', 'figure in white'], minHits: 1, categories: ['religion_mythology', 'consciousness_practices'] },
+  'Demonic encounter':       { keywords: ['saw a demon', 'demonic being', 'demonic presence', 'pure evil', 'malevolent entity', 'felt evil', 'evil presence', 'horns', 'devil', 'satanic'], minHits: 1, categories: ['religion_mythology', 'ghosts_hauntings', 'esoteric_practices'] },
+  'Possession':              { keywords: ['felt taken over', 'lost control of my body', 'something else moved my body', 'spoke in a voice that wasn\'t mine', 'don\'t remember what i did', 'eyes turned black', 'witnessed possession'], minHits: 1, categories: ['religion_mythology', 'ghosts_hauntings', 'esoteric_practices'] },
+  'Religious vision':        { keywords: ['marian apparition', 'visitation', 'religious vision', 'received a prophecy', 'felt called', 'mystical experience', 'theophany'], minHits: 1, categories: ['religion_mythology', 'consciousness_practices'] },
+
+  // Psychic phenomena — specific subtypes
+  'Sensed death from afar':  { keywords: ['knew she had died', 'knew the moment he passed', 'felt them die', 'sensed his death', 'knew without being told', 'phone rang and i already knew'], minHits: 1, categories: ['psychic_phenomena'] },
+  'Empathic experience':     { keywords: ['felt her emotions', 'absorbed his pain', 'overwhelmed by their grief', 'physically felt their', 'empath', 'empathic'], minHits: 1, categories: ['psychic_phenomena', 'consciousness_practices'] },
+  'Synchronicity':           { keywords: ['cluster of coincidences', 'meaningful coincidence', 'too many to be chance', 'kept seeing the same number', 'synchronicity', 'jung'], minHits: 1, categories: ['psychic_phenomena', 'perception_sensory'] },
+  'Remote viewing':          { keywords: ['remote viewing', 'viewed the target', 'described a place i had never been', 'project stargate', 'rv session'], minHits: 1, categories: ['psychic_phenomena'] },
+
+  // Esoteric practices — outcomes
+  'Manifestation outcome':   { keywords: ['it manifested', 'manifested into reality', 'within a week of casting', 'the spell worked', 'got exactly what i asked for', 'law of attraction worked'], minHits: 1, categories: ['esoteric_practices'] },
+  'Curse / hex effect':      { keywords: ['placed a curse', 'cursed me', 'received a hex', 'felt the hex', 'reversal spell', 'broke the curse', 'evil eye'], minHits: 1, categories: ['esoteric_practices'] },
+  'Aura observation':        { keywords: ['saw an aura', 'aura around them', 'aura was red', 'aura was dark', 'colored light around', 'energy field around the person'], minHits: 1, categories: ['esoteric_practices', 'psychic_phenomena'] },
+
+  // Cross-category contextual labels — high-value for matching
+  'Vehicle encounter':       { keywords: ['while driving', 'in my car', 'on the highway', 'on the road', 'pulled over', 'truck stop', 'rest area', 'middle of the night drive', 'long stretch of road'], minHits: 1, categories: ['ufos_aliens', 'cryptids', 'ghosts_hauntings'] },
+  'Camera / phone captured': { keywords: ['caught it on camera', 'recorded the video', 'have a photo', 'filmed it', 'phone captured', 'on my dashcam', 'security cam picked it up', 'doorbell camera'], minHits: 1, categories: ['ufos_aliens', 'cryptids', 'ghosts_hauntings'] },
+  'Child witness':           { keywords: ['when i was a child', 'when i was a kid', 'as a young child', 'i was 5 years old', 'i was 6 years old', 'i was 7 years old', 'i was 8 years old', 'i was 9 years old', 'i was 10 years old', 'in elementary school', 'my daughter saw', 'my son saw'], minHits: 1, categories: ['ufos_aliens', 'ghosts_hauntings', 'cryptids', 'religion_mythology', 'perception_sensory', 'psychological_experiences'] },
+  'Group experience':        { keywords: ['we all saw it', 'my family witnessed', 'three of us saw', 'four of us saw', 'everyone in the car saw', 'everyone in the room', 'multiple of us', 'all of us witnessed'], minHits: 1, categories: ['ufos_aliens', 'ghosts_hauntings', 'cryptids', 'religion_mythology'] },
+  'Pet reaction':            { keywords: ['my dog growled', 'dog started barking at nothing', 'cat hissed at empty', 'cat\'s fur stood up', 'horse spooked', 'animal sensed something', 'dog\'s hackles raised', 'pet refused to enter'], minHits: 1, categories: ['ghosts_hauntings', 'cryptids', 'religion_mythology'] },
+  'Touched by entity':       { keywords: ['felt a hand on', 'hand touched my shoulder', 'felt a hand grab', 'fingers brushed against me', 'cold hand on my', 'invisible touch', 'pressed against me'], minHits: 1, categories: ['ghosts_hauntings', 'religion_mythology', 'esoteric_practices'] },
 }
 
 // Back-compat alias — preserved so any older import sites keep working.
