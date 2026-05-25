@@ -557,7 +557,7 @@ export default async function handler(
     if (reportIds.length > 0) {
       var { data: fullReports } = await (supabase
         .from('reports') as any)
-        .select('id, title, slug, summary, category, country, city, state_province, event_date, event_date_precision, credibility, upvotes, view_count, comment_count, has_photo_video, has_physical_evidence, has_video, content_type, location_name, source_type, source_label, created_at, phenomenon_type_id, feed_hook, paradocs_narrative, metadata, anchor_case_hook, anchor_when, anchor_where, anchor_witness, unresolved_tension')
+        .select('id, title, slug, summary, category, country, city, state_province, event_date, event_date_precision, credibility, upvotes, downvotes, view_count, comment_count, has_photo_video, has_physical_evidence, has_video, content_type, location_name, source_type, source_label, created_at, phenomenon_type_id, feed_hook, paradocs_narrative, metadata, anchor_case_hook, anchor_when, anchor_where, anchor_witness, unresolved_tension')
         .in('id', reportIds);
 
       if (fullReports) {
@@ -835,6 +835,7 @@ export default async function handler(
           event_date_precision: r.event_date_precision || null,
           credibility: r.credibility,
           upvotes: r.upvotes,
+          downvotes: r.downvotes,  // V11.17.38 — surfaced via ThumbsFeedback for inline tally
           view_count: r.view_count,
           comment_count: r.comment_count,
           has_photo_video: r.has_photo_video,

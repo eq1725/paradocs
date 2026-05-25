@@ -13,12 +13,15 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import {
-  Search, X as XIcon, LayoutGrid, List as ListIcon, Rows,
+  Search, X as XIcon, LayoutGrid, List as ListIcon, Rows, CalendarDays,
   ArrowDownAZ, ArrowUp, ArrowDown, Sparkles, Link2, SlidersHorizontal,
 } from 'lucide-react'
 import { classNames } from '@/lib/utils'
 
-export type LabViewMode = 'grid' | 'list' | 'compact'
+// V11.17.38 PR-7 item 1 — 'timeline' is the new default for Library
+// (Letterboxd Diary pattern). Old 'grid' / 'list' / 'compact' remain as
+// alternative views for users who prefer the dense feed.
+export type LabViewMode = 'timeline' | 'grid' | 'list' | 'compact'
 export type LabSortMode =
   | 'newest'
   | 'oldest'
@@ -52,9 +55,10 @@ const SORT_OPTIONS: Array<{ value: LabSortMode; label: string; icon: React.Compo
 ]
 
 const VIEW_MODE_OPTIONS: Array<{ value: LabViewMode; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { value: 'grid',    label: 'Grid view',    icon: LayoutGrid },
-  { value: 'list',    label: 'List view',    icon: ListIcon },
-  { value: 'compact', label: 'Compact view', icon: Rows },
+  { value: 'timeline', label: 'Timeline',     icon: CalendarDays },
+  { value: 'grid',     label: 'Grid view',    icon: LayoutGrid },
+  { value: 'list',     label: 'List view',    icon: ListIcon },
+  { value: 'compact',  label: 'Compact view', icon: Rows },
 ]
 
 export default function LabToolbar({

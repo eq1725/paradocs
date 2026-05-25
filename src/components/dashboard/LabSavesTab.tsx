@@ -22,6 +22,7 @@ import type { EntryNode, UserMapData, CaseFile } from '@/lib/constellation-types
 import type { EmergentConnection, Insight } from '@/lib/constellation-data'
 import ConstellationListView from './ConstellationListView'
 import SavesSwipeView from './SavesSwipeView'
+import LibraryTimelineView from './LibraryTimelineView'
 import NodeDetailPanel from './NodeDetailPanel'
 import ConstellationSidebar from './ConstellationSidebar'
 import CaseFileBar from './CaseFileBar'
@@ -69,9 +70,13 @@ export default function LabSavesTab({
   }, [userMapData])
 
   // Toolbar state — persisted to localStorage so preferences stick.
+  // V11.17.38 PR-7 item 1 — default viewMode flipped from 'grid' to
+  // 'timeline' (Letterboxd Diary pattern). Old 'grid' / 'list' /
+  // 'compact' are still accessible via the toolbar dropdown for users
+  // who prefer the dense feed.
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<LabSortMode>('newest')
-  const [viewMode, setViewMode] = useState<LabViewMode>('grid')
+  const [viewMode, setViewMode] = useState<LabViewMode>('timeline')
 
   useEffect(() => {
     try {
@@ -80,7 +85,7 @@ export default function LabSavesTab({
       if (rawSort && ['newest','oldest','patterns','connections','compelling','alphabetical'].includes(rawSort)) {
         setSort(rawSort)
       }
-      if (rawView && ['grid','list','compact'].includes(rawView)) {
+      if (rawView && ['timeline','grid','list','compact'].includes(rawView)) {
         setViewMode(rawView)
       }
     } catch { /* localStorage unavailable, fine */ }
@@ -282,6 +287,14 @@ export default function LabSavesTab({
           <SavesEmptyState />
         ) : filteredEntries.length === 0 ? (
           <SearchEmptyState query={search} onClear={() => setSearch('')} />
+        ) : viewMode === 'timeline' ? (
+          /* V11.17.38 PR-7 item 1 — Letterboxd Diary timeline.
+             Default view. Reverse-chrono, date-headed list with
+             revisit affordance. Replaces the old grid-as-default. */
+          <LibraryTimelineView
+            entries={filteredEntries}
+            onSelectEntry={setSelectedEntry}
+          />
         ) : (isMobile && viewMode === 'grid') ? (
           <SavesSwipeView
             entries={filteredEntries}
@@ -299,7 +312,7 @@ export default function LabSavesTab({
             onSelectEntry={setSelectedEntry}
             onHighlight={handleHighlight}
             entriesOverride={filteredEntries}
-            viewMode={viewMode}
+            viewMode={viewMode as 'grid' | 'list' | 'compact'}
             hideInterleavedInsights={!!search.trim()}
           />
         )}

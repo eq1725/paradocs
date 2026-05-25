@@ -70,6 +70,11 @@ import { useGateStatus } from '@/lib/hooks/useGateStatus'
 import { useTodaySaves } from '@/lib/hooks/useTodaySaves'
 import { setTodayReturnMarker } from '@/lib/hooks/useTodayReturn'
 import { tickAnonStreak, readAnonStreak, clearAnonStreak, isNudgeDismissedToday, dismissNudgeForToday } from '@/lib/anonStreak'
+// V11.17.38 — per-visit dedup so a user who closes the tab and returns
+// the same day sees a fresh slice, not the same reports they already
+// scrolled past. 24h rolling localStorage Set; marked on real
+// engagement (dwell >1.5s, tap, save, vote), not bare swipe-by.
+import { getSeenIds, markSeen } from '@/lib/today-seen'
 import { NotificationOptInPrompt, shouldAutoShowPrePrompt } from '@/components/discover/NotificationOptInPrompt'
 import { useABTest } from '@/lib/ab-testing'
 import { CATEGORY_CONFIG } from '@/lib/constants'
@@ -249,14 +254,38 @@ export default function DiscoverPage() {
   // memo below can reference it before the rest of the state block runs. ---
   var [searchQuery, setSearchQuery] = useState('')
 
+  // V11.17.38 — initialize once from localStorage so the first paint
+  // can drop already-seen reports. Subsequent marks update both the
+  // ref-backed Set (for immediate filtering on the next render) and
+  // localStorage (for the next visit).
+  var seenIdsRef = useRef<Set<string>>(typeof window === 'undefined' ? new Set() : getSeenIds())
+  var [seenIdsVersion, setSeenIdsVersion] = useState(0)  // bump to force re-filter
+
   // Filtered view of items based on the active lens.
   // V2 panel review: also applies a client-side search filter when the user
   // has opened the search overlay and entered a query.
+  // V11.17.38 — also filters out reports the user has seen within the
+  // last 24h, so a tab-close + return shows fresh slice. Phenomenon
+  // cards and special cards (cluster / on_this_date / promo) bypass
+  // dedup — they're curation surfaces, not individual experiences.
+  // Safety: if dedup would empty the feed, we keep the seen items so
+  // the user never lands on a "nothing here" wall.
   var lensFiltered = applyLens(items, lens)
   var displayItems = (function () {
+    void seenIdsVersion  // re-eval when version bumps
+    var seen = seenIdsRef.current
+    var afterDedup = lensFiltered.filter(function (it) {
+      if (!it || !it.id) return true
+      if (it.item_type !== 'report') return true
+      return !seen.has(it.id)
+    })
+    // Don't strand the user. If the dedup ate everything, show the
+    // full list so they have something to read — they're returning
+    // for more, not less.
+    var base = afterDedup.length === 0 ? lensFiltered : afterDedup
     var q = (searchQuery || '').trim().toLowerCase()
-    if (!q) return lensFiltered
-    return lensFiltered.filter(function (it) {
+    if (!q) return base
+    return base.filter(function (it) {
       var hay = ''
       if (it.item_type === 'phenomenon') {
         var p = it as PhenomenonItem
@@ -760,6 +789,14 @@ export default function DiscoverPage() {
     return function () {
       var duration = Date.now() - dwellStartRef.current
       if (item) feedEvents.trackDwell(item.id, item.item_type, (item as any).category || '', duration)
+      // V11.17.38 — mark as "seen" only after meaningful dwell
+      // (>1500ms). Bare swipe-bys aren't tracked so a user who flicks
+      // past a card can still find it on the next visit. We don't
+      // bump the seen-version state here — the next mount picks it
+      // up from localStorage, which is the case we care about.
+      if (item && item.id && item.item_type === 'report' && duration >= 1500) {
+        markSeen(item.id)
+      }
       if (autoExpandTimer.current) {
         clearTimeout(autoExpandTimer.current)
         autoExpandTimer.current = null
@@ -807,6 +844,7 @@ export default function DiscoverPage() {
     }
     saves.persistSave(item.id, item.item_type)
     feedEvents.trackSave(item.id, item.item_type, (item as any).category || '')
+    if (item.item_type === 'report' && item.id) markSeen(item.id)  // V11.17.38 dedup
     haptic(35)
     flash('✦ Saved')
     // Save → Lab celebration loop. Every 5 saves shows a transient toast.
@@ -1103,6 +1141,8 @@ export default function DiscoverPage() {
   function handleCardTap(item: ExtendedFeedItem) {
     feedEvents.trackTap(item.id, item.item_type, (item as any).category || '')
     if ((item as any).category) sessionCtx.recordTap((item as any).category)
+    // V11.17.38 — explicit engagement = seen.
+    if (item.item_type === 'report' && item.id) markSeen(item.id)
   }
 
   // =========================================================================

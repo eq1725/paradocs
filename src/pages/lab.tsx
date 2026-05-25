@@ -56,9 +56,13 @@ import { classNames } from '@/lib/utils'
 import { capture, getFeatureFlag } from '@/lib/posthog'
 import LabSavesTab from '@/components/dashboard/LabSavesTab'
 import LabCasesTab from '@/components/dashboard/LabCasesTab'
-import LabMapTab from '@/components/dashboard/LabMapTab'
+// V11.17.38 PR-7 item 1 — LabMapTab removed from Library tab (canonical
+// geographic surface is /map). Import kept as comment for git-blame
+// trail in case we want a Library-scoped map later.
+// import LabMapTab from '@/components/dashboard/LabMapTab'
 // LabSubmissionsTab merged into LabCasesTab — submissions show as pinned section
 import LabConstellationTab from '@/components/dashboard/LabConstellationTab'
+import SignatureGrowthCard from '@/components/dashboard/SignatureGrowthCard'
 import { useLabData } from '@/lib/hooks/useLabData'
 import { Star } from 'lucide-react'
 
@@ -111,8 +115,11 @@ export default function LabPage() {
   // V10.14 — default tab is 'story' (RADAR + SIGNAL combined).
   var [activeTab, setActiveTab] = useState<TabKey>('story')
   // V10.14 — saves view-mode toolbar (list / map / collections).
+  // V11.17.38 PR-7 item 1 — Map mode removed from Library (canonical
+  // map lives at /map). Now only 'list' (timeline-by-default, switchable
+  // inside LabSavesTab) and 'collections'. Map deep-links bounce to /map.
   // Lifted to LabPage so the URL can carry it as a sub-state.
-  var [savesView, setSavesView] = useState<'list' | 'map' | 'collections'>('list')
+  var [savesView, setSavesView] = useState<'list' | 'collections'>('list')
   var [isLoggedIn, setIsLoggedIn] = useState(false)
   var [userProfile, setUserProfile] = useState<any>(null)
   var [loading, setLoading] = useState(true)
@@ -133,9 +140,12 @@ export default function LabPage() {
     if (LEGACY_TAB_REDIRECT[tabFromQuery]) {
       var newTab = LEGACY_TAB_REDIRECT[tabFromQuery]
       setActiveTab(newTab)
-      // Auto-set the saves sub-view when redirecting from cases/map
+      // Auto-set the saves sub-view when redirecting from cases.
+      // PR-7 item 1: ?tab=map no longer routes here — the canonical
+      // map is /map (a full page). Legacy ?tab=map bookmarks land on
+      // Library list view; users who want geography click "Open map"
+      // at the top of the Library.
       if (tabFromQuery === 'cases') setSavesView('collections')
-      if (tabFromQuery === 'map') setSavesView('map')
       router.replace({ query: { ...router.query, tab: newTab } }, undefined, { shallow: true })
       return
     }
@@ -339,7 +349,16 @@ export default function LabPage() {
                   <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2">
                     <YearInReviewSeasonalBanner />
                   </div>
-                  <LabConstellationTab />
+                  {/* V11.17.38 PR-7 item 2 — Spotify-Wrapped-style
+                      monthly delta card. Activates embedding-backfill
+                      investment + reinforces "you're not alone."
+                      Hides itself when no growth signal. */}
+                  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
+                    <SignatureGrowthCard />
+                  </div>
+                  <div data-section="lab-constellation">
+                    <LabConstellationTab />
+                  </div>
                   {/* V10.14 — SIGNAL embedded directly under RADAR.
                       Single mental model: "your story and how it
                       connects." No tab switching to see your patterns. */}
@@ -376,15 +395,11 @@ export default function LabPage() {
                     onRefresh={lab.refresh}
                   />
                 )}
-                {savesView === 'map' && (
-                  <LabMapTab
-                    loading={lab.loading}
-                    userMapData={lab.userMapData}
-                    aiConnections={lab.aiConnections}
-                    caseFiles={lab.caseFiles}
-                    onRefresh={lab.refresh}
-                  />
-                )}
+                {/* V11.17.38 PR-7 item 1 — Map sub-view removed from
+                    Library. Geographic exploration lives at /map (a
+                    full page surface). Library is the time-based diary
+                    pattern; mixing geography here split user mental
+                    models and duplicated /map's surface. */}
               </div>
             )}
             {activeTab === 'explore' && (
@@ -420,8 +435,8 @@ export default function LabPage() {
  * they did when they were separate tabs). New event 'saves_view_change'
  * captures view-mode switches so we can measure adoption.
  */
-function SavesViewToggle(props: { current: 'list' | 'map' | 'collections'; onChange: (v: 'list' | 'map' | 'collections') => void }) {
-  function pick(v: 'list' | 'map' | 'collections') {
+function SavesViewToggle(props: { current: 'list' | 'collections'; onChange: (v: 'list' | 'collections') => void }) {
+  function pick(v: 'list' | 'collections') {
     if (v === props.current) return
     props.onChange(v)
     try {
@@ -433,16 +448,24 @@ function SavesViewToggle(props: { current: 'list' | 'map' | 'collections'; onCha
   var active = 'bg-purple-600/30 text-purple-100 border border-purple-500/40'
   var idle = 'text-gray-400 hover:text-gray-200 border border-transparent'
   return (
-    <div className="flex items-center gap-1 mb-4 p-1 bg-gray-900/40 border border-gray-800/60 rounded-lg w-full sm:w-auto sm:inline-flex">
-      <button type="button" onClick={function() { pick('list') }} className={btnBase + (props.current === 'list' ? active : idle)}>
-        <Bookmark className="w-3.5 h-3.5" /> List
-      </button>
-      <button type="button" onClick={function() { pick('map') }} className={btnBase + (props.current === 'map' ? active : idle)}>
-        <MapIcon className="w-3.5 h-3.5" /> Map
-      </button>
-      <button type="button" onClick={function() { pick('collections') }} className={btnBase + (props.current === 'collections' ? active : idle)}>
-        <FolderOpen className="w-3.5 h-3.5" /> Collections
-      </button>
+    <div className="flex items-center justify-between gap-3 mb-4">
+      {/* V11.17.38 PR-7 item 1 — Map removed. Two-pill toggle:
+          Library (timeline-by-default, in LabSavesTab toolbar) and
+          Collections (case-file grid). Geographic map is /map. */}
+      <div className="flex items-center gap-1 p-1 bg-gray-900/40 border border-gray-800/60 rounded-lg w-full sm:w-auto sm:inline-flex">
+        <button type="button" onClick={function() { pick('list') }} className={btnBase + (props.current === 'list' ? active : idle)}>
+          <Bookmark className="w-3.5 h-3.5" /> Library
+        </button>
+        <button type="button" onClick={function() { pick('collections') }} className={btnBase + (props.current === 'collections' ? active : idle)}>
+          <FolderOpen className="w-3.5 h-3.5" /> Collections
+        </button>
+      </div>
+      <Link
+        href="/map"
+        className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-gray-400 hover:text-purple-300 hover:bg-white/5 transition-colors"
+      >
+        <MapIcon className="w-3 h-3" /> Open map →
+      </Link>
     </div>
   )
 }

@@ -144,6 +144,10 @@ export interface ReportItem {
   event_date_precision: string | null
   credibility: string | null
   upvotes: number
+  // V11.17.38 — denormalized downvotes column on reports.
+  // Surfaced inline via ThumbsFeedback so users see the dissent
+  // count alongside the agreement count, not just an icon.
+  downvotes?: number
   view_count: number
   comment_count: number
   has_photo_video: boolean
@@ -1022,6 +1026,8 @@ export function TextReportCard(props: {
             <ThumbsFeedback
               reportId={item.id}
               category={item.category}
+              upvotes={item.upvotes || 0}
+              downvotes={typeof item.downvotes === 'number' ? item.downvotes : 0}
               onUnauthed={function () { props.onShowSignup && props.onShowSignup(true) }}
             />
           )}
@@ -1262,6 +1268,8 @@ export function MediaReportCard(props: {
             <ThumbsFeedback
               reportId={item.id}
               category={item.category}
+              upvotes={item.upvotes || 0}
+              downvotes={typeof item.downvotes === 'number' ? item.downvotes : 0}
               onUnauthed={function () { props.onShowSignup && props.onShowSignup(true) }}
             />
           )}

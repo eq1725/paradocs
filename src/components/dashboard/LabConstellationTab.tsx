@@ -1277,6 +1277,44 @@ function PolishedRadarView(props: {
         </p>
       </div>
 
+      {/* V11.17.38 PR-7 item 3 — Witness-adjacency callout.
+          When ≥3 of the matches are corroborated (≥2 non-cat dimensions
+          ≥0.5 AND overall ≥0.45), surface a stop-and-read banner that
+          frames the strangers-aligning-with-you experience explicitly.
+          The 23andMe "12.4% shared" framing pattern: a single number,
+          a single relationship sentence, no UI noise.
+          The matching is already computed — this just elevates it. */}
+      {(function () {
+        var corroborated = visibleMatches.filter(function (m: any) { return m && m.corroborated })
+        if (corroborated.length < 3) return null
+        // Pick a representative geography line — top corroborated row's
+        // city/country if available, else generic.
+        var top = corroborated[0] as any
+        var hint = top && (top.city || top.country) ? (top.city || top.country) : ''
+        return (
+          <div
+            role="note"
+            aria-label={corroborated.length + ' other people described something like this'}
+            className="mb-3 rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-3 sm:p-4"
+          >
+            <p className="text-[10px] uppercase tracking-wider text-amber-300/90 font-semibold mb-1">
+              Witness adjacency
+            </p>
+            <p className="text-sm sm:text-base text-white leading-snug">
+              <span className="font-bold text-amber-200">{corroborated.length}</span>{' '}
+              {corroborated.length === 1 ? 'other person has described' : 'other people have described'}{' '}
+              something like this.{' '}
+              <span className="text-amber-100/80">None of you knew each other.</span>
+            </p>
+            {hint && (
+              <p className="text-[11px] text-amber-200/70 mt-1">
+                Including one from {hint}.
+              </p>
+            )}
+          </div>
+        )
+      })()}
+
       {/* V11.17.34 PR-4-b — New-match alerts card (Bug #91 panel).
           Replaces the tiny header text button with a proper card
           above the match list. Defaults to ON for signed-in users
