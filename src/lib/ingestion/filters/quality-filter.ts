@@ -1215,6 +1215,22 @@ export function isObviouslyLowQuality(title: string, description: string): boole
     /\b(seeks?|seeking|soliciting|recruiting|looking for|need)\s+(first[-\s]?hand\s+)?(witness(es)?|accounts?|stories|encounters|testimon(y|ies))\b/i,
     /\bfor\s+(my|our)\s+(podcast|radio\s+show|interview\s+series|documentary|youtube\s+channel)\b/i,
     /\binterview\s+series\b/i,
+    // V11.17.26 — Bug #13: recruitment / community-pitch / "join us"
+    // patterns. Triggering report: "Any fellow Mainers into ITC or
+    // paranormal investigation? Just putting this out there in case
+    // there are others in Maine into paranormal research..."
+    /\bany\s+fellow\s+\w+(er|ers|ans|ites|ites)?\b/i,                          // "Any fellow Mainers", "any fellow researchers"
+    /\bjust\s+putting\s+this\s+out\s+there\b/i,                                // "Just putting this out there"
+    /\bin\s+case\s+(there\s+(are|might\s+be)|anyone\s+(is|else))\s+(others?|interested|out\s+there)\b/i,
+    /\b(seeks?|seeking|looking\s+for|recruiting|wants?|want\s+to\s+find)\s+(fellow|other|local|nearby)\s+(researchers?|investigators?|collaborators?|enthusiasts?|members?|hobbyists?|practitioners?|paranormal|ufo|cryptid|witch(es)?|psychic(s)?|medium(s)?)\b/i,
+    /\b(seeks?|seeking|looking\s+for|recruiting|wants?)\s+(collaborators?|partners?|teammates?|members?)\b/i,
+    /\b(if\s+you'?(d|re)\s+(be\s+)?(interested|willing|down|into|game)|dm\s+me\s+if|message\s+me\s+if|reach\s+out\s+if|hit\s+me\s+up\s+if)\b/i,
+    /\bjoin\s+(us|our|the|a|my)(\s+\w+){0,3}\s+(community|group|team|forum|server|discord|sub(reddit)?|patreon|telegram|whatsapp|signal|club|meetup|society)\b/i,
+    /\bjoin\s+us\s+(if|today|tonight|now|here|on|at|in)\b/i,                   // bare "join us if/today/etc" — recruitment ask
+    /\b(starting|started|forming|forming\s+up)\s+(a|an|our|the|my)(\s+\w+){0,3}\s+(group|community|team|club|investigation|research\s+(group|team))\b/i,
+    /\b(check\s+out|come\s+(visit|check\s+out)|drop\s+by|stop\s+by|head\s+to|swing\s+by)\s+(my|our)\s+(channel|sub|page|site|website|podcast|substack|stream|server)\b/i,
+    /\bnew\s+to\s+(the\s+)?(sub|community|forum|reddit|group)\b.{0,40}\b(introduc|introduce|hello|hi everyone|hi all)\b/i,
+    /\bpromot(ing|e|ion)\s+(my|our)\s+(book|channel|podcast|substack|patreon|kickstarter|gofundme)\b/i,
     // Historical news synthesis
     /\b(ABC|CBS|NBC|CNN|BBC|FOX|NPR|AP|Reuters)\s+(News|news|radio|report|tv|article)\b/,
     /\bdocumented\s+by\s+(ABC|CBS|NBC|CNN|BBC|FOX|NPR)\b/i,
