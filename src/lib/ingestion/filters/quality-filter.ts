@@ -1231,6 +1231,24 @@ export function isObviouslyLowQuality(title: string, description: string): boole
     /\b(check\s+out|come\s+(visit|check\s+out)|drop\s+by|stop\s+by|head\s+to|swing\s+by)\s+(my|our)\s+(channel|sub|page|site|website|podcast|substack|stream|server)\b/i,
     /\bnew\s+to\s+(the\s+)?(sub|community|forum|reddit|group)\b.{0,40}\b(introduc|introduce|hello|hi everyone|hi all)\b/i,
     /\bpromot(ing|e|ion)\s+(my|our)\s+(book|channel|podcast|substack|patreon|kickstarter|gofundme)\b/i,
+    // V11.17.27 — Database/registry meta-discussion patterns. Triggering
+    // reports: "396 New UFO Reports Posted to NUFORC Database", "657 UFO
+    // Reports Posted at NUFORC in October", "NUFORC Database Updated With
+    // 422 November Reports", "NUFORC Maintains Stricter Vetting Than MUFON
+    // Alaska Reports", "Sixty-Five Drone Reports in One Week". These are
+    // r/UFOs posts ABOUT registries, not first-person experiences.
+    /\b\d+\s+(new\s+)?(ufo\s+)?(reports?|sightings?|cases?|encounters?|submissions?|accounts?)\s+(posted|added|received|received\s+by|published|logged|filed)\s+(to|at|in|by|with)\s+(NUFORC|MUFON|the\s+\w+\s+(database|databank|archive|registry|center))\b/i,
+    /\b(NUFORC|MUFON|the\s+\w+\s+(database|databank|archive|registry|center))\s+(database|databank|archive|registry)?\s*(updated|update|added|publishes?|posts?|logs?|logged|received|maintains|filters?|screens?)\b/i,
+    /\bNUFORC\s+(database\s+)?(updated\s+)?with\s+\d+/i,
+    /\b\d+\s+(reports?|sightings?|cases?)\s+(posted|added|received|published)\s+at\s+NUFORC\b/i,
+    /\b(comparing|compared|comparison\s+of)\s+(NUFORC|MUFON|UFO\s+(reports|databases|registries))\b/i,
+    /\b(NUFORC|MUFON)\s+(reports?|sightings?|cases?|data|database|archive|collection)\s+(reveals?|shows?|indicates?|suggest|proves?|demonstrates?)\b/i,
+    // r/UFOs / r/aliens meta-analysis vocabulary that doesn't appear in
+    // first-person experience reports: "X reports defy Y", "X stable
+    // visual signature", "patterns across X reports".
+    /\b(\d+\s+|(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)[-\s]?(?:five|six|seven|eight|nine|two|three|four|one)?\s+)?(reports?|sightings?|cases?|encounters?|accounts?|drone\s+reports?)\s+(defy|defying|defies)\s+(identification|explanation|debunking)\b/i,
+    /\b(stable|consistent|recurring|persistent)\s+(visual\s+)?(signature|pattern|features?|geometry|geometries|morphology)\s+(across|in|among)\s+(reports?|sightings?|cases?|the\s+(data|cohort|corpus|set))\b/i,
+    /\bpatterns?\s+(across|among|in)\s+\d+\s+(reports?|sightings?|cases?|submissions?|accounts?)\b/i,
     // Historical news synthesis
     /\b(ABC|CBS|NBC|CNN|BBC|FOX|NPR|AP|Reuters)\s+(News|news|radio|report|tv|article)\b/,
     /\bdocumented\s+by\s+(ABC|CBS|NBC|CNN|BBC|FOX|NPR)\b/i,
