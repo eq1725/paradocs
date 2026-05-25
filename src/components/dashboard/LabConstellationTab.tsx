@@ -457,11 +457,38 @@ function SubmissionSwitcher(props: {
   onEdited?: () => void
 }) {
   var [manageOpen, setManageOpen] = useState(false)
-  function pillLabel(r: any): string {
-    var typeName = r.phenomenon_type?.name || r.category || 'Experience'
-    var year = r.event_date ? new Date(r.event_date).getFullYear() : null
-    return year ? typeName + ' ' + year : typeName
+
+  // V11.17.30 PR-1 — Identity-chip redesign (Bug #88 panel review).
+  // Was: two pills both labeled "ufos_aliens" (or "UFO Sighting 2014"
+  // / "UFO Sighting 2002") that read as duplicate taxonomy, not as
+  // "these are MY different experiences." Now: location-led identity
+  // cards (Location → date · phenomenon → match count) so each
+  // experience anchors to how the user actually remembers it.
+  function chipLocation(r: any): string {
+    var loc = (r.location_name || r.city || '').trim()
+    var st = (r.state_province || '').trim()
+    if (loc && st) {
+      // If location already contains the state, don't repeat it
+      if (loc.toLowerCase().indexOf(st.toLowerCase()) >= 0) return loc
+      return loc + ', ' + st
+    }
+    return loc || st || r.country || 'Location unknown'
   }
+  function chipSubline(r: any): string {
+    var typeName = r.phenomenon_type?.name || resolveCategoryLabel(r.category) || 'Experience'
+    var year = r.event_date ? new Date(r.event_date).getFullYear() : null
+    return year ? year + ' · ' + typeName : typeName
+  }
+  function chipCategoryColor(r: any): string {
+    return CATEGORY_COLORS[r.category as string] || CATEGORY_COLORS.psychological_experiences
+  }
+  function chipMatchCount(r: any): number {
+    // Match count surfaced on the report row when the data layer
+    // includes it; falls back to 0 when not pre-computed (e.g., for
+    // the user's other experiences not currently focused).
+    return (r.match_count != null ? r.match_count : (r.matches?.length || 0)) | 0
+  }
+
   return (
     <>
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 pb-1">
@@ -482,23 +509,44 @@ function SubmissionSwitcher(props: {
           </button>
         </div>
         {props.reports.length > 1 && (
-          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 sm:-mx-0 px-4 sm:px-0 pb-1 sm:flex-wrap snap-x snap-mandatory sm:snap-none">
+          <div className="flex items-stretch gap-2 overflow-x-auto scrollbar-hide -mx-4 sm:-mx-0 px-4 sm:px-0 pb-2 snap-x snap-mandatory">
             {props.reports.map(function(r: any, i: number) {
               var isActive = i === props.focusedIdx
+              var location = chipLocation(r)
+              var subline = chipSubline(r)
+              var matchCount = chipMatchCount(r)
+              var color = chipCategoryColor(r)
               return (
                 <button
                   key={r.id}
                   type="button"
                   onClick={function() { props.onFocus(i) }}
+                  aria-pressed={isActive}
                   className={
-                    'flex-shrink-0 snap-start inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap ' +
+                    'flex-shrink-0 snap-start text-left rounded-xl px-3 py-2.5 transition-colors border min-w-[180px] max-w-[78vw] sm:max-w-[260px] ' +
                     (isActive
-                      ? 'bg-purple-600/30 text-purple-100 border border-purple-500/50'
-                      : 'bg-gray-900/60 text-gray-300 hover:text-white border border-gray-800/60 hover:border-purple-600/30')
+                      ? 'bg-purple-600/15 border-purple-500/60 ring-1 ring-purple-500/30'
+                      : 'bg-gray-900/60 border-gray-800/60 hover:border-gray-700')
                   }
                 >
-                  {isActive && <span className="w-1.5 h-1.5 rounded-full bg-purple-300" />}
-                  {pillLabel(r)}
+                  <div className="flex items-center gap-2 mb-1">
+                    <span
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: color, opacity: isActive ? 1 : 0.6 }}
+                      aria-hidden="true"
+                    />
+                    <span className={'text-sm font-semibold truncate ' + (isActive ? 'text-white' : 'text-gray-200')}>
+                      {location}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-400 truncate ml-4">
+                    {subline}
+                  </p>
+                  {matchCount > 0 && (
+                    <p className={'text-[10px] mt-1 ml-4 ' + (isActive ? 'text-purple-300' : 'text-gray-500')}>
+                      {matchCount} {matchCount === 1 ? 'match' : 'matches'}
+                    </p>
+                  )}
                 </button>
               )
             })}
@@ -770,7 +818,14 @@ function PolishedRadarView(props: {
 
   // Apply filter to compute the visible-match count.
   var visibleMatches = (function () {
-    if (filter === 'high') return props.matches.filter(function (m: any) { return m.match_score >= 0.5 })
+    // V11.17.30 PR-1 — threshold lowered from 0.5 → 0.4. Panel analysis
+    // (Bug #88) showed the prior 0.5 cap produced empty High Match for
+    // most real user reports given the current scoring weights — a
+    // strong same-category + similar-content match tops out around
+    // 0.55-0.65 only when location/time align. 0.4 matches the API's
+    // own internal matchCount cutoff (match.ts:446) and yields a
+    // useful set for the typical user.
+    if (filter === 'high') return props.matches.filter(function (m: any) { return m.match_score >= 0.4 })
     if (filter === 'nearby') {
       if (typeof props.userExperience.latitude !== 'number' || typeof props.userExperience.longitude !== 'number') return []
       return props.matches.filter(function (m: any) {
@@ -808,7 +863,7 @@ function PolishedRadarView(props: {
   // never have to guess what each filter actually does or what
   // dimensions are being matched against.
   var filterCaption = (function () {
-    if (filter === 'high') return 'High Match: similarity score ≥ 50% across phenomenon type, location, time period, and description.'
+    if (filter === 'high') return 'Strong matches: similarity score ≥ 40% across phenomenon type, location, time period, and description.'
     if (filter === 'nearby') return 'Nearby: reports within ' + NEARBY_RADIUS_MI + ' miles of your experience location.'
     return 'Every match in your RADAR, ranked by overall similarity to your experience.'
   })()
@@ -1030,7 +1085,7 @@ function PolishedRadarView(props: {
           All reports
         </button>
         <button type="button" onClick={function () { setFilter('high') }} className={chipClass(filter === 'high')}>
-          High match
+          Strong matches
         </button>
         <button type="button" onClick={function () { setFilter('nearby') }} className={chipClass(filter === 'nearby')}>
           Nearby
@@ -1075,7 +1130,7 @@ function PolishedRadarView(props: {
             {filter === 'nearby'
               ? 'No matches within ' + NEARBY_RADIUS_MI + ' miles. Try All or High match.'
               : filter === 'high'
-                ? 'No matches with similarity ≥ 50%. Try All.'
+                ? 'No matches with similarity ≥ 40%. Try All.'
                 : 'Listening for matches across the archive…'}
           </div>
         )}
@@ -1097,6 +1152,13 @@ function PolishedRadarView(props: {
                 (isOpen ? 'border-purple-500/50' : 'border-gray-800/60 hover:border-gray-700/80')
               }
             >
+              {/* V11.17.30 PR-1 — Collapsed row info-scent upgrade
+                  (Bug #88 panel review). Was: percent + comma-separated
+                  dimension labels (no values, no source attribution, no
+                  location). Now: percent + ONE human "why" sentence
+                  from the top dimension + a second line with location
+                  + event date so the reader can decide whether to
+                  expand without tapping. */}
               <button
                 type="button"
                 onClick={function () { handleMatchOpen(m.id) }}
@@ -1105,14 +1167,33 @@ function PolishedRadarView(props: {
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-white truncate">{m.title}</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">
-                    {Math.round(m.match_score * 100)}% match
-                    {dimensions.length > 0 && (
-                      <> &middot; {dimensions.map(function (d: any) {
-                        return typeof d === 'string' ? d : (d && d.label) || ''
-                      }).filter(function (s: string) { return !!s }).join(', ')}</>
-                    )}
-                  </p>
+                  {(function () {
+                    // Compose the "why" rationale from the highest-scoring
+                    // dimension. dimensions are already sorted desc in
+                    // computeMatchDimensions (match.ts:251).
+                    var topDim = dimensions.find(function (d: any) { return typeof d !== 'string' && d.label }) as any
+                    var rationale = topDim ? topDim.label : (typeof dimensions[0] === 'string' ? dimensions[0] : '')
+                    return (
+                      <p className="text-[11px] text-purple-300/90 mt-0.5">
+                        <span className="text-white font-medium">{Math.round(m.match_score * 100)}%</span>
+                        {rationale && <> &middot; {rationale}</>}
+                      </p>
+                    )
+                  })()}
+                  {(locationStr || dateStr) && (
+                    <p className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                      {locationStr && (
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin className="w-3 h-3" /> {locationStr}
+                        </span>
+                      )}
+                      {dateStr && (
+                        <span className="inline-flex items-center gap-1">
+                          <Calendar className="w-3 h-3" /> {dateStr}
+                        </span>
+                      )}
+                    </p>
+                  )}
                 </div>
                 <ChevronDown
                   className={
@@ -1153,19 +1234,12 @@ function PolishedRadarView(props: {
                     </div>
                   )}
 
-                  {/* Facts row */}
-                  {(locationStr || dateStr || m.witness_count || m.has_photo_video) && (
+                  {/* Facts row — V11.17.30 PR-1: location + date moved to
+                      collapsed row, so the expanded panel only shows the
+                      richer signals (witnesses, evidence) to avoid the
+                      duplicate-info problem. */}
+                  {(m.witness_count || m.has_photo_video) && (
                     <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-[11px] text-gray-400">
-                      {locationStr && (
-                        <span className="inline-flex items-center gap-1">
-                          <MapPin className="w-3 h-3" /> {locationStr}
-                        </span>
-                      )}
-                      {dateStr && (
-                        <span className="inline-flex items-center gap-1">
-                          <Calendar className="w-3 h-3" /> {dateStr}
-                        </span>
-                      )}
                       {m.witness_count && m.witness_count > 0 && (
                         <span className="inline-flex items-center gap-1">
                           <Users className="w-3 h-3" /> {m.witness_count} {m.witness_count === 1 ? 'witness' : 'witnesses'}
