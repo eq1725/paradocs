@@ -913,6 +913,27 @@ function NewMatchAlertsCard(props: { userEmail: string | null; reportId: string 
             : <>You&rsquo;ll see new matches when you visit, but we won&rsquo;t reach out.</>
           }
         </p>
+        {/* V11.17.37 PR-6-f — Digest preview inside the card so users
+            see EXACTLY what they're opting into. Mitigates the default-
+            ON unsubscribe cliff (panel warning). Trust contract becomes
+            visible: cadence cap, threshold definition, preview of
+            example subject line. */}
+        {enabled && (
+          <details className="mt-2">
+            <summary className="text-[11px] text-purple-300/80 cursor-pointer hover:text-purple-200 select-none">
+              Preview what you&rsquo;ll get
+            </summary>
+            <div className="mt-2 rounded-lg border border-gray-800/60 bg-gray-950/40 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Sample email</p>
+              <p className="text-[12px] text-gray-200 font-medium leading-snug">
+                3 new reports strongly match your Lumberton triangle
+              </p>
+              <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">
+                Sent weekly · Only when ≥2 dimensions corroborate · Unsubscribe one click
+              </p>
+            </div>
+          </details>
+        )}
       </div>
     </div>
   )

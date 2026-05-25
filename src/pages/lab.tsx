@@ -78,22 +78,32 @@ import { Star } from 'lucide-react'
 // (?tab=constellation, ?tab=signal, ?tab=cases, ?tab=map, ?tab=notes)
 // so existing bookmarks, deep links, and push notifications keep
 // working.
-var TAB_KEYS = ['story', 'saves', 'ask'] as const
+// V11.17.37 PR-6-b — Renamed tabs per panel review (Bug #94):
+//   Saves → Library  (the room your saves live in; not a verb-as-noun)
+//   Ask   → Explore  (chat is one affordance, not the destination)
+// Legacy tab keys 'saves' / 'ask' continue to route to the new tab
+// names via LEGACY_TAB_REDIRECT so existing bookmarks / push deep
+// links keep working.
+var TAB_KEYS = ['story', 'library', 'explore'] as const
 type TabKey = typeof TAB_KEYS[number]
 
 var TAB_CONFIG: Record<string, { label: string; mobileLabel?: string; icon: typeof Star }> = {
-  story: { label: 'Your Story', mobileLabel: 'Story', icon: Star },
-  saves: { label: 'Saves', icon: Bookmark },
-  ask:   { label: 'Ask',   icon: Sparkles },
+  story:   { label: 'Your Story', mobileLabel: 'Story', icon: Star },
+  library: { label: 'Library',    icon: Bookmark },
+  explore: { label: 'Explore',    icon: Sparkles },
 }
 
-// V10.14 — legacy → new tab mapping for query-string redirects.
+// V10.14 → V11.17.37 — legacy → new tab mapping for query-string
+// redirects. Includes the pre-rename names ('saves', 'ask') so any
+// already-bookmarked /lab?tab=saves URLs land on the new Library tab.
 var LEGACY_TAB_REDIRECT: Record<string, TabKey> = {
   constellation: 'story',
   signal: 'story',
   notes: 'story',  // pre-V9.11.6 journal tab; landed in signal before, lands in story now
-  cases: 'saves',  // case-files become a sub-view of Saves
-  map: 'saves',    // map becomes a sub-view of Saves
+  cases: 'library',  // case-files become a sub-view of Library
+  map: 'library',    // map becomes a sub-view of Library
+  saves: 'library',  // V11.17.37 PR-6-b — Saves renamed to Library
+  ask: 'explore',    // V11.17.37 PR-6-b — Ask renamed to Explore
 }
 
 export default function LabPage() {
@@ -304,10 +314,17 @@ export default function LabPage() {
               // notification, elevate the SIGNAL "Since you last
               // visited" delta line above RADAR for this single visit.
               // Default position (below RADAR, inside SIGNAL) is
-              // preserved for all other entry points. URL-param only,
-              // no persistence.
+              // V11.17.37 PR-6-a (Bug #94 panel review) — elevateDelta
+              // now defaults TRUE for all entry points, not just
+              // ?from=digest/push. Panel verdict: the "silent return"
+              // (Day-7 user opens Story, sees identical radar to Day 1,
+              // no signal anything happened) is the single biggest
+              // retention churn cliff. Putting the delta rail at the
+              // top of Story is the single highest-leverage retention
+              // move. URL param can still suppress (?from=cold to
+              // hide), but default is elevated.
               var fromParam = router.query.from
-              var elevateDelta = fromParam === 'digest' || fromParam === 'push'
+              var elevateDelta = fromParam !== 'cold'
               return (
                 <div style={{ minHeight: 'calc(100dvh - 200px)' }}>
                   {elevateDelta && (
@@ -317,6 +334,11 @@ export default function LabPage() {
                       className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2"
                     />
                   )}
+                  {/* V11.17.37 PR-6-e — Year-in-Review seasonal banner.
+                      Auto-hides outside Dec-Feb. */}
+                  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2">
+                    <YearInReviewSeasonalBanner />
+                  </div>
                   <LabConstellationTab />
                   {/* V10.14 — SIGNAL embedded directly under RADAR.
                       Single mental model: "your story and how it
@@ -327,7 +349,7 @@ export default function LabPage() {
                 </div>
               )
             })()}
-            {activeTab === 'saves' && (
+            {activeTab === 'library' && (
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-20" style={{ minHeight: 'calc(100dvh - 200px)' }}>
                 {/* V10.14 — view-mode toolbar. Three lenses on the
                     same data: a feed list, a map, a collections grid
@@ -365,19 +387,19 @@ export default function LabPage() {
                 )}
               </div>
             )}
-            {activeTab === 'ask' && (
+            {activeTab === 'explore' && (
               <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-20" style={{ minHeight: 'calc(100dvh - 200px)' }}>
-                {/* V10.14 — Ask the Unknown promoted to first-class
-                    navigation. Sticky surface that returning users
-                    will navigate to specifically. The component itself
-                    still handles its own auth + rate-limiting. */}
-                <div className="mb-4">
-                  <h2 className="text-xl font-bold text-white">Ask the Unknown</h2>
-                  <p className="text-sm text-gray-400 mt-1 leading-relaxed">
-                    Ask anything about your experience or how it fits across the archive. The AI cites real reports.
-                  </p>
-                </div>
-                <AskTheUnknown />
+                {/* V11.17.37 PR-6-c+d (Bug #94 panel review) — Ask tab
+                    reframed as Explore. Chat is now ONE of three
+                    affordances (not the destination):
+                      1. Chat input (headline) — kept via <AskTheUnknown />
+                      2. Personalized starter prompts (built from user signal)
+                      3. Browse-by-phenomenon grid
+                    Panel verdict: Ask-as-destination has no "mine"
+                    anchor, fails the 65yo who doesn't know what to
+                    type. Explore reframes it as a research lens with
+                    multiple entry points. */}
+                <ExploreTab userProfile={userProfile} />
               </div>
             )}
           </div>
@@ -773,7 +795,10 @@ function NotificationsAndSharingAccordion(props: {
         <div className="px-3 pb-3 pt-0 space-y-3">
           <SignalAlertsOptInCard />
           <SignalEmailDigestCard initialPrefs={props.emailPrefs} />
-          <YearInReviewEntry />
+          {/* V11.17.37 PR-6-e — YearInReviewEntry removed from this
+              accordion. Now lives as a seasonal banner at the top of
+              Story (YearInReviewSeasonalBanner). Auto-hides outside
+              Dec-Feb so it doesn't become wallpaper. */}
         </div>
       )}
     </div>
@@ -1112,6 +1137,201 @@ function YearInReviewEntry() {
 }
 
 /**
+ * V11.17.37 PR-6-c+d (Bug #94 panel review) — ExploreTab.
+ *
+ * Replaces the bare AskTheUnknown chat as the Explore tab. Three
+ * affordances stacked vertically (mobile-first):
+ *   1. CHAT INPUT (headline) — the AskTheUnknown component, still
+ *      handles auth + rate-limiting itself.
+ *   2. PERSONALIZED STARTER PROMPTS — pulled from the user's most
+ *      recent submission (location, phenomenon type, era) so a 65yo
+ *      with one Lumberton triangle report sees prompts like
+ *      "What else looks like my Lumberton triangle?" rather than
+ *      a generic prompt wall.
+ *   3. BROWSE-BY-PHENOMENON GRID — category tiles that link into
+ *      /phenomena pages. Users who don't want to type still have
+ *      somewhere to go.
+ *
+ * Anonymous users see generic prompts; signed-in users see the
+ * personalized variants when their submission count > 0.
+ */
+function ExploreTab(props: { userProfile: any }) {
+  var [userReports, setUserReports] = useState<any[]>([])
+  useEffect(function () {
+    if (!props.userProfile) return
+    supabase
+      .from('reports')
+      .select('id, title, slug, category, city, state_province, location_name, event_date')
+      .eq('user_id', props.userProfile.id)
+      .eq('report_type', 'user_submitted')
+      .order('created_at', { ascending: false })
+      .limit(5)
+      .then(function (r: any) {
+        if (r.data) setUserReports(r.data)
+      })
+  }, [props.userProfile])
+
+  // Build personalized starter prompts from the user's most recent report
+  function starterPrompts(): Array<{ text: string; rationale?: string }> {
+    if (userReports.length === 0) {
+      return [
+        { text: 'What\'s the most common UFO shape reported in Texas?' },
+        { text: 'Tell me about near-death experience patterns' },
+        { text: 'Show me ghost reports from the 1970s' },
+        { text: 'What sensory features do Bigfoot encounters share?' },
+      ]
+    }
+    var r = userReports[0]
+    var loc = (r.location_name || [r.city, r.state_province].filter(Boolean).join(', ') || '').trim()
+    var typeFromCategory = (r.category === 'ufos_aliens') ? 'UFO sighting'
+      : (r.category === 'ghosts_hauntings') ? 'apparition'
+      : (r.category === 'cryptids') ? 'cryptid encounter'
+      : (r.category === 'psychic_phenomena') ? 'psychic experience'
+      : (r.category === 'consciousness_practices') ? 'consciousness experience'
+      : 'experience'
+    var year = r.event_date ? new Date(r.event_date).getFullYear() : null
+    var prompts: Array<{ text: string; rationale?: string }> = []
+    if (loc) {
+      prompts.push({ text: 'What else looks like my ' + (year ? year + ' ' : '') + loc + ' ' + typeFromCategory + '?', rationale: 'Built from your own report' })
+      prompts.push({ text: 'What\'s the most common pattern in ' + loc + ' reports?', rationale: 'Your region' })
+    }
+    if (year) {
+      prompts.push({ text: 'Show me other ' + typeFromCategory + 's from ' + year, rationale: 'Your year' })
+    }
+    if (r.category) {
+      var catLabel = r.category.replace(/_/g, ' ')
+      prompts.push({ text: 'What sensory features do ' + catLabel + ' reports share?', rationale: 'Your category' })
+    }
+    return prompts.slice(0, 4)
+  }
+
+  var BROWSE_CATEGORIES = [
+    { slug: 'ufos_aliens', label: 'UFOs & Aliens', emoji: '🛸' },
+    { slug: 'ghosts_hauntings', label: 'Ghosts & Hauntings', emoji: '👻' },
+    { slug: 'cryptids', label: 'Cryptids', emoji: '🐾' },
+    { slug: 'consciousness_practices', label: 'Consciousness', emoji: '🧘' },
+    { slug: 'psychic_phenomena', label: 'Psychic Phenomena', emoji: '🔮' },
+    { slug: 'religion_mythology', label: 'Religion & Mythology', emoji: '⛩️' },
+    { slug: 'perception_sensory', label: 'Perception & Sensory', emoji: '👁️' },
+    { slug: 'esoteric_practices', label: 'Esoteric Practices', emoji: '🕯️' },
+  ]
+
+  return (
+    <div>
+      {/* 1. CHAT INPUT — the headline affordance. */}
+      <div className="mb-4">
+        <h2 className="text-xl font-bold text-white">Explore the archive</h2>
+        <p className="text-sm text-gray-400 mt-1 leading-relaxed">
+          Ask anything. Browse by phenomenon. Search across {(136750).toLocaleString()} reports.
+        </p>
+      </div>
+      <AskTheUnknown />
+
+      {/* 2. PERSONALIZED STARTER PROMPTS — pulled from user signal. */}
+      <div className="mt-6">
+        <div className="flex items-center gap-2 mb-3 px-1">
+          <Sparkles className="w-3 h-3 text-purple-300" />
+          <span className="text-[10px] font-semibold tracking-widest uppercase text-purple-300">
+            {userReports.length > 0 ? 'Tied to your story' : 'Starter questions'}
+          </span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {starterPrompts().map(function (p, i) {
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={function () {
+                  // Best-effort prefill — the AskTheUnknown input is rendered
+                  // above; user can copy. (Direct prefill would require
+                  // lifting state into ExploreTab; deferred to a follow-up.)
+                  if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                    navigator.clipboard.writeText(p.text).catch(function () { /* noop */ })
+                  }
+                }}
+                className="text-left rounded-xl border border-gray-800/60 bg-gray-900/40 hover:border-purple-500/40 hover:bg-gray-900/60 px-3 py-2.5 transition-colors"
+                title="Click to copy, then paste into Ask above"
+              >
+                <p className="text-sm text-gray-200 leading-snug">{p.text}</p>
+                {p.rationale && (
+                  <p className="text-[10px] text-gray-500 mt-1">{p.rationale}</p>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* 3. BROWSE-BY-PHENOMENON GRID — non-typers still have a path. */}
+      <div className="mt-8">
+        <div className="flex items-center gap-2 mb-3 px-1">
+          <FolderOpen className="w-3 h-3 text-gray-400" />
+          <span className="text-[10px] font-semibold tracking-widest uppercase text-gray-400">
+            Browse by phenomenon
+          </span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {BROWSE_CATEGORIES.map(function (c) {
+            return (
+              <Link
+                key={c.slug}
+                href={'/explore?category=' + c.slug}
+                className="text-center rounded-xl border border-gray-800/60 bg-gray-900/40 hover:border-purple-500/40 hover:bg-gray-900/60 px-3 py-3 transition-colors"
+              >
+                <div className="text-xl mb-1" aria-hidden="true">{c.emoji}</div>
+                <p className="text-[11px] text-gray-300 leading-snug">{c.label}</p>
+              </Link>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Footer hint */}
+      <p className="text-[11px] text-gray-500 text-center mt-8">
+        Explore updates as new reports land in the archive.
+      </p>
+    </div>
+  )
+}
+
+/**
+ * V11.17.37 PR-6-e (Bug #94 panel review) — Year-in-Review seasonal
+ * banner. Renders at the TOP of Story (above the radar) during the
+ * year-in-review season (Dec-Feb of the following year). Panel
+ * verdict: YIR is a re-engagement gift that was being wasted as a
+ * settings-row inside the Notifications & sharing accordion at the
+ * bottom of Story. Promoted to seasonal banner during its 3-month
+ * window; hidden the rest of the year so it doesn't become wallpaper.
+ */
+function YearInReviewSeasonalBanner() {
+  var now = new Date()
+  var m = now.getMonth()  // 0 = Jan, 11 = Dec
+  // Show Dec, Jan, Feb — the natural "year just ended" window
+  var inSeason = m === 11 || m === 0 || m === 1
+  if (!inSeason) return null
+  var year = m === 11 ? now.getFullYear() : now.getFullYear() - 1
+  return (
+    <Link
+      href={'/lab/year/' + year}
+      className="block rounded-xl border border-purple-500/40 bg-gradient-to-br from-purple-900/30 via-fuchsia-900/15 to-purple-950/30 hover:from-purple-900/40 hover:via-fuchsia-900/20 hover:to-purple-950/40 px-4 py-3 mb-4 transition-colors"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-semibold tracking-widest uppercase text-purple-300 mb-1">
+            Your year in review
+          </p>
+          <p className="text-sm font-semibold text-white">{year} on Paradocs is ready</p>
+          <p className="text-xs text-purple-200/80 mt-0.5 leading-relaxed">
+            See the patterns the archive surfaced this year, and where your story sits inside them.
+          </p>
+        </div>
+        <ArrowRight className="w-5 h-5 text-purple-300 flex-shrink-0" />
+      </div>
+    </Link>
+  )
+}
+
+/**
  * V10.9 Signal Reframe — "Since you last visited" delta line.
  *
  * The single most important Phase 1 addition. Three outputs:
@@ -1382,8 +1602,11 @@ function LockedAICard(props: { kind: string }) {
  */
 function DeltaLineSlot(props: { sinceLastVisit: any; hasReport: boolean }) {
   var router = useRouter()
+  // V11.17.37 PR-6-a — elevate by default (panel verdict: top-of-Story
+  // delta rail is the single highest-leverage retention move). Only
+  // suppress when ?from=cold is explicitly set.
   var fromParam = router.query.from
-  var elevate = fromParam === 'digest' || fromParam === 'push'
+  var elevate = fromParam !== 'cold'
 
   var [target, setTarget] = useState<HTMLElement | null>(null)
   useEffect(function () {
