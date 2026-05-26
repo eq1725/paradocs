@@ -64,10 +64,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (userId) {
       // User's total submissions (all-time).
+      // V11.17.38 hotfix — actual column is `submitted_by` not
+      // `author_id`. The wrong name silently returned 0 rows and
+      // the card fell through to the anonymous variant for every
+      // signed-in user with submissions.
       const subResult = await supabase
         .from('reports')
         .select('id, category', { count: 'exact' })
-        .eq('author_id', userId)
+        .eq('submitted_by', userId)
         .eq('status', 'approved')
       userSubmissions = subResult.count || 0
 

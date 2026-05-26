@@ -105,9 +105,13 @@ export default function SignatureGrowthCard() {
 
   const personal = data.user_submissions > 0 && data.user_match_growth > 0
   const heroN = personal ? data.user_match_growth : data.corpus_added
+  // V11.17.38 — noun aligned with "archive" framing on the card header.
+  // Was "new reports" which implied organic submissions; "cases" matches
+  // the Today's Lead "9,444 cases archived" framing the user already
+  // sees, and is honest about ingested archival material.
   const heroLabel = personal
-    ? (heroN === 1 ? 'new corroborating report' : 'new corroborating reports')
-    : (heroN === 1 ? 'new report' : 'new reports')
+    ? (heroN === 1 ? 'aligned case' : 'aligned cases')
+    : (heroN === 1 ? 'new case' : 'new cases')
 
   return (
     <div className="relative rounded-2xl overflow-hidden border border-purple-500/30 bg-gradient-to-br from-purple-900/40 via-fuchsia-900/30 to-cyan-900/30">
@@ -126,7 +130,11 @@ export default function SignatureGrowthCard() {
               <Sparkles className="w-3.5 h-3.5 text-purple-200" aria-hidden="true" />
             </div>
             <h3 className="text-xs uppercase tracking-wider text-purple-200 font-semibold">
-              {personal ? 'Your signature is growing' : 'The constellation is growing'}
+              {/* V11.17.38 — product noun corrected ("constellation" → "archive").
+                  Constellation lives only in legacy route slugs + internal
+                  component names; user-facing surfaces use the documentary
+                  "archive" framing established by the Today's Lead cards. */}
+              {personal ? 'Your signature is growing' : 'The archive is growing'}
             </h3>
           </div>
           <button
@@ -144,36 +152,40 @@ export default function SignatureGrowthCard() {
             +{formatNumber(heroN)}
           </span>
           <span className="text-sm text-purple-100">{heroLabel}</span>
-          <span className="text-[10px] text-purple-300/70 ml-auto">in {data.month_label}</span>
+          {/* V11.17.38 — period framing fixed. Was "in {month}" which
+              both implied a calendar-month delta AND misrepresented
+              the 30-day rolling-window data. Now reads "last 30 days"
+              everywhere for honesty. */}
+          <span className="text-[10px] text-purple-300/70 ml-auto">last 30 days</span>
         </div>
 
         {personal ? (
           <p className="mt-2 text-xs text-purple-100/80 leading-relaxed">
             {heroN === 1
-              ? 'Someone else logged an experience that aligns with yours this month.'
-              : heroN + ' other people logged experiences that align with yours this month.'}{' '}
+              ? 'A new case aligned with yours in the last 30 days.'
+              : heroN + ' new cases aligned with yours in the last 30 days.'}{' '}
             {data.top_aligned_category && (
               <>
-                Most of them were in{' '}
+                Most fall under{' '}
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] bg-white/10 text-white font-medium">
                   {categoryLabel(data.top_aligned_category)}
                 </span>.
               </>
             )}{' '}
-            None of them knew you exist.
+            None of them know you exist.
           </p>
         ) : (
           <p className="mt-2 text-xs text-purple-100/80 leading-relaxed">
-            Paradocs added{' '}
+            Paradocs archived{' '}
             <span className="text-white font-semibold">{formatNumber(data.corpus_added)}</span>{' '}
-            reports in {data.month_label}. Log an experience to see what aligns with yours.
+            cases in the last 30 days. Log an experience to see what aligns with yours.
           </p>
         )}
 
         <div className="mt-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-[10px] text-purple-300/70">
             <TrendingUp className="w-3 h-3" aria-hidden="true" />
-            <span>last {data.period_days} days</span>
+            <span>{data.period_days}-day rolling window</span>
           </div>
           <button
             type="button"
@@ -186,7 +198,7 @@ export default function SignatureGrowthCard() {
               </>
             ) : (
               <>
-                <ArrowDownRight className="w-3 h-3" aria-hidden="true" /> Explore the constellation
+                <ArrowDownRight className="w-3 h-3" aria-hidden="true" /> Open the archive
               </>
             )}
           </button>

@@ -454,33 +454,59 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
             scroll on every device. Desktop keeps 35vh — the side
             rail there isn't pixel-constrained the same way. The
             tailwind h-[22vh] sm:h-[35vh] pattern + matching min/max
-            keeps the focal pin readable at both sizes. */}
-        <div className="relative h-[22vh] sm:h-[35vh] min-h-[160px] max-h-[320px]">
-          <ReportLocationMap
-            latitude={mapCoords ? mapCoords.lat : report?.latitude}
-            longitude={mapCoords ? mapCoords.lng : report?.longitude}
-            precision={mapPrecisionResolved}
-            pinLabel={pinLabel}
-            regionLabel={regionLabel}
-            height={1000 /* let the wrapper control via CSS */}
-            className="absolute inset-0 h-full"
-            nearby={nearby}
-            nearbyHref={
-              report?.latitude && report?.longitude
-                ? '/map?center=' + report.latitude + ',' + report.longitude + '&zoom=8'
-                : undefined
-            }
-            // V10.8.I — pass V10.8.C synthetic-coord signals so the
-            // map renders fit-to-country (or fit-to-state) framing
-            // instead of a misleading zoomed-to-centroid view, and
-            // suppresses the nearby overlay (which would otherwise
-            // pile up other synthetic-centroid reports at the same
-            // fake point).
-            coordsSynthetic={(report as any)?.coords_synthetic === true}
-            countryCode={(report as any)?.country_code || null}
-            stateKey={(report as any)?.state_province || null}
-          />
-        </div>
+            keeps the focal pin readable at both sizes.
+            V11.17.38 — fallback strip when the report has no
+            geographic signal at all (null lat/lng AND null country_code
+            AND null state). The map was rendering its default world
+            framing (which lands on Africa for null/0,0 coords) and
+            putting "AFRICA" as the header of a Texas report. The
+            placeholder makes the missing-data state explicit instead
+            of misleading the user with a geographically wrong header. */}
+        {(function () {
+          var hasCoords = typeof report?.latitude === 'number' && typeof report?.longitude === 'number'
+          var hasRegionHint = !!(report as any)?.country_code || !!(report as any)?.state_province || !!(report as any)?.country
+          if (!hasCoords && !hasRegionHint) {
+            return (
+              <div className="relative h-[22vh] sm:h-[35vh] min-h-[160px] max-h-[320px] bg-gradient-to-b from-gray-900 via-gray-950 to-gray-950 border-b border-gray-800/60 flex items-center justify-center px-6">
+                <div className="text-center max-w-md">
+                  <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-1">Location</p>
+                  <p className="text-sm text-gray-300">Not specified in source</p>
+                  <p className="text-[11px] text-gray-500 mt-1.5 leading-relaxed">
+                    The witness did not record where the incident took place — or the geography hasn&apos;t been extracted from the source text yet.
+                  </p>
+                </div>
+              </div>
+            )
+          }
+          return (
+            <div className="relative h-[22vh] sm:h-[35vh] min-h-[160px] max-h-[320px]">
+              <ReportLocationMap
+                latitude={mapCoords ? mapCoords.lat : report?.latitude}
+                longitude={mapCoords ? mapCoords.lng : report?.longitude}
+                precision={mapPrecisionResolved}
+                pinLabel={pinLabel}
+                regionLabel={regionLabel}
+                height={1000 /* let the wrapper control via CSS */}
+                className="absolute inset-0 h-full"
+                nearby={nearby}
+                nearbyHref={
+                  report?.latitude && report?.longitude
+                    ? '/map?center=' + report.latitude + ',' + report.longitude + '&zoom=8'
+                    : undefined
+                }
+                // V10.8.I — pass V10.8.C synthetic-coord signals so the
+                // map renders fit-to-country (or fit-to-state) framing
+                // instead of a misleading zoomed-to-centroid view, and
+                // suppresses the nearby overlay (which would otherwise
+                // pile up other synthetic-centroid reports at the same
+                // fake point).
+                coordsSynthetic={(report as any)?.coords_synthetic === true}
+                countryCode={(report as any)?.country_code || null}
+                stateKey={(report as any)?.state_province || null}
+              />
+            </div>
+          )
+        })()}
 
         {/* V10.7.B.4 — Desktop side-rail revived (the V10.6 'dead-
             weight rail' was killed because it duplicated Related

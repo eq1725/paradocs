@@ -612,12 +612,28 @@ export function PhenomenonCard(props: {
   var catColor = CATEGORY_COLORS[item.category] || '#b39ddb'
   var qf = item.ai_quick_facts
 
-  // Build case type badge parts
+  // Build case type badge parts.
+  // V11.17.38 — the badge year previously read from `first_reported_date`,
+  // which is the phenomenon's historical earliest documented case (1798
+  // for Poltergeist), but the card BODY describes a specific anchor case
+  // from a different year (1977 Enfield). The two dates jarred against
+  // each other ("GHOSTS & HAUNTINGS · 1798" header above a 1977 Enfield
+  // story). Chase flagged this as a systemic header-vs-body inconsistency.
+  // Fix: prefer the year of the anchor case being shown (anchor_when),
+  // fall back to first_reported_date only when no anchor is set. The
+  // phenomenon's historical first stays available on the detail page
+  // where it has room to be properly contextualized.
   var badgeParts: string[] = []
   badgeParts.push(config?.label || item.category)
-  if (item.first_reported_date) {
-    var yearMatch = item.first_reported_date.match(/\d{4}/)
-    if (yearMatch) badgeParts.push(yearMatch[0])
+  var anchorWhenSentinel = !!item.anchor_when
+    && item.anchor_when.length >= 2
+    && item.anchor_when.substring(0, 2) === '__'
+  var anchorYearMatch = item.anchor_when && !anchorWhenSentinel ? item.anchor_when.match(/\b(1[5-9]\d{2}|20\d{2})\b/) : null
+  var firstReportedYearMatch = item.first_reported_date ? item.first_reported_date.match(/\d{4}/) : null
+  if (anchorYearMatch) {
+    badgeParts.push(anchorYearMatch[0])
+  } else if (firstReportedYearMatch) {
+    badgeParts.push(firstReportedYearMatch[0])
   }
   if (item.primary_regions && item.primary_regions.length > 0) {
     badgeParts.push(item.primary_regions[0])
