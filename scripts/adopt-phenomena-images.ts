@@ -108,7 +108,7 @@ interface Candidate {
   description: string   // From imageinfo / Wikipedia intro
   license: string       // CC0 / CC BY / CC BY-SA / public domain / unknown
   attribution: string   // Author + license HTML string
-  source: 'wikipedia' | 'wikimedia_commons'
+  source: 'wikipedia' | 'wikimedia_commons' | 'openverse' | 'wikipedia_multilang' | 'bing'
 }
 
 // ─── Wikipedia article pageimage (primary source) ─────────────────────
@@ -269,6 +269,161 @@ function stripHtml(s: string): string {
     .replace(/&gt;/g, '>')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+// ─── OpenVerse search (V11.17.39, layer 2) ────────────────────────────
+//
+// OpenVerse aggregates CC-licensed images from Wikimedia Commons,
+// Smithsonian Open Access, Flickr Commons, the Met Museum, Cleveland
+// Museum of Art, and other rights-clear archives. Free API, no auth
+// required for low-rate use. Catches niche phenomena where Wikimedia's
+// own corpus came up empty — particularly museum-archived material
+// for religious/mythological/historical subjects.
+//
+// API docs: https://api.openverse.engineering/v1/
+async function searchOpenverse(query: string, limit = 5): Promise<Candidate[]> {
+  const OPENVERSE_API = 'https://api.openverse.engineering/v1/images/'
+  const params = new URLSearchParams({
+    q: query,
+    page_size: String(limit),
+    license_type: 'commercial',  // includes cc0, pdm, by, by-sa
+    mature: 'false',
+  })
+  let resp
+  try {
+    resp = await fetch(OPENVERSE_API + '?' + params.toString(), {
+      headers: { 'User-Agent': 'Paradocs-ImageAdopt/1.0 (https://www.discoverparadocs.com)' },
+    })
+  } catch (e: any) {
+    console.warn('  openverse network error: ' + (e?.message || e))
+    return []
+  }
+  if (!resp.ok) {
+    if (resp.status !== 429) console.warn('  openverse ' + resp.status)
+    return []
+  }
+  const data: any = await resp.json()
+  const results: any[] = data.results || []
+  return results.filter(r => r.url && r.mime_type?.startsWith('image/')).map(r => ({
+    title: 'OpenVerse: ' + (r.title || r.id || '').substring(0, 100),
+    url: r.url,
+    description: stripHtml(r.title || '').substring(0, 300),
+    license: r.license + (r.license_version ? ' ' + r.license_version : ''),
+    attribution: 'Image by ' + (r.creator || 'Unknown') + ' via ' + (r.source || 'OpenVerse') + ' (' + r.license + ')',
+    source: 'openverse',
+  }))
+}
+
+// ─── Multi-language Wikipedia (V11.17.39, layer 3) ────────────────────
+//
+// Many regional phenomena have Wikipedia articles in their native
+// language with iconic lead images that English Wikipedia doesn't
+// include. E.g. Cheonyeo Gwishin has a detailed article on Korean
+// Wikipedia with a movie-poster lead image; Inkanyamba has the Zulu
+// Wikipedia article with a folk-art rendering; Bruja has the Spanish
+// Wikipedia article with traditional iconography.
+//
+// We pass the phenomenon's aliases through to fetchWikipediaPageImage
+// against each of the major language Wikipedias.
+async function searchMultilangWikipedia(p: Phenomenon): Promise<Candidate[]> {
+  const LANG_WIKIS = ['es', 'pt', 'fr', 'de', 'it', 'ja', 'ko', 'zh', 'ar', 'ru', 'hi', 'tr', 'nl', 'sv']
+  const candidates: Candidate[] = []
+  // Build candidate queries: phenomenon name + first 3 aliases
+  const queries = [p.name, ...(p.aliases || []).slice(0, 3)]
+  for (const lang of LANG_WIKIS) {
+    if (candidates.length >= 5) break
+    for (const q of queries) {
+      if (candidates.length >= 5) break
+      try {
+        const api = 'https://' + lang + '.wikipedia.org/w/api.php'
+        const params = new URLSearchParams({
+          action: 'query',
+          titles: q,
+          prop: 'pageimages',
+          pithumbsize: '1200',
+          format: 'json',
+          origin: '*',
+          redirects: '1',
+        })
+        const resp = await fetch(api + '?' + params.toString(), {
+          headers: { 'User-Agent': 'Paradocs-ImageAdopt/1.0 (https://www.discoverparadocs.com)' },
+        })
+        if (!resp.ok) continue
+        const data: any = await resp.json()
+        const pages = data?.query?.pages || {}
+        for (const pageId of Object.keys(pages)) {
+          const page = pages[pageId]
+          if (page.missing !== undefined || !page.thumbnail?.source) continue
+          const fullUrl = (page.thumbnail.source as string)
+            .replace('/thumb/', '/')
+            .replace(/\/\d+px-[^/]+$/, '')
+          const wpUrl = 'https://' + lang + '.wikipedia.org/wiki/' + encodeURIComponent(page.title.replace(/ /g, '_'))
+          candidates.push({
+            title: 'Wikipedia [' + lang + ']: ' + page.title,
+            url: fullUrl,
+            description: page.title,
+            license: 'See Wikimedia source',
+            attribution: 'Image from <a href="' + wpUrl + '" rel="noopener" target="_blank">Wikipedia (' + lang + ') — ' + page.title + '</a>',
+            source: 'wikipedia_multilang',
+          })
+          break  // one hit per query per language
+        }
+      } catch (_e) { /* try next */ }
+    }
+  }
+  return candidates
+}
+
+// ─── Bing Image Search (V11.17.39, layer 4 — opt-in) ──────────────────
+//
+// Bing's commercial image search API has dramatically wider coverage
+// than Wikimedia for modern + niche subjects (UFO photographs, BFRO
+// Bigfoot images, MUFON case file imagery, regional cryptid sketches).
+// Free Azure tier covers 1000 transactions/month — plenty for our
+// one-time backfill.
+//
+// Requires BING_IMAGE_SEARCH_KEY env var. Skipped silently if missing,
+// so the script gracefully runs with whatever sources are configured.
+//
+// Setup: portal.azure.com → Create resource → "Bing Search v7" → F1
+// (free) tier → Copy KEY 1 from "Keys and Endpoint" → add to .env.local.
+async function searchBingImages(query: string, limit = 5): Promise<Candidate[]> {
+  const apiKey = process.env.BING_IMAGE_SEARCH_KEY
+  if (!apiKey) return []  // graceful skip when not configured
+
+  const BING_API = 'https://api.bing.microsoft.com/v7.0/images/search'
+  const params = new URLSearchParams({
+    q: query,
+    count: String(limit),
+    license: 'Public,Share,ShareCommercially,Modify,ModifyCommercially',  // CC-licensed only
+    safeSearch: 'Strict',
+  })
+  let resp
+  try {
+    resp = await fetch(BING_API + '?' + params.toString(), {
+      headers: {
+        'Ocp-Apim-Subscription-Key': apiKey,
+        'User-Agent': 'Paradocs-ImageAdopt/1.0 (https://www.discoverparadocs.com)',
+      },
+    })
+  } catch (e: any) {
+    console.warn('  bing network error: ' + (e?.message || e))
+    return []
+  }
+  if (!resp.ok) {
+    console.warn('  bing ' + resp.status)
+    return []
+  }
+  const data: any = await resp.json()
+  const results: any[] = data.value || []
+  return results.filter(r => r.contentUrl && (r.encodingFormat === 'jpeg' || r.encodingFormat === 'png' || r.encodingFormat === 'webp')).map(r => ({
+    title: 'Bing: ' + (r.name || '').substring(0, 100),
+    url: r.contentUrl,
+    description: stripHtml(r.name || '').substring(0, 300),
+    license: 'CC-licensed (Bing-filtered)',
+    attribution: 'Image from <a href="' + r.hostPageUrl + '" rel="noopener" target="_blank">' + (r.hostPageDisplayUrl || 'web') + '</a>',
+    source: 'bing',
+  }))
 }
 
 // ─── Haiku confirmation ───────────────────────────────────────────────
@@ -572,23 +727,43 @@ async function processPhenomenon(sb: any, p: Phenomenon): Promise<ProcessResult>
   // Aliases are tried in source #1 (Wikipedia) but NOT OR'd into the
   // Commons search (would pull in unrelated noise — the old behavior
   // that caused 5-candidate-result-rejected for Fresno Nightcrawler).
-  // V11.17.39 — always supplement the Wikipedia pageimage with a few
-  // Commons hits so Haiku has multiple options. Previously Commons was
-  // only consulted when Wikipedia returned nothing. For phenomena where
-  // Wikipedia has a generic article-thumb (a stub map, a logo) but
-  // Commons has the iconic image, this lets Haiku pick the iconic one
-  // instead of being stuck with the weak Wikipedia hit. Dedup by URL.
+  // V11.17.39 — multi-source candidate gathering with progressive
+  // fallback. Sources are tried in order; each adds its results to the
+  // pooled candidate list (dedupped by URL). Haiku then picks the best
+  // across all sources. Order matters for quality bias — Wikipedia
+  // pageimages are highest-signal, OpenVerse museum hits are second,
+  // multi-language Wikipedia catches regional folklore, Bing covers
+  // modern/niche subjects when configured.
   const candidates: Candidate[] = []
-  const wpHit = await searchWikipediaForPhenomenon(p)
-  if (wpHit) candidates.push(wpHit)
-  const commonsHits = await searchWikimedia(p.name, 5)
-  const seen = new Set(candidates.map(c => c.url))
-  for (const c of commonsHits) {
-    if (!seen.has(c.url)) {
-      candidates.push(c)
-      seen.add(c.url)
+  const seen = new Set<string>()
+  function addCandidates(arr: Candidate[]): void {
+    for (const c of arr) {
+      if (!seen.has(c.url)) {
+        candidates.push(c)
+        seen.add(c.url)
+      }
     }
   }
+
+  // Layer 1: English Wikipedia pageimage (highest signal — editor-curated)
+  const wpHit = await searchWikipediaForPhenomenon(p)
+  if (wpHit) addCandidates([wpHit])
+
+  // Layer 2: Wikimedia Commons keyword search
+  addCandidates(await searchWikimedia(p.name, 5))
+
+  // Layer 3: OpenVerse — aggregates Smithsonian, Met, Cleveland, Flickr Commons
+  if (candidates.length < 5) addCandidates(await searchOpenverse(p.name, 5))
+
+  // Layer 4: Multi-language Wikipedia — only when prior layers thin.
+  // Regional folklore (Cheonyeo Gwishin, Bruja, Inkanyamba) often has
+  // detailed articles in the native-language Wikipedia.
+  if (candidates.length < 3) addCandidates(await searchMultilangWikipedia(p))
+
+  // Layer 5: Bing Image Search — only when prior layers still thin AND
+  // BING_IMAGE_SEARCH_KEY is configured. Modern + niche coverage.
+  if (candidates.length < 3) addCandidates(await searchBingImages(p.name, 5))
+
   if (candidates.length === 0) {
     return { status: 'no_candidates' }
   }
