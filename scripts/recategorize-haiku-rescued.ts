@@ -43,14 +43,18 @@ async function main() {
   console.log()
   const s = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
+  // PostgREST's .like() doesn't filter UUID columns cleanly. Pull all
+  // YouTube reports once (small set), build a short-id → full-row map,
+  // then iterate the MOVES list. Robust against UUID-as-text quirks.
+  const { data: ytReports, error: ytErr } = await s.from('reports')
+    .select('id, title, category, status')
+    .eq('source_type', 'youtube')
+  if (ytErr) { console.error('fetch failed:', ytErr.message); process.exit(1) }
+  const byShort = new Map<string, any>()
+  for (const r of (ytReports || []) as any[]) byShort.set(r.id.substring(0, 8), r)
+
   for (const m of MOVES) {
-    // Look up the full row by short-id prefix (we don't ship full UUIDs
-    // in this script; the audit output showed only short ids).
-    const { data } = await s.from('reports')
-      .select('id, title, category')
-      .like('id', m.shortId + '%')
-      .limit(1)
-      .maybeSingle() as any
+    const data = byShort.get(m.shortId)
     if (!data) { console.log('  MISS ' + m.shortId + ' — no report found'); continue }
     if (data.category === m.toCategory) {
       console.log('  noop  ' + m.shortId + ' already ' + m.toCategory)
