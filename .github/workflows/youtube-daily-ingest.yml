@@ -1,0 +1,91 @@
+# V11.17.39 — Daily YouTube mass-ingest, runs on GitHub Actions.
+#
+# Why GitHub Actions and not Vercel cron:
+#   - Vercel functions cap at 5 min (Pro: 15 min). Our ingest runs
+#     5-15 minutes and may spawn child processes for the batch worker.
+#   - GitHub Actions allows 6h per job + free tier covers our usage.
+#   - Env vars sync from .env.local naming via GitHub Secrets.
+#
+# Schedule: every day at 11:00 UTC (06:00 ET / 03:00 PT). Off-peak for
+# YouTube API quota, off-peak for our batch-drain workers. Pre-dawn US
+# means it's done before US users wake up.
+#
+# Manual triggering: `gh workflow run youtube-daily-ingest.yml` from
+# your laptop, or use the "Run workflow" button in the Actions tab.
+#
+# Quota safety: --limit 200 keeps the daily YouTube API quota
+# (10k units/day on free tier) well within budget. We can raise this
+# once we observe stable run characteristics.
+
+name: YouTube Daily Ingest
+
+on:
+  schedule:
+    # Daily at 11:00 UTC. Cron syntax: minute hour dom month dow.
+    - cron: '0 11 * * *'
+  # Allow manual triggering from the Actions tab UI.
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Max reports to ingest (default 200)'
+        required: false
+        default: '200'
+      no_search:
+        description: 'Skip search-discovered videos, channels only'
+        required: false
+        type: boolean
+        default: false
+
+# Don't run if a previous instance is still in flight — prevents
+# overlapping ingests that could race on the same videos.
+concurrency:
+  group: youtube-ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30  # Hard ceiling — script normally completes in ~10 min
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run YouTube mass-ingest
+        env:
+          # Mirror .env.local naming via repo Secrets. Each must exist
+          # at https://github.com/eq1725/paradocs/settings/secrets/actions
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          MAPTILER_GEOCODING_KEY: ${{ secrets.MAPTILER_GEOCODING_KEY }}
+          MAPTILER_API_KEY: ${{ secrets.MAPTILER_API_KEY }}
+        run: |
+          LIMIT="${{ github.event.inputs.limit || '200' }}"
+          ARGS="--limit $LIMIT --quota-cap 9000"
+          if [ "${{ github.event.inputs.no_search }}" = "true" ]; then
+            ARGS="$ARGS --channels-only"
+          fi
+          echo "Running: npx tsx scripts/youtube-mass-ingest.ts $ARGS"
+          npx tsx scripts/youtube-mass-ingest.ts $ARGS
+
+      - name: Upload run log
+        if: always()  # capture log even on failure
+        uses: actions/upload-artifact@v4
+        with:
+          name: youtube-ingest-log-${{ github.run_id }}
+          path: |
+            youtube-mass-*.log
+            outputs/youtube-*.json
+          if-no-files-found: ignore
+          retention-days: 14
