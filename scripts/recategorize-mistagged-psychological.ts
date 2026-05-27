@@ -64,6 +64,7 @@ function parseArgs() {
   return {
     limit: parseInt(flag('--limit', '0')),
     dryRun: bool('--dry-run'),
+    concurrency: parseInt(flag('--concurrency', '10')),
   }
 }
 
@@ -106,66 +107,106 @@ async function main() {
     .eq('source_type', 'reddit')
   console.log('Total Reddit psychological_experiences reports:', total, '\n')
 
-  const cap = args.limit > 0 ? args.limit : (total || 0)
+  const corpusTotal = args.limit > 0 ? args.limit : (total || 0)
 
-  // Pull all rows. Even at 6k this fits comfortably; we'll iterate in
-  // memory. For larger corpora we'd page through.
-  let q = supabase.from('reports')
-    .select('id, title, summary')
-    .eq('status', 'approved')
-    .eq('category', 'psychological_experiences')
-    .eq('source_type', 'reddit')
-    .order('id', { ascending: true })
-  if (args.limit > 0) q = q.limit(args.limit) as any
-  const { data: rows, error } = await q
-  if (error) { console.error('fetch failed:', error.message); process.exit(1) }
-  if (!rows || rows.length === 0) { console.log('No rows to process.'); return }
-
+  // V11.17.39 hotfix — page through ALL rows in PAGE_SIZE chunks so we
+  // process the full corpus. Supabase service-role JS client caps each
+  // SELECT at 1000 rows by default; previous version's single-shot
+  // query stopped at that cap (saw only 5000 of 25k).
+  const PAGE_SIZE = 1000
   const moved: Record<string, number> = { ufos_aliens: 0, ghosts_hauntings: 0, cryptozoological: 0 }
   let kept = 0
   let failed = 0
+  let processed = 0
   const startMs = Date.now()
 
-  for (let i = 0; i < rows.length; i++) {
-    const r = rows[i] as any
+  // Concurrent worker pool — async-safe shared counters via local
+  // mutation. Each worker pulls from `queue` until empty. 10x parallelism
+  // moves us from ~0.6/sec to ~6/sec which makes 25k tractable (~70 min
+  // → ~7 min). Anthropic tier-1 rate limit on Haiku 4.5 is 50 RPM
+  // sustained; at 10 workers we sit at ~360 RPM peak which exceeds the
+  // limit, but the SDK handles 429s with exponential backoff internally.
+  async function processOne(r: any): Promise<void> {
     const result = await classify(anth, r.title || '', r.summary || '')
-    if (!result) { failed++; continue }
-
+    if (!result) { failed++; return }
     if (result.target === 'keep' || result.confidence !== 'high') {
       kept++
-    } else if (result.target === 'ufos_aliens' || result.target === 'ghosts_hauntings' || result.target === 'cryptozoological') {
+      return
+    }
+    if (result.target === 'ufos_aliens' || result.target === 'ghosts_hauntings' || result.target === 'cryptozoological') {
       if (args.dryRun) {
         console.log('  [DRY] ' + r.id.substring(0, 8) + ' → ' + result.target + ' (' + result.reason + ')')
       } else {
         const { error: upErr } = await supabase.from('reports').update({ category: result.target }).eq('id', r.id)
-        if (upErr) { failed++; continue }
+        if (upErr) { failed++; return }
       }
       moved[result.target]++
     } else {
       kept++
     }
+  }
 
-    if ((i + 1) % 100 === 0) {
-      const elapsedSec = (Date.now() - startMs) / 1000
-      const rate = (i + 1) / elapsedSec
-      const eta = Math.floor((rows.length - i - 1) / rate)
-      console.log('[+' + Math.floor(elapsedSec) + 's] ' + (i + 1) + '/' + rows.length +
-        ' | moved ufos=' + moved.ufos_aliens + ' ghosts=' + moved.ghosts_hauntings +
-        ' cryptid=' + moved.cryptozoological + ' kept=' + kept + ' failed=' + failed +
-        ' rate=' + rate.toFixed(1) + '/s eta=' + Math.floor(eta / 60) + 'm')
+  // V11.17.39 — id-based cursor pagination. Page with `id > last_seen_id
+  // ORDER BY id ASC LIMIT N`. Mutations don't break this cursor because
+  // we advance by the highest id we observed, not by offset. As rows
+  // move out of category=psychological_experiences they vanish from the
+  // filter, but the next page query still works correctly because it
+  // asks for ids > our cursor.
+  let lastId = ''
+  const cap = args.limit > 0 ? args.limit : Infinity
+  while (processed < cap) {
+    const fetchLimit = Math.min(PAGE_SIZE, cap - processed)
+    let q = supabase.from('reports')
+      .select('id, title, summary')
+      .eq('status', 'approved')
+      .eq('category', 'psychological_experiences')
+      .eq('source_type', 'reddit')
+      .order('id', { ascending: true })
+      .limit(fetchLimit)
+    if (lastId) q = q.gt('id', lastId) as any
+    const { data: rows, error } = await q
+    if (error) { console.error('page fetch failed:', error.message); break }
+    if (!rows || rows.length === 0) break
+
+    // Concurrent worker pool over this page.
+    const queue = rows.slice()
+    const workers: Promise<void>[] = []
+    for (let w = 0; w < args.concurrency; w++) {
+      workers.push((async function () {
+        while (queue.length > 0) {
+          const next = queue.shift()
+          if (!next) break
+          await processOne(next)
+          processed++
+        }
+      })())
     }
+    await Promise.all(workers)
+
+    // Advance cursor to the max id we saw this page.
+    lastId = (rows[rows.length - 1] as any).id
+
+    const elapsedSec = (Date.now() - startMs) / 1000
+    const rate = processed / Math.max(1, elapsedSec)
+    console.log('[+' + Math.floor(elapsedSec) + 's] processed=' + processed +
+      ' | moved ufos=' + moved.ufos_aliens + ' ghosts=' + moved.ghosts_hauntings +
+      ' cryptid=' + moved.cryptozoological + ' kept=' + kept + ' failed=' + failed +
+      ' rate=' + rate.toFixed(1) + '/s')
+
+    if (rows.length < fetchLimit) break  // exhausted
   }
 
   console.log('\n========== FINAL ==========')
-  console.log('Processed:           ' + rows.length)
+  console.log('Processed:           ' + processed)
   console.log('→ ufos_aliens:       ' + moved.ufos_aliens)
   console.log('→ ghosts_hauntings:  ' + moved.ghosts_hauntings)
   console.log('→ cryptozoological:  ' + moved.cryptozoological)
   console.log('Kept (psychological):' + kept)
   console.log('Failed:              ' + failed)
   const movedTotal = moved.ufos_aliens + moved.ghosts_hauntings + moved.cryptozoological
-  const pct = ((movedTotal / rows.length) * 100).toFixed(1)
+  const pct = processed > 0 ? ((movedTotal / processed) * 100).toFixed(1) : '0'
   console.log('Mis-tag rate:        ' + pct + '%')
+  console.log('Corpus total seen:   ' + corpusTotal + ' (cap)')
 }
 
 main().catch(e => { console.error('Fatal:', e?.stack || e?.message || e); process.exit(1) })

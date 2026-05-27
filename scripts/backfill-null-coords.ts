@@ -164,25 +164,32 @@ async function main() {
 
   const stats = { geocoded: 0, skipped: 0, failed: 0 }
   const startMs = Date.now()
-  let offset = 0
+  // V11.17.39 hotfix — id-based cursor pagination (not offset-based).
+  // Earlier version used .range(offset, ...) which broke because each
+  // UPDATE moves a row OUT of the `latitude IS NULL` filter, leaving
+  // the offset cursor pointing past the new EOF and terminating early.
+  // With id > lastId, the cursor advances regardless of mutations.
+  let lastId = ''
 
   while (true) {
     const fetchLimit = Math.min(BATCH_SIZE, cap - (stats.geocoded + stats.skipped + stats.failed))
     if (fetchLimit <= 0) break
 
-    const { data: rows, error } = await supabase
+    let q = supabase
       .from('reports')
       .select('id, location_name, city, state_province, country')
       .eq('status', 'approved')
       .is('latitude', null)
       .not('location_name', 'is', null)
       .order('id', { ascending: true })
-      .range(offset, offset + fetchLimit - 1)
+      .limit(fetchLimit)
+    if (lastId) q = q.gt('id', lastId) as any
+    const { data: rows, error } = await q
     if (error) { console.error('fetch failed:', error.message); break }
     if (!rows || rows.length === 0) break
 
     await processBatch(rows as ReportRow[], supabase, args, stats)
-    offset += rows.length
+    lastId = (rows[rows.length - 1] as any).id
 
     // Heartbeat
     const elapsedSec = (Date.now() - startMs) / 1000
