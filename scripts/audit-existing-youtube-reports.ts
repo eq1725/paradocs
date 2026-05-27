@@ -34,7 +34,59 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
 // MUST match the regex in src/lib/ingestion/filters/quality-filter.ts
 // V11.17.39 (#22). Keep these two in sync; future maintenance should
 // extract the constant into a shared file.
-const PARANORMAL_KEYWORDS = /\b(ufo|uap|alien|extraterrestrial|abduct|implant|saucer|disc|orb|triangle|cigar.shaped|tic.tac|ghost|spirit|apparition|phantom|haunt|poltergeist|shadow.figure|shadow.person|shadow.man|hat.man|cryptid|bigfoot|sasquatch|dogman|skinwalker|wendigo|mothman|chupacabra|loch.ness|lake.monster|nde|near.death|out.of.body|astral|astral.projection|life.review|tunnel.of.light|precognit|premonit|telepath|telekines|psychokines|clairvoyan|psychic|possession|possessed|exorcism|demon|djinn|entity|angel|deity|paranormal|supernatural|anomal|synchronic|deja.vu|time.slip|missing.time|mandela.effect|manifestation|apport|reincarnat|past.life|witchcraft|spell|ritual|sigil|ouija|spirit.board|seance|medium(ship)?|channeling|automatic.writing|levitat|telepor|materializ|sleep.paralysis|hag|incubus|succubus|tulpa)\b/i
+const PARANORMAL_KEYWORDS = new RegExp(
+  '\\b(' + [
+    // UFO / craft / lights
+    'ufo','uap','alien','extraterrestrial','abduct','implant','saucer','disc','orb','sphere',
+    'ball.of.light','bright.ball','glowing.ball','glowing.sphere','silent.object',
+    'triangle','cigar.shaped','tic.tac','craft','hover','hovered','hovering','silent.craft',
+    'formation','light.formation','strange.light','strange.lights','bright.light.in.the.sky',
+    // Ghosts / hauntings / apparitions
+    'ghost','spirit','apparition','phantom','haunt','haunted','haunting','poltergeist',
+    'shadow.figure','shadow.person','shadow.man','hat.man','dark.figure','black.figure',
+    'silhouette','figure.at.the.foot','figure.in.the.corner','figure.standing','figure.vanished',
+    'glowing.eyes','red.eyes','presence','sensed.presence','felt.watched','cold.spot',
+    // Cryptids
+    'cryptid','bigfoot','sasquatch','dogman','skinwalker','wendigo','mothman','chupacabra',
+    'loch.ness','lake.monster','tall.figure','hairy.bipedal','upright.creature',
+    // Consciousness / NDE / OBE
+    'nde','near.death','out.of.body','astral','astral.projection','life.review','tunnel.of.light',
+    'floated.above','floated.out','looking.down.at.myself','left.my.body','died.and.came.back',
+    'consciousness.shift','expanded.consciousness','non.dual','dissolution.of.self','unity.experience',
+    // Psychic / precognition / telepathy
+    'precognit','premonit','telepath','telepathic','telekines','psychokines','clairvoyan','psychic',
+    'knew.before.it.happened','dream.came.true','prophetic','foresaw','sensed.something',
+    // Possession / religion
+    'possession','possessed','exorcism','demon','djinn','entity','angel','deity','divine',
+    // Generic anomaly
+    'paranormal','supernatural','anomal','unexplain','unexplainable','strange.encounter','strange.experience',
+    // Memory / time anomalies
+    'synchronic','deja.vu','time.slip','missing.time','lost.time','hours.unaccounted','compressed.time',
+    'time.stood.still','time.skipped','timeline.shift','mandela.effect',
+    'shared.memory','identical.memory','mutual.memory','same.memory','diverge.*memory',
+    // Manifestation / materialization
+    'manifestation','manifested','apport','materializ','appeared.out.of.nowhere',
+    'vanished','disappeared','vanish.*thin.air','wasnt.there.anymore',
+    // Past life / reincarnation
+    'reincarnat','past.life','past.lives','soul.before',
+    // Esoteric practice
+    'witchcraft','spell.work','spell.cast','ritual','sigil','ouija','spirit.board','seance',
+    'medium(ship)?','channeling','automatic.writing','levitat','telepor','tulpa',
+    // Sleep paralysis (bare term + variants)
+    'sleep.paralysis','couldnt.move','couldn.t.move','pinned.to.bed','paralyzed.in.bed',
+    'bed.paralysis','old.hag','hag.attack','incubus','succubus','sleep.paralysis',
+    'pressed.down.on','weight.on.my.chest','presence.on.my.chest','paralysis.episode',
+    // Glitch / reality shift
+    'glitch','glitch.in.the.matrix','simulation','reality.shift','reality.glitch',
+    'unrecognizable','familiar.place.became','place.changed.somehow',
+    // Dream phenomena
+    'recurring.dream','lucid.dream','prophetic.dream','mutual.dream','shared.dream',
+    'dream.figure','dream.entity','dream.warning',
+    // Shared / NDE adjacent
+    'shared.death','deathbed.vision','crossed.over','met.deceased',
+  ].join('|') + ')\\b',
+  'i'
+)
 
 function parseArgs() {
   const a = process.argv.slice(2)
