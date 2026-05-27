@@ -389,19 +389,37 @@ async function searchMultilangWikipedia(p: Phenomenon, extraQueries: string[] = 
 // likely a romanization of something).
 async function getTranslatedAliases(p: Phenomenon): Promise<string[]> {
   if (!ANTHROPIC_API_KEY) return []
-  const system = `You translate regional folklore / paranormal phenomenon names back to their native scripts for image search.
+  // V11.17.39 — generalized from a narrow translation-only pass to
+  // full query EXPANSION. The Paradocs phenomenon slugs are often
+  // compound editorial labels ("Metallic Disc UFO") that don't match
+  // how images are titled on Wikimedia/Commons/OpenVerse. We need
+  // broader, more search-friendly query terms.
+  //
+  // For each phenomenon, Haiku returns up to 6 alternative queries
+  // spanning: native-script translation (when applicable), broader
+  // synonym ("Metallic Disc UFO" → "flying saucer"), iconic-case
+  // names ("Kenneth Arnold sighting"), associated visual descriptors
+  // ("orange orb in sky"), and named sub-types.
+  const system = `You generate IMAGE-SEARCH-FRIENDLY query terms for a paranormal/anomalous phenomenon. The phenomenon slug + name is typically a compound editorial label that doesn't match how images are titled on Wikimedia Commons, OpenVerse, or regional Wikipedia. Your job is to suggest 3-6 alternative search queries that would yield iconic / representative images.
 
-Given a phenomenon name (typically a romanization) + a brief description, return a JSON array of native-script forms that would match Wikipedia article titles in the source language.
+Cover these query types as relevant:
+  - Native-script forms (e.g. "Cheonyeo Gwishin" → "처녀귀신")
+  - Broader common synonym (e.g. "Metallic Disc UFO" → "flying saucer")
+  - Iconic case name (e.g. "Disc UFO" → "Kenneth Arnold sighting")
+  - Visual descriptor (e.g. "Orange Orb" → "ufo orange light at night")
+  - Related Wikipedia article topic (e.g. "Cylindrical UFO" → "cigar shaped UFO")
+  - Native language word (e.g. "Banshee" → "bean sí")
 
 Examples:
-  "Cheonyeo Gwishin" (Korean folklore) → ["처녀귀신"]
-  "Inkanyamba" (Zulu mythology) → ["Inkanyamba", "uMamlambo"]
-  "Bruja Work" (Latin American witchcraft) → ["bruja", "brujería"]
-  "Tengu" (Japanese yokai) → ["天狗", "tengu"]
-  "Banshee" (Irish folklore) → ["bean sí", "banshee"]
-  "Aztec Death Whistle" → ["silbato de la muerte", "ehecachichtli"]
+  "Metallic Disc UFO" (ufos_aliens) → ["flying saucer","UFO disc","Kenneth Arnold sighting","metallic UFO photograph","saucer-shaped craft"]
+  "Cylindrical UFO" (ufos_aliens) → ["cigar shaped UFO","cylindrical flying object","UFO over Aurora","tubular UFO"]
+  "Cheonyeo Gwishin" (ghosts_hauntings) → ["처녀귀신","Korean virgin ghost","sotgaks","Korean horror"]
+  "Inkanyamba" (cryptids) → ["Inkanyamba","Howick Falls monster","KwaZulu serpent","Mlondi"]
+  "Pleiadian" (ufos_aliens) → ["Pleiades star cluster","Pleiadian contactee","Semjase","Billy Meier photograph"]
+  "Bruja Work" (esoteric_practices) → ["brujería","Spanish witch","curandera","limpia ritual","Latin American witchcraft"]
+  "Lichtenberg Figure" (perception_sensory) → ["Lichtenberg figure","fractal burn","lightning skin pattern"]
 
-Return UP TO 4 forms. If the name is already in a Latin script and no obvious native-script form applies, return an empty array []. Output ONLY the JSON array, no markdown.`
+Return ONLY a JSON array of strings, no markdown. UP TO 6 entries. Each entry should be a query you'd actually type into Google Images or Wikimedia search.`
 
   try {
     const resp = await fetch(ANTHROPIC_MESSAGES_URL, {
@@ -889,20 +907,36 @@ async function processPhenomenon(sb: any, p: Phenomenon): Promise<ProcessResult>
   // detailed articles in the native-language Wikipedia.
   if (candidates.length < 3) addCandidates(await searchMultilangWikipedia(p))
 
-  // Layer 4.5: Translation pass — if multilang Wikipedia still thin,
-  // ask Haiku for native-script translations of the phenomenon name
-  // (e.g., "Cheonyeo Gwishin" → "처녀귀신"). Re-query multilang Wikipedia
-  // with the translated forms. Catches the romanization-vs-native-script
-  // mismatch that blocks regional folklore search.
-  if (candidates.length < 3) {
-    const translated = await getTranslatedAliases(p)
-    if (translated.length > 0) {
-      addCandidates(await searchMultilangWikipedia(p, translated))
-      // Also feed translated forms through OpenVerse — they sometimes
-      // return native-script museum collection entries.
-      for (const t of translated.slice(0, 2)) {
-        if (candidates.length >= 5) break
-        addCandidates(await searchOpenverse(t, 3))
+  // Layer 4.5: Query EXPANSION pass — runs when prior layers still
+  // returned thin. Asks Haiku for 3-6 alternative search queries:
+  // native-script translations ("Cheonyeo Gwishin" → "처녀귀신"),
+  // common synonyms ("Metallic Disc UFO" → "flying saucer"),
+  // iconic case names ("Disc UFO" → "Kenneth Arnold sighting"),
+  // visual descriptors. Re-runs each prior source with each expanded
+  // query. This is the layer that rescues compound editorial slugs
+  // ("Metallic Disc UFO" — no image is titled that, but "flying saucer"
+  // + "Kenneth Arnold" yield rich hits).
+  if (candidates.length < 5) {
+    const expandedQueries = await getTranslatedAliases(p)
+    if (expandedQueries.length > 0) {
+      for (const q of expandedQueries) {
+        if (candidates.length >= 8) break
+        // English Wikipedia article pageimage — the broader synonym
+        // may match an article that the original slug name didn't.
+        const wpEnHit = await fetchWikipediaPageImage(q)
+        if (wpEnHit) addCandidates([wpEnHit])
+        if (candidates.length >= 8) break
+        // Wikimedia Commons keyword search with the expanded query
+        addCandidates(await searchWikimedia(q, 3))
+        if (candidates.length >= 8) break
+        // OpenVerse with the expanded query — sometimes catches
+        // native-script museum collection entries.
+        addCandidates(await searchOpenverse(q, 3))
+      }
+      // Multi-lang Wikipedia also gets the expanded queries since some
+      // are native-script translations.
+      if (candidates.length < 5) {
+        addCandidates(await searchMultilangWikipedia(p, expandedQueries))
       }
     }
   }
