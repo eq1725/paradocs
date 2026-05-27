@@ -136,7 +136,7 @@ async function fetchWikipediaPageImage(title: string): Promise<Candidate | null>
   let resp
   try {
     resp = await rateLimitedWikimediaFetch(WIKIPEDIA_API + '?' + params.toString(), {
-      headers: { 'User-Agent': 'Paradocs-ImageAdopt/1.0 (https://www.discoverparadocs.com)' },
+      headers: { 'User-Agent': 'ParadocsBot/1.0 (https://www.discoverparadocs.com; williamschaseh@gmail.com)' },
     })
   } catch (e: any) { return null }
   if (!resp.ok) return null
@@ -196,25 +196,59 @@ async function searchWikipediaForPhenomenon(p: Phenomenon): Promise<Candidate | 
 // We use a simple token-bucket-style throttle: minimum 200ms between
 // consecutive calls (5 req/sec, well under their limit), plus
 // exponential backoff on 429.
-const WIKIMEDIA_MIN_INTERVAL_MS = 200
+// V11.17.39 — Wikimedia rate-limit handling, hardened V2 after seeing
+// the API put us in a multi-minute penalty box during the v4 run.
+// New strategy:
+//   - Slower throttle: 500ms minimum between calls (2 req/sec).
+//   - Bigger backoff: 30s, 60s, 120s on 429.
+//   - Consecutive-429 detector: if we see 5 in a row, pause ALL
+//     Wikimedia traffic for 5 minutes (Wikimedia's penalty windows
+//     are usually 1-10 min — better to wait than burn retries).
+//   - Honors Retry-After header if present.
+const WIKIMEDIA_MIN_INTERVAL_MS = 500
 let lastWikimediaCallAt = 0
+let consecutive429s = 0
+let wikimediaPausedUntil = 0
 
 async function rateLimitedWikimediaFetch(url: string, init?: RequestInit, maxRetries = 3): Promise<Response> {
+  // Global pause check — if a previous burst of 429s put us in cooldown,
+  // wait it out before issuing any new request.
+  if (wikimediaPausedUntil > Date.now()) {
+    const waitMs = wikimediaPausedUntil - Date.now()
+    console.warn('  wikimedia paused — waiting ' + Math.floor(waitMs / 1000) + 's for penalty box to clear')
+    await new Promise(r => setTimeout(r, waitMs))
+  }
+
   for (let attempt = 0; attempt < maxRetries; attempt++) {
-    // Throttle: ensure WIKIMEDIA_MIN_INTERVAL_MS since last call
     const elapsed = Date.now() - lastWikimediaCallAt
     if (elapsed < WIKIMEDIA_MIN_INTERVAL_MS) {
       await new Promise(r => setTimeout(r, WIKIMEDIA_MIN_INTERVAL_MS - elapsed))
     }
     lastWikimediaCallAt = Date.now()
     const resp = await fetch(url, init)
-    if (resp.status !== 429) return resp
-    // 429: exponential backoff (1s, 2s, 4s)
-    const backoffMs = 1000 * Math.pow(2, attempt)
-    console.warn('  wikimedia 429 — backing off ' + backoffMs + 'ms (attempt ' + (attempt + 1) + '/' + maxRetries + ')')
+    if (resp.status !== 429) {
+      consecutive429s = 0
+      return resp
+    }
+    consecutive429s++
+    // 429 — check Retry-After header, fall back to exponential
+    const retryAfterHeader = resp.headers.get('Retry-After')
+    let backoffMs = 30000 * Math.pow(2, attempt) // 30s, 60s, 120s
+    if (retryAfterHeader) {
+      const parsed = parseInt(retryAfterHeader, 10)
+      if (!Number.isNaN(parsed)) backoffMs = Math.max(parsed * 1000, backoffMs)
+    }
+    // If we've hit 5 consecutive 429s, set a global pause flag — no
+    // more Wikimedia traffic for 5 minutes.
+    if (consecutive429s >= 5) {
+      wikimediaPausedUntil = Date.now() + 5 * 60 * 1000
+      console.warn('  wikimedia 429 streak of ' + consecutive429s + ' — pausing ALL Wikimedia traffic for 5 min')
+      consecutive429s = 0
+      return resp // give up on this request; caller treats as empty
+    }
+    console.warn('  wikimedia 429 — backing off ' + Math.floor(backoffMs / 1000) + 's (attempt ' + (attempt + 1) + '/' + maxRetries + ', consec=' + consecutive429s + ')')
     await new Promise(r => setTimeout(r, backoffMs))
   }
-  // Final attempt — even if 429, return so caller can decide
   lastWikimediaCallAt = Date.now()
   return fetch(url, init)
 }
@@ -234,7 +268,7 @@ async function searchWikimedia(query: string, limit = 5): Promise<Candidate[]> {
   let searchRes
   try {
     searchRes = await rateLimitedWikimediaFetch(WIKIMEDIA_API + '?' + params.toString(), {
-      headers: { 'User-Agent': 'Paradocs-ImageAdopt/1.0 (https://www.discoverparadocs.com)' },
+      headers: { 'User-Agent': 'ParadocsBot/1.0 (https://www.discoverparadocs.com; williamschaseh@gmail.com)' },
     })
   } catch (e: any) {
     console.warn('  wikimedia search network error: ' + (e?.message || e))
@@ -264,7 +298,7 @@ async function searchWikimedia(query: string, limit = 5): Promise<Candidate[]> {
     origin: '*',
   })
   const infoRes = await rateLimitedWikimediaFetch(WIKIMEDIA_API + '?' + infoParams.toString(), {
-    headers: { 'User-Agent': 'Paradocs-ImageAdopt/1.0 (https://www.discoverparadocs.com)' },
+    headers: { 'User-Agent': 'ParadocsBot/1.0 (https://www.discoverparadocs.com; williamschaseh@gmail.com)' },
   })
   if (!infoRes.ok) return []
   const infoData = await infoRes.json()
@@ -369,7 +403,7 @@ async function searchOpenverse(query: string, limit = 5): Promise<Candidate[]> {
   let resp
   try {
     resp = await fetch(OPENVERSE_API + '?' + params.toString(), {
-      headers: { 'User-Agent': 'Paradocs-ImageAdopt/1.0 (https://www.discoverparadocs.com)' },
+      headers: { 'User-Agent': 'ParadocsBot/1.0 (https://www.discoverparadocs.com; williamschaseh@gmail.com)' },
     })
   } catch (e: any) {
     console.warn('  openverse network error: ' + (e?.message || e))
@@ -426,7 +460,7 @@ async function searchMultilangWikipedia(p: Phenomenon, extraQueries: string[] = 
           redirects: '1',
         })
         const resp = await rateLimitedWikimediaFetch(api + '?' + params.toString(), {
-          headers: { 'User-Agent': 'Paradocs-ImageAdopt/1.0 (https://www.discoverparadocs.com)' },
+          headers: { 'User-Agent': 'ParadocsBot/1.0 (https://www.discoverparadocs.com; williamschaseh@gmail.com)' },
         })
         if (!resp.ok) continue
         const data: any = await resp.json()
@@ -578,7 +612,7 @@ async function searchGoogleCSE(query: string, limit = 5): Promise<Candidate[]> {
   let resp
   try {
     resp = await fetch('https://www.googleapis.com/customsearch/v1?' + params.toString(), {
-      headers: { 'User-Agent': 'Paradocs-ImageAdopt/1.0 (https://www.discoverparadocs.com)' },
+      headers: { 'User-Agent': 'ParadocsBot/1.0 (https://www.discoverparadocs.com; williamschaseh@gmail.com)' },
     })
   } catch (e: any) {
     console.warn('  google-cse network error: ' + (e?.message || e))
@@ -629,7 +663,7 @@ async function searchBingImages(query: string, limit = 5): Promise<Candidate[]> 
     resp = await fetch(BING_API + '?' + params.toString(), {
       headers: {
         'Ocp-Apim-Subscription-Key': apiKey,
-        'User-Agent': 'Paradocs-ImageAdopt/1.0 (https://www.discoverparadocs.com)',
+        'User-Agent': 'ParadocsBot/1.0 (https://www.discoverparadocs.com; williamschaseh@gmail.com)',
       },
     })
   } catch (e: any) {
@@ -753,7 +787,7 @@ async function haikuPickCandidate(
     const c = visionCandidates[i]
     try {
       const r = await fetch(c.url, {
-        headers: { 'User-Agent': 'Paradocs-ImageAdopt/1.0 (https://www.discoverparadocs.com)' },
+        headers: { 'User-Agent': 'ParadocsBot/1.0 (https://www.discoverparadocs.com; williamschaseh@gmail.com)' },
       })
       if (!r.ok) continue
       // Accept image/* only; skip anything else (Wikimedia occasionally
@@ -866,7 +900,7 @@ async function haikuPickCandidate(
 async function fetchImageBuffer(url: string): Promise<Buffer | null> {
   try {
     const resp = await fetch(url, {
-      headers: { 'User-Agent': 'Paradocs-ImageAdopt/1.0 (https://www.discoverparadocs.com)' },
+      headers: { 'User-Agent': 'ParadocsBot/1.0 (https://www.discoverparadocs.com; williamschaseh@gmail.com)' },
     })
     if (!resp.ok) {
       console.warn('  image fetch ' + resp.status + ' for ' + url)
