@@ -26,6 +26,7 @@
 
 import 'dotenv/config'
 import { createClient } from '@supabase/supabase-js'
+import Anthropic from '@anthropic-ai/sdk'
 import * as fs from 'fs'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -95,6 +96,39 @@ function parseArgs() {
   return {
     apply: bool('--apply'),
     csv: flag('--csv'),
+    haiku: bool('--haiku'),  // V11.17.39 — run Haiku verification on regex-failing reports
+  }
+}
+
+const HAIKU_PROMPT = `You are auditing whether a report describes a paranormal, anomalous, or supernatural experience suitable for inclusion in the Paradocs encyclopedia.
+
+PARADOCS COVERS: UFO/UAP sightings, ghost/spirit/apparition encounters, hauntings, poltergeists, cryptids (Bigfoot, Mothman, etc.), near-death and out-of-body experiences, premonitions and precognitive dreams, telepathy, psychokinesis, sleep paralysis with entity, possession, time slips, missing time, anomalous memory, synchronicity, manifestation, vanishing/appearing objects, mediumship, exorcism, shared death experiences, and similar.
+
+PARADOCS DOES NOT COVER: medical incidents (lightning strikes, dental pain, hypothermia), wildlife encounters (charging animals, dangerous predators), severe weather (tornadoes, hurricanes), recreational drug experiences (mushroom trips, psilocybin), survival/navigation stories (lost in woods, found by stranger), historical tours, technological inventions, animal behavior observations, or generic dramatic personal stories without anomalous content.
+
+Respond with ONLY a single-line JSON object (no markdown):
+{
+  "paranormal": true | false,
+  "category_hint": "ufos_aliens" | "ghosts_hauntings" | "cryptids" | "psychological_experiences" | "psychic_phenomena" | "consciousness_practices" | "esoteric_practices" | "religion_mythology" | "perception_sensory" | null,
+  "reason": "<one-sentence justification>"
+}
+
+Be conservative — when in doubt, say paranormal=true (we'd rather keep a borderline-anomalous report than archive a real one).`
+
+async function haikuVerify(anth: Anthropic, title: string, description: string): Promise<{ paranormal: boolean; category_hint: string | null; reason: string } | null> {
+  try {
+    const resp = await anth.messages.create({
+      model: 'claude-haiku-4-5',
+      max_tokens: 200,
+      system: HAIKU_PROMPT,
+      messages: [{ role: 'user', content: 'TITLE: ' + title + '\n\nDESCRIPTION:\n' + (description || '').substring(0, 1500) }],
+    })
+    const block = resp.content[0]
+    if (block.type !== 'text') return null
+    const cleaned = block.text.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()
+    return JSON.parse(cleaned)
+  } catch (_e) {
+    return null
   }
 }
 
@@ -132,13 +166,67 @@ async function main() {
   console.log('=== Would PASS the new gate (paranormal keywords present) ===')
   console.log('Count:', passing.length)
   console.log()
-  console.log('=== Would FAIL the new gate (no paranormal keywords) ===')
+  console.log('=== Would FAIL the regex gate (no paranormal keywords) ===')
   console.log('Count:', failing.length)
   console.log()
   for (const r of failing) {
     const title = (r.title || '').substring(0, 90)
     const cat = (r.category || '?').substring(0, 20)
     console.log('  ' + r.id.substring(0, 8) + ' | ' + cat.padEnd(22) + ' | ' + title)
+  }
+
+  // V11.17.39 — Haiku second-pass on regex-failing reports. Regex catches
+  // explicit vocabulary but misses implicit paranormal content ("Three
+  // Silent Objects" = UFO, "Teepee Vanish from Childhood Road" = apparition,
+  // "Child's Nightmare Mirrors Parent's Crisis" = shared/telepathic dream).
+  // Haiku reads the description and decides whether the report belongs on
+  // Paradocs. Reports Haiku confirms as paranormal are MOVED OUT of the
+  // archive list and into a "keep" list with optional category_hint.
+  //
+  // Cost: 27 reports × ~$0.0002 each = ~$0.005. Tiny.
+  let haikuConfirmedFails: any[] = failing
+  const haikuKeeps: any[] = []
+  if (args.haiku && failing.length > 0) {
+    const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
+    if (!ANTHROPIC_API_KEY) {
+      console.log('\n! --haiku requested but ANTHROPIC_API_KEY missing; skipping')
+    } else {
+      console.log('\n=== Running Haiku verification on ' + failing.length + ' regex-failing reports ===')
+      const anth = new Anthropic({ apiKey: ANTHROPIC_API_KEY })
+      const trueFails: any[] = []
+      for (let i = 0; i < failing.length; i++) {
+        const r = failing[i]
+        const verdict = await haikuVerify(anth, r.title || '', r.description || r.summary || '')
+        if (!verdict) {
+          // Haiku failure → safer to keep
+          haikuKeeps.push({ ...r, _verdict: { paranormal: true, reason: '(Haiku verify failed; defaulting to keep)' } })
+          continue
+        }
+        if (verdict.paranormal) {
+          haikuKeeps.push({ ...r, _verdict: verdict })
+        } else {
+          trueFails.push({ ...r, _verdict: verdict })
+        }
+        // Progress dot
+        process.stdout.write(verdict.paranormal ? '·' : 'x')
+      }
+      console.log()
+      haikuConfirmedFails = trueFails
+      console.log()
+      console.log('Haiku rescued (paranormal-but-regex-missed):')
+      for (const r of haikuKeeps) {
+        console.log('  KEEP ' + r.id.substring(0, 8) + ' | ' + (r._verdict?.category_hint || '?').padEnd(20) + ' | ' + (r.title || '').substring(0, 80))
+        if (r._verdict?.reason) console.log('       reason: ' + r._verdict.reason.substring(0, 100))
+      }
+      console.log()
+      console.log('Haiku confirmed non-paranormal (safe to archive):')
+      for (const r of trueFails) {
+        console.log('  ARCHIVE ' + r.id.substring(0, 8) + ' | ' + (r.category || '?').padEnd(20) + ' | ' + (r.title || '').substring(0, 80))
+        if (r._verdict?.reason) console.log('          reason: ' + r._verdict.reason.substring(0, 100))
+      }
+      console.log()
+      console.log('Final tally: ' + haikuKeeps.length + ' rescued / ' + trueFails.length + ' confirmed to archive')
+    }
   }
 
   // Optional CSV export
@@ -166,19 +254,25 @@ async function main() {
     console.log('\nWrote ' + lines.length + ' rows to ' + args.csv)
   }
 
-  if (args.apply && failing.length > 0) {
-    console.log('\nArchiving ' + failing.length + ' failing reports...')
+  // Pick the actual archive list:
+  //   - If --haiku was used: only archive Haiku-confirmed non-paranormal
+  //   - If --haiku wasn't used: archive everything that failed regex
+  const archiveList = args.haiku ? haikuConfirmedFails : failing
+
+  if (args.apply && archiveList.length > 0) {
+    console.log('\nArchiving ' + archiveList.length + ' reports...')
     let archived = 0
     let errs = 0
-    for (const r of failing) {
+    for (const r of archiveList) {
+      const note = (r._verdict?.reason
+        ? 'V11.17.39 (#22) — Haiku confirmed non-paranormal: ' + r._verdict.reason
+        : 'V11.17.39 (#22) — failed paranormal-bearing regex gate retroactive audit'
+      ).substring(0, 1000)
       // V10.13 — reports use status='archived' for soft-delete (deleted_at
       // is for hard-delete trail). Setting status='archived' hides from
       // feeds + encyclopedia but preserves for reversal.
       const { error: upErr } = await s.from('reports')
-        .update({
-          status: 'archived',
-          moderation_notes: 'V11.17.39 (#22) — failed paranormal-bearing gate retroactive audit: no anomalous keywords in title/description/summary',
-        })
+        .update({ status: 'archived', moderation_notes: note })
         .eq('id', r.id)
       if (upErr) { errs++; continue }
       archived++
@@ -186,8 +280,14 @@ async function main() {
     console.log('Archived: ' + archived)
     console.log('Errors:   ' + errs)
   } else if (!args.apply) {
-    console.log('\nDry-run complete. To actually archive these reports, re-run with --apply:')
-    console.log('  npx tsx scripts/audit-existing-youtube-reports.ts --apply')
+    console.log('\nDry-run complete.')
+    if (!args.haiku) {
+      console.log('Recommended next step: re-run with --haiku to verify regex-failures via AI:')
+      console.log('  npx tsx scripts/audit-existing-youtube-reports.ts --haiku')
+    } else {
+      console.log('To archive the ' + haikuConfirmedFails.length + ' Haiku-confirmed non-paranormal reports:')
+      console.log('  npx tsx scripts/audit-existing-youtube-reports.ts --haiku --apply')
+    }
   }
 }
 
