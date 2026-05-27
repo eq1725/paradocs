@@ -251,9 +251,13 @@ async function searchWikimedia(query: string, limit = 5): Promise<Candidate[]> {
       'unknown'
     const author = (meta.Artist?.value as string) || 'Unknown'
     const description = (meta.ImageDescription?.value as string) || page.title
+    // V11.17.39 — wrap URL in wikimediaThumb to cap at 1200px. Without
+    // this, Wikimedia returns the FULL-resolution original (often 8000+
+    // pixels wide for panoramic images), which trips Claude's 8000px
+    // dimension limit at vision-input time.
     candidates.push({
       title: page.title,
-      url: info.url,
+      url: wikimediaThumb(info.url, 1200),
       description: stripHtml(description).substring(0, 300),
       license: stripHtml(license),
       attribution: stripHtml(author) + ' (' + stripHtml(license) + ')',
@@ -272,6 +276,39 @@ function stripHtml(s: string): string {
     .replace(/&gt;/g, '>')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+// V11.17.39 — Wikimedia thumbnail rewrite.
+//
+// Wikimedia hosts original-resolution images that frequently exceed
+// Claude's 8000-pixel-per-side limit (panoramic Wikipedia images can
+// be 16,000+ px wide). Their CDN serves a thumb at ANY requested width
+// by inserting `/thumb/<path>/<W>px-<filename>` between the bucket
+// and the file. This helper transforms an original URL into a 1200px
+// thumb URL.
+//
+// Original: https://upload.wikimedia.org/wikipedia/commons/a/b/Foo.jpg
+// Thumb:    https://upload.wikimedia.org/wikipedia/commons/thumb/a/b/Foo.jpg/1200px-Foo.jpg
+//
+// Non-wikimedia URLs pass through unchanged.
+function wikimediaThumb(url: string, maxPx = 1200): string {
+  if (!url) return url
+  // Only rewrite upload.wikimedia.org URLs.
+  if (!/^https?:\/\/upload\.wikimedia\.org\//.test(url)) return url
+  // If already a thumb, swap the size component.
+  const existingThumb = url.match(/\/thumb\/([\s\S]+?)\/(\d+)px-([^/?#]+)/)
+  if (existingThumb) {
+    return url.replace(/\/\d+px-([^/?#]+)/, '/' + maxPx + 'px-$1')
+  }
+  // Transform original to thumb: insert /thumb/ + append /<size>px-<filename>
+  // URL shape: https://upload.wikimedia.org/wikipedia/<project>/<a>/<bc>/<filename>
+  const m = url.match(/^(https?:\/\/upload\.wikimedia\.org\/wikipedia\/[^/]+\/)([^/]+\/[^/]+)\/([^/?#]+)(.*)$/)
+  if (!m) return url
+  const base = m[1]            // https://upload.wikimedia.org/wikipedia/commons/
+  const hash = m[2]            // a/bc
+  const file = m[3]            // Foo.jpg
+  const suffix = m[4]          // ?query or empty
+  return base + 'thumb/' + hash + '/' + file + '/' + maxPx + 'px-' + file + suffix
 }
 
 // ─── OpenVerse search (V11.17.39, layer 2) ────────────────────────────
@@ -309,7 +346,9 @@ async function searchOpenverse(query: string, limit = 5): Promise<Candidate[]> {
   const results: any[] = data.results || []
   return results.filter(r => r.url && r.mime_type?.startsWith('image/')).map(r => ({
     title: 'OpenVerse: ' + (r.title || r.id || '').substring(0, 100),
-    url: r.url,
+    // V11.17.39 — wikimediaThumb() is a no-op for non-Wikimedia URLs
+    // (most OpenVerse results), but cleanly caps Wikimedia-backed ones.
+    url: wikimediaThumb(r.url, 1200),
     description: stripHtml(r.title || '').substring(0, 300),
     license: r.license + (r.license_version ? ' ' + r.license_version : ''),
     attribution: 'Image by ' + (r.creator || 'Unknown') + ' via ' + (r.source || 'OpenVerse') + ' (' + r.license + ')',
@@ -688,10 +727,30 @@ async function haikuPickCandidate(
       const supported = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
       if (!supported.includes(mime)) continue
       const ab = await r.arrayBuffer()
-      if (ab.byteLength > 5 * 1024 * 1024) continue  // 5MB cap per image
-      const b64 = Buffer.from(ab).toString('base64')
+
+      // V11.17.39 — defense-in-depth: always re-encode candidates through
+      // sharp before sending to Claude. Caps dimensions at 1200px AND
+      // produces a clean JPEG. Belt-and-braces against:
+      //   - Wikimedia thumb URLs that returned the wrong dimensions
+      //   - OpenVerse / Google CSE / Bing images > 8000px per side
+      //   - Files that say "image/jpeg" but are actually corrupt
+      //   - Multi-megabyte files that bloat the request body
+      // sharp is already imported and used downstream for the final
+      // adoption; running it here doubles as a corruption filter.
+      let resizedBuffer: Buffer
+      try {
+        resizedBuffer = await sharp(Buffer.from(ab))
+          .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 82 })
+          .toBuffer()
+      } catch (_e) {
+        continue  // unreadable image (corrupt, animated GIF that sharp can't handle, etc.)
+      }
+      if (resizedBuffer.length > 5 * 1024 * 1024) continue  // hard ceiling
+
+      const b64 = resizedBuffer.toString('base64')
       content.push({ type: 'text', text: 'Candidate [' + inlinedIndices.length + '] — title: "' + c.title.substring(0, 120) + '"' })
-      content.push({ type: 'image', source: { type: 'base64', media_type: mime, data: b64 } })
+      content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } })
       inlinedIndices.push(i)
     } catch (_e) {
       // Skip this candidate, continue to next.
