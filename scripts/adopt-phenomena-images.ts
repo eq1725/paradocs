@@ -334,11 +334,25 @@ async function haikuPickCandidate(
     '{"pick": <index|null>, "confidence": <0-100>, "alt": "<descriptive alt-text>", "reason": "<one sentence>"}',
   ].join('\n')
 
-  // Build the multimodal content array. Each candidate becomes a label
-  // followed by an image content block referencing the Wikimedia URL.
+  if (visionCandidates.length === 0) {
+    return { pickIndex: null, confidence: 0, altText: '', reason: 'all candidates were SVG/unsupported' }
+  }
+
+  // V11.17.39 — download images ourselves with proper Wikimedia User-Agent,
+  // then base64-encode for the Haiku request. The previous url-source
+  // version failed because Anthropic's image fetcher hits Wikimedia
+  // without the User-Agent header Wikipedia infrastructure requires
+  // (Wikipedia blocks default UAs returning "Unable to download the file").
+  // Base64 sidesteps that: Anthropic never touches Wikimedia.
+  //
+  // Bandwidth cost: ~150-800KB per image × 5 candidates = ~1-4MB per
+  // phenomenon. Across 789 phenomena that's ~1-3GB of one-time download.
+  // Anthropic charges by tokens, not bytes, and image-token cost is the
+  // same as URL-source mode, so no per-call cost change. We do pay our
+  // own egress on the laptop downloading from Wikimedia.
   type ContentBlock =
     | { type: 'text'; text: string }
-    | { type: 'image'; source: { type: 'url'; url: string } }
+    | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
   const content: ContentBlock[] = [{
     type: 'text',
     text: [
@@ -349,18 +363,42 @@ async function haikuPickCandidate(
       'Examine each candidate image below and pick the one that best depicts the phenomenon.',
     ].filter(Boolean).join('\n'),
   }]
+
+  // Download each image once, base64 encode, attach as inline image block.
+  // Hard fail-tolerant: any image that 404s, 403s, exceeds 5MB, or has
+  // unexpected MIME just gets skipped (rest still get evaluated).
+  const inlinedIndices: number[] = []  // tracks which visionCandidates we actually included
   for (let i = 0; i < visionCandidates.length; i++) {
     const c = visionCandidates[i]
-    content.push({ type: 'text', text: 'Candidate [' + i + '] — title: "' + c.title.substring(0, 120) + '"' })
-    content.push({ type: 'image', source: { type: 'url', url: c.url } })
+    try {
+      const r = await fetch(c.url, {
+        headers: { 'User-Agent': 'Paradocs-ImageAdopt/1.0 (https://www.discoverparadocs.com)' },
+      })
+      if (!r.ok) continue
+      // Accept image/* only; skip anything else (Wikimedia occasionally
+      // hands back PDFs that slipped past the search-side MIME filter).
+      const mime = r.headers.get('content-type')?.split(';')[0].trim() || ''
+      if (!mime.startsWith('image/')) continue
+      // Anthropic supports jpeg, png, gif, webp. Skip exotic formats.
+      const supported = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+      if (!supported.includes(mime)) continue
+      const ab = await r.arrayBuffer()
+      if (ab.byteLength > 5 * 1024 * 1024) continue  // 5MB cap per image
+      const b64 = Buffer.from(ab).toString('base64')
+      content.push({ type: 'text', text: 'Candidate [' + inlinedIndices.length + '] — title: "' + c.title.substring(0, 120) + '"' })
+      content.push({ type: 'image', source: { type: 'base64', media_type: mime, data: b64 } })
+      inlinedIndices.push(i)
+    } catch (_e) {
+      // Skip this candidate, continue to next.
+    }
   }
   content.push({
     type: 'text',
     text: 'Return JSON with your pick (or null) + descriptive alt-text for the chosen image.',
   })
 
-  if (visionCandidates.length === 0) {
-    return { pickIndex: null, confidence: 0, altText: '', reason: 'all candidates were SVG/unsupported' }
+  if (inlinedIndices.length === 0) {
+    return { pickIndex: null, confidence: 0, altText: '', reason: 'no candidates downloadable' }
   }
 
   let resp
@@ -384,7 +422,13 @@ async function haikuPickCandidate(
     return { pickIndex: null, confidence: 0, altText: '', reason: 'haiku network error: ' + (e?.message || e) }
   }
   if (!resp.ok) {
-    return { pickIndex: null, confidence: 0, altText: '', reason: 'haiku ' + resp.status }
+    // V11.17.39 — surface the actual error body so we can debug 400s.
+    // Previously this silently returned "haiku 400" with no detail,
+    // making it impossible to tell whether the API rejected our request
+    // shape, the model, or the URL-source image format.
+    let body = ''
+    try { body = (await resp.text()).substring(0, 1500) } catch (_e) {}
+    return { pickIndex: null, confidence: 0, altText: '', reason: 'haiku ' + resp.status + ': ' + body }
   }
   const data = await resp.json()
   const text = data?.content?.[0]?.text || ''
@@ -395,13 +439,15 @@ async function haikuPickCandidate(
     if (s >= 0 && e > s) parsed = JSON.parse(text.substring(s, e + 1))
   } catch (_e) { /* parse failure */ }
   if (!parsed) return { pickIndex: null, confidence: 0, altText: '', reason: 'haiku parse failure' }
-  // V11.17.39 — Haiku's `pick` is an index into the vision-filtered
-  // candidates array. Map it back to the original candidates array
-  // (which the caller indexes for download/upload). We find the
-  // visionCandidates[i] in the original candidates list by URL match.
-  const visionIdx = typeof parsed.pick === 'number' ? parsed.pick : null
+  // V11.17.39 — Haiku's `pick` is an index into the inlined images
+  // (which is a subset of visionCandidates, which is a subset of the
+  // original candidates). Three-step remap to find the original index:
+  //   haiku.pick → inlinedIndices[pick] → visionCandidates[that].url →
+  //   candidates.findIndex(c.url === url)
+  const haikuIdx = typeof parsed.pick === 'number' ? parsed.pick : null
   let originalIdx: number | null = null
-  if (visionIdx !== null && visionIdx >= 0 && visionIdx < visionCandidates.length) {
+  if (haikuIdx !== null && haikuIdx >= 0 && haikuIdx < inlinedIndices.length) {
+    const visionIdx = inlinedIndices[haikuIdx]
     const pickedUrl = visionCandidates[visionIdx].url
     originalIdx = candidates.findIndex(c => c.url === pickedUrl)
     if (originalIdx < 0) originalIdx = null
@@ -526,12 +572,22 @@ async function processPhenomenon(sb: any, p: Phenomenon): Promise<ProcessResult>
   // Aliases are tried in source #1 (Wikipedia) but NOT OR'd into the
   // Commons search (would pull in unrelated noise — the old behavior
   // that caused 5-candidate-result-rejected for Fresno Nightcrawler).
+  // V11.17.39 — always supplement the Wikipedia pageimage with a few
+  // Commons hits so Haiku has multiple options. Previously Commons was
+  // only consulted when Wikipedia returned nothing. For phenomena where
+  // Wikipedia has a generic article-thumb (a stub map, a logo) but
+  // Commons has the iconic image, this lets Haiku pick the iconic one
+  // instead of being stuck with the weak Wikipedia hit. Dedup by URL.
   const candidates: Candidate[] = []
   const wpHit = await searchWikipediaForPhenomenon(p)
   if (wpHit) candidates.push(wpHit)
-  if (candidates.length === 0) {
-    const commonsHits = await searchWikimedia(p.name, 5)
-    candidates.push(...commonsHits)
+  const commonsHits = await searchWikimedia(p.name, 5)
+  const seen = new Set(candidates.map(c => c.url))
+  for (const c of commonsHits) {
+    if (!seen.has(c.url)) {
+      candidates.push(c)
+      seen.add(c.url)
+    }
   }
   if (candidates.length === 0) {
     return { status: 'no_candidates' }
@@ -662,7 +718,7 @@ async function main() {
           break
         case 'rejected_low_confidence':
           stats.rejected++
-          process.stdout.write('✗ rejected (' + result.haiku?.confidence + '%) — ' + (result.haiku?.reason || '').substring(0, 50) + '\n')
+          process.stdout.write('✗ rejected (' + result.haiku?.confidence + '%) — ' + (result.haiku?.reason || '').substring(0, 500) + '\n')
           break
         case 'no_candidates':
           stats.no_candidates++
