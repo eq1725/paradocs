@@ -325,11 +325,12 @@ async function searchOpenverse(query: string, limit = 5): Promise<Candidate[]> {
 //
 // We pass the phenomenon's aliases through to fetchWikipediaPageImage
 // against each of the major language Wikipedias.
-async function searchMultilangWikipedia(p: Phenomenon): Promise<Candidate[]> {
+async function searchMultilangWikipedia(p: Phenomenon, extraQueries: string[] = []): Promise<Candidate[]> {
   const LANG_WIKIS = ['es', 'pt', 'fr', 'de', 'it', 'ja', 'ko', 'zh', 'ar', 'ru', 'hi', 'tr', 'nl', 'sv']
   const candidates: Candidate[] = []
-  // Build candidate queries: phenomenon name + first 3 aliases
-  const queries = [p.name, ...(p.aliases || []).slice(0, 3)]
+  // Build candidate queries: phenomenon name + first 3 aliases + extra
+  // queries (typically Haiku-translated native-script forms).
+  const queries = [p.name, ...(p.aliases || []).slice(0, 3), ...extraQueries]
   for (const lang of LANG_WIKIS) {
     if (candidates.length >= 5) break
     for (const q of queries) {
@@ -374,7 +375,135 @@ async function searchMultilangWikipedia(p: Phenomenon): Promise<Candidate[]> {
   return candidates
 }
 
-// ─── Bing Image Search (V11.17.39, layer 4 — opt-in) ──────────────────
+// ─── Haiku translation pass (V11.17.39, helper for multilang) ─────────
+//
+// For regional folklore where the romanized name doesn't match the
+// native-script Wikipedia article (e.g., "Cheonyeo Gwishin" needs
+// to query as "처녀귀신"; "Inkanyamba" needs the Zulu/Xhosa form;
+// "Bruja" benefits from "bruja" alone in Spanish Wikipedia), we ask
+// Haiku for native-script translations. Then those forms get fed
+// back into the multi-language Wikipedia search.
+//
+// Triggers only when the prior layers returned < 3 candidates AND
+// the phenomenon name looks non-Latin-script-derived (i.e., it's
+// likely a romanization of something).
+async function getTranslatedAliases(p: Phenomenon): Promise<string[]> {
+  if (!ANTHROPIC_API_KEY) return []
+  const system = `You translate regional folklore / paranormal phenomenon names back to their native scripts for image search.
+
+Given a phenomenon name (typically a romanization) + a brief description, return a JSON array of native-script forms that would match Wikipedia article titles in the source language.
+
+Examples:
+  "Cheonyeo Gwishin" (Korean folklore) → ["처녀귀신"]
+  "Inkanyamba" (Zulu mythology) → ["Inkanyamba", "uMamlambo"]
+  "Bruja Work" (Latin American witchcraft) → ["bruja", "brujería"]
+  "Tengu" (Japanese yokai) → ["天狗", "tengu"]
+  "Banshee" (Irish folklore) → ["bean sí", "banshee"]
+  "Aztec Death Whistle" → ["silbato de la muerte", "ehecachichtli"]
+
+Return UP TO 4 forms. If the name is already in a Latin script and no obvious native-script form applies, return an empty array []. Output ONLY the JSON array, no markdown.`
+
+  try {
+    const resp = await fetch(ANTHROPIC_MESSAGES_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY as string,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: HAIKU_MODEL,
+        max_tokens: 120,
+        system,
+        messages: [{
+          role: 'user',
+          content: 'PHENOMENON: ' + p.name +
+            (p.aliases?.length ? ' (aliases: ' + p.aliases.slice(0, 3).join(', ') + ')' : '') +
+            '\nCATEGORY: ' + p.category +
+            (p.ai_summary ? '\nSUMMARY: ' + p.ai_summary.substring(0, 300) : ''),
+        }],
+      }),
+    })
+    if (!resp.ok) return []
+    const data = await resp.json()
+    const text = data?.content?.[0]?.text || ''
+    const start = text.indexOf('[')
+    const end = text.lastIndexOf(']')
+    if (start < 0 || end <= start) return []
+    const arr = JSON.parse(text.substring(start, end + 1))
+    if (!Array.isArray(arr)) return []
+    return arr.filter((x: any) => typeof x === 'string' && x.length > 0 && x.length < 80).slice(0, 4)
+  } catch (_e) {
+    return []
+  }
+}
+
+// ─── Google Custom Search API (V11.17.39, layer 5 — opt-in) ───────────
+//
+// Replaces Bing Image Search which Microsoft retired in 2025. Google's
+// Programmable Search Engine + Custom Search JSON API has an explicit
+// "rights" filter for CC-licensed images, so we stay rights-safe.
+//
+// Free tier: 100 queries/day, $5/1000 after. For 544 phenomena × 1
+// query each, free tier handles it across 6 days OR ~$3 to do in one
+// shot.
+//
+// Setup:
+//   1. https://programmablesearchengine.google.com/ → "Add" a new
+//      search engine; enable "Search the entire web" + image search.
+//      Copy the Search Engine ID (looks like "017576662512468239146:...").
+//   2. https://console.cloud.google.com/apis/library/customsearch.googleapis.com
+//      → Enable. Then https://console.cloud.google.com/apis/credentials
+//      → Create API key.
+//   3. Add to .env.local:
+//        GOOGLE_CSE_API_KEY=<api_key>
+//        GOOGLE_CSE_ENGINE_ID=<search_engine_id>
+//   4. Re-run the script.
+//
+// Without these env vars, the function returns [] and gracefully skips.
+async function searchGoogleCSE(query: string, limit = 5): Promise<Candidate[]> {
+  const apiKey = process.env.GOOGLE_CSE_API_KEY
+  const engineId = process.env.GOOGLE_CSE_ENGINE_ID
+  if (!apiKey || !engineId) return []
+
+  const params = new URLSearchParams({
+    key: apiKey,
+    cx: engineId,
+    q: query,
+    searchType: 'image',
+    num: String(Math.min(limit, 10)),
+    // Rights filter — only CC-licensed images. Comma-separated list
+    // of license codes Google supports.
+    rights: 'cc_publicdomain,cc_attribute,cc_sharealike,cc_noncommercial',
+    safe: 'high',
+    imgType: 'photo',
+  })
+  let resp
+  try {
+    resp = await fetch('https://www.googleapis.com/customsearch/v1?' + params.toString(), {
+      headers: { 'User-Agent': 'Paradocs-ImageAdopt/1.0 (https://www.discoverparadocs.com)' },
+    })
+  } catch (e: any) {
+    console.warn('  google-cse network error: ' + (e?.message || e))
+    return []
+  }
+  if (!resp.ok) {
+    console.warn('  google-cse ' + resp.status)
+    return []
+  }
+  const data: any = await resp.json()
+  const results: any[] = data.items || []
+  return results.filter(r => r.link && r.mime?.startsWith('image/')).map(r => ({
+    title: 'Google CSE: ' + (r.title || '').substring(0, 100),
+    url: r.link,
+    description: stripHtml(r.snippet || r.title || '').substring(0, 300),
+    license: 'CC-licensed (Google rights-filtered)',
+    attribution: 'Image from <a href="' + r.image?.contextLink + '" rel="noopener" target="_blank">' + (r.displayLink || 'web') + '</a>',
+    source: 'bing',  // reuse the bing tag for storage purposes; logical "external commercial search"
+  }))
+}
+
+// ─── Bing Image Search (V11.17.39, layer 5 fallback — opt-in) ─────────
 //
 // Bing's commercial image search API has dramatically wider coverage
 // than Wikimedia for modern + niche subjects (UFO photographs, BFRO
@@ -760,8 +889,32 @@ async function processPhenomenon(sb: any, p: Phenomenon): Promise<ProcessResult>
   // detailed articles in the native-language Wikipedia.
   if (candidates.length < 3) addCandidates(await searchMultilangWikipedia(p))
 
-  // Layer 5: Bing Image Search — only when prior layers still thin AND
-  // BING_IMAGE_SEARCH_KEY is configured. Modern + niche coverage.
+  // Layer 4.5: Translation pass — if multilang Wikipedia still thin,
+  // ask Haiku for native-script translations of the phenomenon name
+  // (e.g., "Cheonyeo Gwishin" → "처녀귀신"). Re-query multilang Wikipedia
+  // with the translated forms. Catches the romanization-vs-native-script
+  // mismatch that blocks regional folklore search.
+  if (candidates.length < 3) {
+    const translated = await getTranslatedAliases(p)
+    if (translated.length > 0) {
+      addCandidates(await searchMultilangWikipedia(p, translated))
+      // Also feed translated forms through OpenVerse — they sometimes
+      // return native-script museum collection entries.
+      for (const t of translated.slice(0, 2)) {
+        if (candidates.length >= 5) break
+        addCandidates(await searchOpenverse(t, 3))
+      }
+    }
+  }
+
+  // Layer 5: Google Custom Search (rights-filtered) — replaces Bing.
+  // Requires GOOGLE_CSE_API_KEY + GOOGLE_CSE_ENGINE_ID env vars. Modern
+  // + niche subjects, only CC-licensed results.
+  if (candidates.length < 3) addCandidates(await searchGoogleCSE(p.name, 5))
+
+  // Layer 6: Bing fallback — kept for backward compat in case someone
+  // still has a grandfathered Bing Search resource. Most users now use
+  // Google CSE (Layer 5) instead since Bing Search API was retired 2025.
   if (candidates.length < 3) addCandidates(await searchBingImages(p.name, 5))
 
   if (candidates.length === 0) {
