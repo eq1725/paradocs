@@ -80,9 +80,11 @@ export async function createMuxAssetFromUrl(
     // Stash our internal report_videos row id so webhook can lookup
     // without a Mux→Paradocs lookup table.
     passthrough: meta?.passthrough,
-    // mp4_support 'standard' gives us a direct MP4 fallback URL Mux
-    // exposes once encoding completes (used if a browser can't do HLS).
-    mp4_support: 'standard',
+    // V11.17.39 hotfix — Mux deprecated 'standard' mp4_support on
+    // basic-tier assets. 'capped-1080p' is the modern equivalent:
+    // gives us a downloadable MP4 capped at 1080p as fallback for the
+    // rare browser without HLS support.
+    mp4_support: 'capped-1080p',
   })
 
   const playback = (asset.playback_ids && asset.playback_ids[0]) || null
