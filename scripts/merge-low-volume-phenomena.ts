@@ -60,7 +60,15 @@ function parseArgs() {
     dryRun: bool('--dry-run') || !bool('--apply'),
     maxLinks: parseInt(flag('--max-links', '4') || '4'),
     keepStandalone: bool('--keep-standalone'),
+    csvOut: flag('--csv-out'),
   }
+}
+
+function csvEscape(s: any): string {
+  if (s == null) return ''
+  const str = String(s)
+  if (/[",\n\r]/.test(str)) return '"' + str.replace(/"/g, '""') + '"'
+  return str
 }
 
 const HAIKU_SYSTEM = `You categorize paranormal/anomalous phenomena into broader parent phenomena for taxonomy consolidation.
@@ -226,6 +234,41 @@ async function main() {
   console.log()
 
   if (args.dryRun) {
+    // Optional CSV export for spot-check review
+    if (args.csvOut) {
+      const fs = await import('fs')
+      const headers = ['verdict','child_slug','child_name','child_category','child_report_count','parent_slug','parent_name','confidence','reason']
+      const lines: string[] = [headers.join(',')]
+      for (const m of merges) {
+        lines.push([
+          'MERGE',
+          csvEscape(m.child.slug),
+          csvEscape(m.child.name),
+          csvEscape(m.child.category),
+          csvEscape(m.child.report_count),
+          csvEscape(m.parent.slug),
+          csvEscape(m.parent.name),
+          csvEscape(m.confidence),
+          csvEscape(m.reason),
+        ].join(','))
+      }
+      for (const sa of standalones) {
+        lines.push([
+          'STANDALONE',
+          csvEscape(sa.slug),
+          csvEscape(sa.name),
+          csvEscape(sa.category),
+          csvEscape(sa.report_count),
+          '',
+          '',
+          csvEscape(sa._verdict?.confidence || ''),
+          csvEscape(sa._verdict?.reason || '(no Haiku suggestion or sub-threshold parent)'),
+        ].join(','))
+      }
+      fs.writeFileSync(args.csvOut, lines.join('\n') + '\n')
+      console.log('Wrote ' + (lines.length - 1) + ' rows to ' + args.csvOut)
+      console.log()
+    }
     console.log('Dry-run complete.')
     console.log()
     console.log('Plan if applied:')
