@@ -19,14 +19,15 @@
 -- carries a category='psychological_experiences' so it shows up under
 -- the existing category page + match algorithm.
 
-INSERT INTO public.phenomenon_types (slug, name, category, description, created_at, updated_at)
+-- phenomenon_types schema: id, name, slug, description, icon, parent_id, created_at, category, user_submittable
+-- No updated_at column (verified V11.17.39 via service-role inspection).
+INSERT INTO public.phenomenon_types (slug, name, category, description, created_at)
 VALUES
   (
     'synchronicity',
     'Synchronicity',
     'psychological_experiences',
     'Meaningful coincidence — events that appear unrelated by causal mechanism but carry a felt connection to the witness''s inner state, often experienced as a sign or affirmation.',
-    NOW(),
     NOW()
   ),
   (
@@ -34,7 +35,6 @@ VALUES
     'Manifestation Experience',
     'psychological_experiences',
     'A specific intention, desire, or thought reported by the witness as preceding a corresponding physical event in a way that defies coincidence or conventional explanation.',
-    NOW(),
     NOW()
   ),
   (
@@ -42,7 +42,6 @@ VALUES
     'Vanishing or Appearing Object',
     'psychological_experiences',
     'A physical object disappears from one location and/or appears in another location without intermediate handling, or returns to the witness in a way that defies conventional retrieval (also known as apport phenomena in some traditions).',
-    NOW(),
     NOW()
   )
 ON CONFLICT (slug) DO NOTHING;
