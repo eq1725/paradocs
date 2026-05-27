@@ -208,12 +208,18 @@ async function searchWikimedia(query: string, limit = 5): Promise<Candidate[]> {
   const titles = (data.query?.search || []).map((s: any) => s.title) as string[]
   if (titles.length === 0) return []
 
-  // Batch fetch imageinfo for all hits
+  // Batch fetch imageinfo for all hits.
+  // V11.17.39 — added `mime` to iiprop so we can filter out non-image
+  // assets that Wikimedia's File: namespace also includes: PDFs of
+  // scanned books, scanned Wikipedia article excerpts, audio files,
+  // and videos. Previously these were getting passed to Haiku as
+  // "candidates" and Haiku correctly rejected them ("this is a PDF",
+  // "this is text"), driving the 95-100% rejection cascade.
   const infoParams = new URLSearchParams({
     action: 'query',
     titles: titles.join('|'),
     prop: 'imageinfo',
-    iiprop: 'url|extmetadata|size',
+    iiprop: 'url|mime|extmetadata|size',
     format: 'json',
     origin: '*',
   })
@@ -228,6 +234,13 @@ async function searchWikimedia(query: string, limit = 5): Promise<Candidate[]> {
     const page = pages[pageId]
     const info = (page.imageinfo || [])[0]
     if (!info?.url) continue
+    // V11.17.39 — only real raster/vector images. Reject PDFs, audio
+    // (ogg/mp3), video (webm/ogv), and the various Wikimedia-internal
+    // text formats. SVG is allowed — it renders fine in browsers and
+    // many iconic phenomenon images on Commons are SVG (sigils, runes,
+    // ritual diagrams).
+    const mime = (info.mime as string) || ''
+    if (!mime.startsWith('image/')) continue
     const meta = info.extmetadata || {}
     const license =
       (meta.LicenseShortName?.value as string) ||
@@ -266,7 +279,9 @@ function stripHtml(s: string): string {
 // reject all candidates (better no image than wrong image).
 
 interface HaikuPick {
-  pickIndex: number | null  // null = reject all
+  pickIndex: number | null  // null = reject all. Index into the ORIGINAL
+                            // candidates array, not the SVG-filtered one
+                            // — caller does the remap.
   confidence: number        // 0-100
   altText: string
   reason: string
@@ -279,50 +294,74 @@ async function haikuPickCandidate(
   if (candidates.length === 0) {
     return { pickIndex: null, confidence: 0, altText: '', reason: 'no candidates' }
   }
-  const candidateLines = candidates.map((c, i) => {
-    return [
-      '[' + i + ']',
-      'Title: ' + c.title,
-      'Description: ' + c.description.substring(0, 200),
-      'License: ' + c.license,
-    ].join('\n')
-  }).join('\n\n')
+  // V11.17.39 — switch from TEXT-ONLY candidate descriptions to actual
+  // VISION input. The previous version sent Haiku titles + license +
+  // 200-char descriptions, which is why even good Wikimedia images got
+  // rejected ("I can't tell what this depicts from text alone").
+  //
+  // Now we build a multimodal message: one text introduction, then
+  // alternating "Candidate [i]:" labels + image_url content blocks
+  // pointing at the Wikimedia URL. Anthropic fetches the image directly
+  // — we don't proxy bytes, which keeps this fast.
+  //
+  // SVG images can't go through the image content block (Claude doesn't
+  // render SVG). Filter them to text-only for this round; they're rare
+  // enough on Commons that we don't lose much.
+  const visionCandidates = candidates.filter(c => {
+    const lower = (c.url || '').toLowerCase()
+    return !lower.endsWith('.svg') && !lower.endsWith('.svgz')
+  })
 
   const system = [
     'You are reviewing candidate images for the Paradocs paranormal encyclopedia.',
     '',
-    'TASK: For the given phenomenon, decide which (if any) of the candidate images',
-    'actually depicts that specific phenomenon — not a tangentially-related concept,',
-    'not a generic placeholder, not the wrong species, not an unrelated artifact.',
+    'TASK: Look at each numbered candidate image and decide which (if any) actually',
+    'DEPICTS the given phenomenon — not a tangentially-related concept, not a generic',
+    'placeholder, not the wrong species, not an unrelated artifact.',
     '',
     'QUALITY BAR: an acceptable image is one a reader would recognize as belonging',
-    'to that phenomenon\'s established discourse. For cryptids, that means the',
-    'recognizable iconography (e.g., Patterson-Gimlin frame for Bigfoot, Bartlett',
-    'sketch for Dover Demon). For UFO cases, an actual photograph or witness sketch.',
-    'For psychological / abstract concepts, an established symbolic or scientific',
-    'illustration (e.g., brain scan for memory phenomena, period engraving for',
-    'historical concepts).',
+    'to that phenomenon\'s established discourse. For cryptids, recognizable iconography',
+    '(e.g., Patterson-Gimlin frame for Bigfoot, Bartlett sketch for Dover Demon). For UFO',
+    'cases, an actual photograph or witness sketch. For psychological / abstract concepts,',
+    'an established symbolic or scientific illustration (e.g., brain diagram for memory',
+    'phenomena, period engraving for historical concepts).',
     '',
-    'REJECT if: the image is tangentially related (e.g., a beetle for a cryptid,',
-    'a generic stock photo, an unrelated historical event, or any image where you',
-    'are unsure whether it depicts the phenomenon).',
+    'REJECT (return null) if: the image is tangentially related, a generic stock photo,',
+    'unrelated to the phenomenon, OR if you are uncertain whether it depicts the phenomenon.',
+    'Better to return null than to pick a wrong image.',
     '',
-    'Better to return null (no pick) than to pick a wrong image.',
-    '',
-    'OUTPUT FORMAT (strict JSON, single line):',
+    'OUTPUT FORMAT (strict JSON, single line, no markdown fences):',
     '{"pick": <index|null>, "confidence": <0-100>, "alt": "<descriptive alt-text>", "reason": "<one sentence>"}',
   ].join('\n')
 
-  const userText = [
-    'PHENOMENON: ' + p.name + (p.aliases?.length ? ' (aka: ' + p.aliases.slice(0, 4).join(', ') + ')' : ''),
-    'CATEGORY: ' + p.category,
-    p.ai_summary ? 'SUMMARY: ' + p.ai_summary.substring(0, 400) : '',
-    '',
-    'CANDIDATE IMAGES:',
-    candidateLines,
-    '',
-    'Return JSON with your pick (or null) and a descriptive alt-text for the chosen image.',
-  ].filter(Boolean).join('\n')
+  // Build the multimodal content array. Each candidate becomes a label
+  // followed by an image content block referencing the Wikimedia URL.
+  type ContentBlock =
+    | { type: 'text'; text: string }
+    | { type: 'image'; source: { type: 'url'; url: string } }
+  const content: ContentBlock[] = [{
+    type: 'text',
+    text: [
+      'PHENOMENON: ' + p.name + (p.aliases?.length ? ' (aka: ' + p.aliases.slice(0, 4).join(', ') + ')' : ''),
+      'CATEGORY: ' + p.category,
+      p.ai_summary ? 'SUMMARY: ' + p.ai_summary.substring(0, 400) : '',
+      '',
+      'Examine each candidate image below and pick the one that best depicts the phenomenon.',
+    ].filter(Boolean).join('\n'),
+  }]
+  for (let i = 0; i < visionCandidates.length; i++) {
+    const c = visionCandidates[i]
+    content.push({ type: 'text', text: 'Candidate [' + i + '] — title: "' + c.title.substring(0, 120) + '"' })
+    content.push({ type: 'image', source: { type: 'url', url: c.url } })
+  }
+  content.push({
+    type: 'text',
+    text: 'Return JSON with your pick (or null) + descriptive alt-text for the chosen image.',
+  })
+
+  if (visionCandidates.length === 0) {
+    return { pickIndex: null, confidence: 0, altText: '', reason: 'all candidates were SVG/unsupported' }
+  }
 
   let resp
   try {
@@ -338,7 +377,7 @@ async function haikuPickCandidate(
         max_tokens: 250,
         temperature: 0.1,
         system,
-        messages: [{ role: 'user', content: userText }],
+        messages: [{ role: 'user', content }],
       }),
     })
   } catch (e: any) {
@@ -356,9 +395,19 @@ async function haikuPickCandidate(
     if (s >= 0 && e > s) parsed = JSON.parse(text.substring(s, e + 1))
   } catch (_e) { /* parse failure */ }
   if (!parsed) return { pickIndex: null, confidence: 0, altText: '', reason: 'haiku parse failure' }
-  const idx = typeof parsed.pick === 'number' ? parsed.pick : null
+  // V11.17.39 — Haiku's `pick` is an index into the vision-filtered
+  // candidates array. Map it back to the original candidates array
+  // (which the caller indexes for download/upload). We find the
+  // visionCandidates[i] in the original candidates list by URL match.
+  const visionIdx = typeof parsed.pick === 'number' ? parsed.pick : null
+  let originalIdx: number | null = null
+  if (visionIdx !== null && visionIdx >= 0 && visionIdx < visionCandidates.length) {
+    const pickedUrl = visionCandidates[visionIdx].url
+    originalIdx = candidates.findIndex(c => c.url === pickedUrl)
+    if (originalIdx < 0) originalIdx = null
+  }
   return {
-    pickIndex: idx,
+    pickIndex: originalIdx,
     confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0,
     altText: typeof parsed.alt === 'string' ? parsed.alt : '',
     reason: typeof parsed.reason === 'string' ? parsed.reason : '',
