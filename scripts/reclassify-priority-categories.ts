@@ -406,7 +406,13 @@ const TARGETS: Record<string, PhenomenonTarget[]> = {
     {
       slug: 'ouija-board',
       name: 'Ouija Board',
-      keywords: ['ouija', 'spirit board', 'planchette', 'talking board'],
+      // V11.17.39 — expanded keyword list (#71 fix). Previously only
+      // ['ouija', 'spirit board', 'planchette', 'talking board'] which
+      // missed many real reports that say "ouija board" (specific phrase)
+      // or describe planchette movement without using the brand name.
+      // Audit verified pre-filter searches description column only, so
+      // adding more synonyms improves recall meaningfully.
+      keywords: ['ouija', 'ouija board', 'spirit board', 'spirit-board', 'planchette', 'planchette moved', 'talking board', 'witchboard', 'witch board', 'glass divination', 'glass moved on its own'],
       evidenceRules: [
         'The narrator used a Ouija board or spirit board to attempt communication',
         'Often describes specific phenomena occurring during use (planchette movement, responses)',
@@ -505,12 +511,18 @@ async function findCandidates(
       if (perPhenCount >= perPhenLimit) break;
       if (candidates.length >= totalLimit) break;
       const remaining = perPhenLimit - perPhenCount;
+      // V11.17.39 — search BOTH title and description (#71 fix).
+      // Previously only `description` was filtered, so reports that
+      // mentioned the phenomenon in the title with a sparse body got
+      // dropped from the candidate pool. With Reddit reports especially,
+      // titles often carry the strongest signal.
+      const kwPattern = '%' + keyword + '%';
       const { data: matches } = await supabase
         .from('reports')
         .select('id, slug, title, description')
         .eq('source_type', 'reddit')
         .eq('status', 'approved')
-        .ilike('description', '%' + keyword + '%')
+        .or('description.ilike.' + kwPattern + ',title.ilike.' + kwPattern)
         .limit(remaining * 3); // over-fetch since some will be already-linked or dups
 
       if (!matches) continue;

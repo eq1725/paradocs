@@ -70,3 +70,13 @@ outputs/arctic-shift-*.log
 # optimized .mp4 / .webm derivatives go into the repo + CDN.
 public/showcase/*.mov
 public/showcase/*.MOV
+
+# V11.17.39 — operational scratch files that accumulate during mass-
+# ingestion + script runs. None of these belong in version control.
+*.log                   # per-run logs (embed-backfill-full.log etc.)
+*.bak                   # ad-hoc backups of edited files
+.env.local.bak
+scripts/.tmp-*.mjs      # one-shot debugging scripts I write inline
+scripts/_*.ts           # diagnostic scratch (_debug-*, _check-*, etc.)
+outputs/*-state.json    # mass-ingestion checkpoint files
+b1-5-smoke-test-*.json  # smoke test artifacts

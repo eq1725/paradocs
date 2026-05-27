@@ -810,7 +810,17 @@ async function main() {
   }
 }
 
-main().catch(err => {
-  console.error('[oberf-mass-ingest] Fatal:', err);
-  process.exit(1);
-});
+// V11.17.39 (#76 fix) — explicit clean exit. Without this the Node process
+// sits idle indefinitely after main() returns because the Supabase JS
+// client keeps HTTP keep-alive sockets + a realtime channel open that
+// hold the event loop. Audit verified `child.unref()` is already called
+// on the spawned batch worker (oberf-mass-ingest.ts:570) so the child
+// process itself doesn't keep us alive — the culprit is supabase-js.
+// process.exit(0) is fine here: all real work (DB writes, state file
+// save, batch trigger spawn) is synchronous-by-time before this line.
+main()
+  .then(() => process.exit(0))
+  .catch(err => {
+    console.error('[oberf-mass-ingest] Fatal:', err);
+    process.exit(1);
+  });

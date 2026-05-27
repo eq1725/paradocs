@@ -794,7 +794,13 @@ async function main() {
   }
 }
 
-main().catch(err => {
-  console.error('[adcrf-mass-ingest] Fatal:', err);
-  process.exit(1);
-});
+// V11.17.39 (#76 fix) — explicit clean exit. Supabase JS client holds
+// keep-alive sockets + realtime channel open after main() returns,
+// hanging the process indefinitely. Force exit once all real work
+// (DB writes, state save, detached batch worker spawn) is done.
+main()
+  .then(() => process.exit(0))
+  .catch(err => {
+    console.error('[adcrf-mass-ingest] Fatal:', err);
+    process.exit(1);
+  });
