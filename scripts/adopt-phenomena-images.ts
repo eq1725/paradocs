@@ -148,11 +148,14 @@ async function fetchWikipediaPageImage(title: string): Promise<Candidate | null>
     if (page.missing !== undefined || !page.thumbnail) continue
     const thumbUrl: string = page.thumbnail.source
     if (!thumbUrl) continue
-    // We want the full-res image, not the 1200px thumb. Strip the
-    // /thumb/ + /<size>px suffix to get the original.
+    // V11.17.39 — KEEP the 1200px thumb URL rather than stripping to the
+    // full-resolution original. Wikipedia's full-res files for things
+    // like astronomical imagery (Pleiades, Hubble shots) can be 50MB+
+    // and trip Claude's 5MB-per-image cap, causing "no candidates
+    // downloadable" failures. The 1200px thumb is plenty for our
+    // re-encode pipeline (hero=1200, card=600, thumb=120) and matches
+    // what `pithumbsize: '1200'` requested above.
     const fullUrl = thumbUrl
-      .replace('/thumb/', '/')
-      .replace(/\/\d+px-[^/]+$/, '')
     const intro = (page.extract || '').substring(0, 300)
     const wpArticleUrl = page.fullurl || ('https://en.wikipedia.org/wiki/' + encodeURIComponent(page.title.replace(/ /g, '_')))
     return {
@@ -355,9 +358,9 @@ async function searchMultilangWikipedia(p: Phenomenon, extraQueries: string[] = 
         for (const pageId of Object.keys(pages)) {
           const page = pages[pageId]
           if (page.missing !== undefined || !page.thumbnail?.source) continue
-          const fullUrl = (page.thumbnail.source as string)
-            .replace('/thumb/', '/')
-            .replace(/\/\d+px-[^/]+$/, '')
+          // V11.17.39 — keep 1200px thumb, don't strip to full-res.
+          // See fetchWikipediaPageImage for the same fix + rationale.
+          const fullUrl = page.thumbnail.source as string
           const wpUrl = 'https://' + lang + '.wikipedia.org/wiki/' + encodeURIComponent(page.title.replace(/ /g, '_'))
           candidates.push({
             title: 'Wikipedia [' + lang + ']: ' + page.title,
