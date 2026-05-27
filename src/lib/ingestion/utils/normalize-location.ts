@@ -350,6 +350,18 @@ export async function normalizeLocation(
     locationName = parts.length ? parts.join(', ') : null
   }
 
+  // V11.17.39 (#47) — sanitize obviously-bad location_name extractions.
+  // The LLM-based extractor sometimes returns whole paragraphs (an
+  // article body, a quote, the witness's narrative) as if they were
+  // a place name. Anything over 80 chars is almost certainly not a
+  // real place — even "Aldridge Prior Manor, Northumberland, England"
+  // sits comfortably under 50. Reject the over-long string and rebuild
+  // from structured fields if we have them; otherwise leave null.
+  if (locationName && locationName.length > 80) {
+    const parts = [city, stateName, countryName].filter(Boolean) as string[]
+    locationName = parts.length ? parts.join(', ') : null
+  }
+
   return {
     city: city || null,
     state_province: stateName,

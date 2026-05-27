@@ -539,6 +539,21 @@ async function findCandidates(
           .maybeSingle();
         if (existing) continue;
 
+        // V11.17.39 (#69) — skip candidates Haiku already rejected for
+        // this phenomenon under the current prompt version. Saves ~70%
+        // of Haiku cost on re-runs (rejection rate is high; rejections
+        // are stable across runs unless we tune the prompt). When the
+        // prompt is changed, bump CLASSIFIER_PROMPT_VERSION to
+        // invalidate the memo and re-evaluate.
+        const { data: rejected } = await supabase
+          .from('classifier_rejections')
+          .select('id')
+          .eq('report_id', r.id)
+          .eq('phenomenon_id', phen.id)
+          .eq('prompt_version', CLASSIFIER_PROMPT_VERSION)
+          .maybeSingle();
+        if (rejected) continue;
+
         candidates.push({
           id: r.id,
           slug: r.slug,
@@ -555,6 +570,14 @@ async function findCandidates(
   return candidates;
 }
 
+// V11.17.39 (#69) — bump this when the classifier prompt changes so
+// the rejection memo (classifier_rejections.prompt_version) starts
+// fresh and previously-rejected candidates get re-evaluated against
+// the new prompt.
+// V11.17.39 (#50) — v2: split positive/negative criteria, confidence
+// rubric anchors, capture rejection reasons.
+const CLASSIFIER_PROMPT_VERSION = 'v2'
+
 // ─────────────────────────────────────────────────────────────────────
 // ANTHROPIC BATCH SUBMISSION
 // ─────────────────────────────────────────────────────────────────────
@@ -565,6 +588,31 @@ const BATCH_API_URL = 'https://api.anthropic.com/v1/messages/batches';
 
 function buildClassifierPrompt(candidate: Candidate): string {
   const target = Object.values(TARGETS).flat().find(t => t.slug === candidate.matchedPhenomenon)!;
+
+  // V11.17.39 (#50) — split rules into positive ("must be") and
+  // negative ("must NOT be"). The legacy prompt asked Haiku to
+  // "satisfy ALL" of a mixed list, which doesn't logically work for
+  // negative rules (you don't "satisfy" a NOT rule by doing nothing
+  // — Haiku had to mentally re-interpret each rule's polarity).
+  // The split makes the reasoning trivial.
+  const positiveRules: string[] = []
+  const negativeRules: string[] = []
+  for (const r of target.evidenceRules) {
+    if (/^NOT\b|^Not\b|^not\b/.test(r.trim())) {
+      negativeRules.push(r.replace(/^NOT\s+/i, '').trim())
+    } else {
+      positiveRules.push(r)
+    }
+  }
+
+  const positiveBlock = positiveRules.length > 0
+    ? 'MUST describe (all of these):\n' + positiveRules.map(r => '- ' + r).join('\n')
+    : 'MUST describe the phenomenon as defined above.'
+
+  const negativeBlock = negativeRules.length > 0
+    ? '\n\nMUST NOT be (reject if any of these apply):\n' + negativeRules.map(r => '- ' + r).join('\n')
+    : ''
+
   return `You are classifying first-person paranormal/anomalous experience reports.
 
 The candidate report:
@@ -575,19 +623,26 @@ ${(candidate.description || '').substring(0, 2000)}
 The candidate phenomenon: "${target.name}"
 Definition: ${target.description}
 
-Evidence criteria the report must satisfy ALL of:
-${target.evidenceRules.map(r => '- ' + r).join('\n')}
+${positiveBlock}${negativeBlock}
 
-Question: Does this report substantively describe ${target.name} per the criteria above?
+Question: Does this report substantively describe ${target.name}?
 
-Respond in JSON only:
+Confidence rubric (use these anchors):
+  0.95 — explicit named example, witness uses the phenomenon term directly
+  0.85 — clear textbook description without naming, evidence quote is unambiguous
+  0.75 — strong implicit match, evidence quote requires interpretation but no other phenomenon fits as well
+  0.65 — some signal but the report could plausibly be a different phenomenon
+  <0.7 — reject
+
+Respond in JSON only (no markdown fences):
 {
   "match": "yes" | "no",
   "confidence": 0.0-1.0,
-  "evidence_quote": "<a verbatim quote from the description that supports the match, or empty string if no match>"
+  "evidence_quote": "<verbatim quote supporting match, or empty if no match>",
+  "reason": "<one sentence explaining the verdict — required even on rejections>"
 }
 
-Be STRICT. Only say "yes" if the report clearly describes ${target.name} with concrete evidence from the narrative. False positives clutter the encyclopedia.`;
+Be STRICT. Only say "yes" if the report clearly describes ${target.name} with concrete evidence. False positives clutter the encyclopedia.`;
 }
 
 interface BatchRequest {
@@ -707,6 +762,23 @@ async function applyResults(
     }
     if (parsed.match !== 'yes' || parsed.confidence < 0.7) {
       rejected++;
+      // V11.17.39 (#69) — write rejection memo so future sweeps skip
+      // this (report, phenomenon) pair. Fire-and-forget; upsert handles
+      // races if two sweeps run concurrently. We need the phenomenon
+      // id even for rejections, so look it up here.
+      const rejectPhenId = await lookupPhen(phenSlug);
+      if (rejectPhenId) {
+        await supabase.from('classifier_rejections').upsert(
+          {
+            report_id: reportId,
+            phenomenon_id: rejectPhenId,
+            prompt_version: CLASSIFIER_PROMPT_VERSION,
+            confidence: typeof parsed.confidence === 'number' ? Math.round(parsed.confidence * 100) : null,
+            reason: typeof parsed.reason === 'string' ? parsed.reason.substring(0, 500) : null,
+          },
+          { onConflict: 'report_id,phenomenon_id,prompt_version', ignoreDuplicates: true },
+        )
+      }
       continue;
     }
     const phenId = await lookupPhen(phenSlug);
