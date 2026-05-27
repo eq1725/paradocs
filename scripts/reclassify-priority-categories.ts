@@ -269,6 +269,139 @@ const TARGETS: Record<string, PhenomenonTarget[]> = {
     },
   ],
 
+  // V11.17.39 (#107) — psychological_experiences was absent from TARGETS
+  // entirely, so 273 reports in this category got skipped by every
+  // re-classification sweep. Audit of 50-report sample showed three
+  // gaps:
+  //
+  //   1. ~42% are genuine NDE/OBE/STE content (NDERF+OBERF source)
+  //      that the existing slugs (near-death-experience, distressing-nde,
+  //      sudden-obe, spiritually-transformative-experience) already
+  //      cover — they were just never run through the classifier.
+  //   2. ~46% are Reddit reports describing synchronicity / manifestation
+  //      / vanishing-object phenomena that DIDN'T have phenomenon slugs
+  //      until the 20260527 migration added them.
+  //   3. ~12% are mis-tagged (UFO/ghost reports filed as psychological).
+  //      Those move to the right categories via scripts/recategorize-
+  //      mistagged-psychological.ts; not the classifier's problem.
+  //
+  // Note: the script's findCandidates() pre-filters on
+  // source_type='reddit', so this TARGETS entry only processes Reddit
+  // psychological_experiences reports. NDERF/OBERF rows route through
+  // the orchestrator's Stage D classifier (separate code path).
+  psychological_experiences: [
+    {
+      slug: 'synchronicity',
+      name: 'Synchronicity',
+      keywords: ['synchronicity', 'meaningful coincidence', 'just as i was thinking', 'right when i', 'no way that was a coincidence', 'the universe sent', 'cosmic timing', 'thought of them and they', 'sign from'],
+      evidenceRules: [
+        'The narrator describes a specific event that coincides with an inner state (thought, desire, dream) in a way they find meaningful',
+        'The two events are connected by timing or content, not causally',
+        'NOT generic "weird coincidence" without internal-state anchor',
+      ],
+      description: 'Meaningful coincidence between an inner state and an external event, experienced as a sign or affirmation',
+    },
+    {
+      slug: 'manifestation-experience',
+      name: 'Manifestation Experience',
+      keywords: ['i manifested', 'manifestation worked', 'thought it into existence', 'visualized it and', 'asked the universe', 'law of attraction worked', 'spoke it into reality'],
+      evidenceRules: [
+        'The narrator describes a specific intention, desire, or thought followed by a corresponding physical event',
+        'The narrator interprets the sequence as causal (intention → outcome) rather than coincidence',
+        'NOT general self-improvement or goal-setting narratives',
+      ],
+      description: 'A specific intention or thought reported as preceding a corresponding physical event in a way that defies coincidence',
+    },
+    {
+      slug: 'vanishing-object',
+      name: 'Vanishing or Appearing Object',
+      keywords: ['object vanished', 'object disappeared', 'it wasnt there and then it was', 'appeared out of nowhere', 'reappeared after months', 'apport', 'returned to me', 'lost and then found in impossible'],
+      evidenceRules: [
+        'A physical object disappeared from one place AND/OR appeared in another without intermediate handling',
+        'The narrator can rule out normal explanations (misplacement, other people moving it)',
+        'NOT general "I forgot where I put it" narratives',
+      ],
+      description: 'A physical object that disappears, appears, or returns in a way that defies conventional explanation',
+    },
+    {
+      slug: 'near-death-experience',
+      name: 'Near-Death Experience',
+      keywords: ['near death experience', 'nde', 'i died and came back', 'tunnel of light', 'life review', 'met deceased loved ones', 'clinically dead', 'flatlined', 'crossed over'],
+      evidenceRules: [
+        'The narrator was in a medically life-threatening situation (cardiac arrest, severe trauma, surgical complication)',
+        'Reports anomalous perceptions during the crisis (tunnel, light, OBE, life review, deceased meeting, peace, return point)',
+        'NOT a non-medical OBE (those go to out-of-body-experience or sudden-obe)',
+      ],
+      description: 'Anomalous experience during a medically critical event, often including tunnel/light/OBE/life-review elements',
+    },
+    {
+      slug: 'sudden-obe',
+      name: 'Sudden Out-of-Body Experience',
+      keywords: ['suddenly out of body', 'floated out of my body', 'looking down at myself', 'saw myself from above', 'spontaneous obe', 'unexpectedly left my body'],
+      evidenceRules: [
+        'The narrator unintentionally found themselves observing from outside their body',
+        'NOT triggered by a medical crisis (those go to near-death-experience)',
+        'NOT a deliberate astral projection practice (those go to astral-projection)',
+      ],
+      description: 'Spontaneous, non-medical, non-deliberate out-of-body experience',
+    },
+    {
+      slug: 'spiritually-transformative-experience',
+      name: 'Spiritually Transformative Experience',
+      keywords: ['spiritually transformative', 'changed my life forever', 'spiritual awakening', 'felt one with everything', 'unity experience', 'cosmic consciousness'],
+      evidenceRules: [
+        'The narrator describes a discrete experience that produced lasting changes in worldview, beliefs, or values',
+        'Often involves felt unity, dissolution of self, encounter with the sacred',
+        'NOT a gradual change over time — must be a discrete experience',
+      ],
+      description: 'A discrete experience that produced lasting changes in worldview, often involving felt unity or encounter with the sacred',
+    },
+    {
+      slug: 'deja-vu',
+      name: 'Deja Vu Phenomenon',
+      keywords: ['deja vu', 'lived this before', 'i have been here before', 'already seen this exact', 'replay of a moment'],
+      evidenceRules: [
+        'The narrator describes a specific experience of having lived a moment before in unusual specificity (beyond brief familiarity)',
+        'Often a prolonged or intense episode, not a fleeting one',
+        'NOT generic "this feels familiar"',
+      ],
+      description: 'Strong experience of having lived a specific moment before, with unusual specificity or duration',
+    },
+    {
+      slug: 'time-slip',
+      name: 'Time Slip',
+      keywords: ['time slip', 'time skipped', 'lost time', 'missing time', 'felt like i was in another era', 'walked into another time', 'time stood still'],
+      evidenceRules: [
+        'The narrator describes a discrete episode where their experience of time deviated from clock time (acceleration, gap, era-shift)',
+        'Often accompanied by environmental cues that fit a different era',
+        'NOT general "time flew" feelings',
+      ],
+      description: 'Discrete experience where personal time-perception deviated from external time, sometimes including era-shift environmental cues',
+    },
+    {
+      slug: 'anomalous-memory',
+      name: 'Anomalous Memory',
+      keywords: ['anomalous memory', 'memory of something that never happened', 'remember something different', 'shared false memory', 'mandela effect of one person'],
+      evidenceRules: [
+        'The narrator has a clear specific memory that conflicts with established fact or other witnesses',
+        'NOT a general "I might have misremembered" — must be specific + confident',
+        'NOT Mandela Effect (group-level shared discrepancy — goes to mandela-effect)',
+      ],
+      description: 'Specific personal memory that conflicts with established fact or other witnesses',
+    },
+    {
+      slug: 'tulpamancy',
+      name: 'Tulpamancy',
+      keywords: ['tulpa', 'tulpamancy', 'tulpamancer', 'created an imaginary companion', 'host and tulpa', 'imposition'],
+      evidenceRules: [
+        'The narrator describes intentionally creating a sentient mental companion (tulpa) through practice',
+        'Often references specific techniques (forcing, narration, imposition) or community vocabulary',
+        'NOT general imaginary friends or DID',
+      ],
+      description: 'Deliberate creation of a sentient mental companion (tulpa) through focused practice',
+    },
+  ],
+
   esoteric_practices: [
     {
       slug: 'ouija-board',
