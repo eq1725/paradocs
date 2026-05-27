@@ -339,6 +339,47 @@ export default function DiscoverPage() {
     }
   }, [displayItems])
 
+  // V11.17.38 PR-7 follow-up (Chase's video-perf flag) — prefetch the
+  // actual video BYTES for the next 1-2 video cards in the feed,
+  // anchored to current scroll position (idx). The feed renders one
+  // card at a time, so the next video element doesn't mount until the
+  // user swipes to it; without this, every swipe-to-a-video hits a
+  // cold buffer + 1-3s first-frame delay.
+  //
+  // Strategy: <link rel="prefetch" as="video"> — browser fetches in
+  // the background at low priority; when the user swipes, the <video>
+  // src resolves from HTTP cache and playback starts immediately.
+  // Tags carry data-paradocs-preload="video" so we evict prior
+  // prefetches when idx changes (avoid keeping a queue of dead links).
+  useEffect(function () {
+    if (typeof document === 'undefined') return
+    var prior = document.querySelectorAll('link[data-paradocs-preload="video"]')
+    for (var i = 0; i < prior.length; i++) {
+      var node = prior[i]
+      if (node.parentNode) node.parentNode.removeChild(node)
+    }
+    // Find the next 2 report items after idx that have a playback_url.
+    var prefetched = 0
+    var MAX_PREFETCH = 2
+    for (var j = idx + 1; j < displayItems.length && prefetched < MAX_PREFETCH; j++) {
+      var it: any = displayItems[j]
+      if (it.item_type !== 'report') continue
+      var vurl = it.video && it.video.playback_url
+      if (!vurl) continue
+      var link = document.createElement('link')
+      link.rel = 'prefetch'
+      link.as = 'video'
+      link.href = vurl
+      // Hint the browser this is the same origin as our app + signed,
+      // not cacheable across users. crossorigin attr matches what the
+      // <video> element will request with so the cache lookup succeeds.
+      link.setAttribute('crossorigin', 'anonymous')
+      link.setAttribute('data-paradocs-preload', 'video')
+      document.head.appendChild(link)
+      prefetched++
+    }
+  }, [displayItems, idx])
+
   // --- Card index + gesture state ---
   var [idx, setIdx] = useState(0)
   var [expanded, setExpanded] = useState(false)

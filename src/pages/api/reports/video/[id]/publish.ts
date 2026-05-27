@@ -241,6 +241,56 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: 'Could not finalize video status' })
   }
 
+  // V11.17.39 — push to Mux for streaming-optimized HLS playback.
+  // Only fires when moderation passed (status='ready'); flagged videos
+  // stay un-pushed until admin approves, saving Mux encoding cost.
+  // Async + non-fatal: Mux ingestion takes 30-120s after Asset.Create,
+  // so we kick it off here but don't await its readiness. The webhook
+  // handler (/api/webhooks/mux) flips mux_status to 'ready' when
+  // encoding finishes; until then the feed serves the Supabase
+  // signed URL as fallback.
+  if (!modOutcome.flagged) {
+    try {
+      var { muxConfigured, createMuxAssetFromUrl } = await import('@/lib/services/mux.service')
+      if (muxConfigured()) {
+        // Sign the final video path so Mux can fetch the bytes. 24h
+        // TTL is more than enough — Mux pulls within a minute.
+        var freshVideo = await admin
+          .from('report_videos')
+          .select('storage_bucket, storage_path')
+          .eq('id', (video as any).id)
+          .single()
+        var bucket = (freshVideo.data as any)?.storage_bucket || 'report_videos'
+        var path = (freshVideo.data as any)?.storage_path
+        if (path) {
+          var signed = await (admin.storage as any)
+            .from(bucket)
+            .createSignedUrl(path, 24 * 60 * 60)
+          if (signed?.data?.signedUrl) {
+            var asset = await createMuxAssetFromUrl(signed.data.signedUrl, {
+              passthrough: (video as any).id,
+            })
+            await admin.from('report_videos').update({
+              mux_asset_id: asset.asset_id,
+              mux_playback_id: asset.playback_id,
+              mux_status: 'pending',
+              mux_uploaded_at: new Date().toISOString(),
+            }).eq('id', (video as any).id)
+            console.log('[video/publish] mux asset created id=' + asset.asset_id + ' playback=' + asset.playback_id)
+          } else {
+            console.warn('[video/publish] mux skipped — could not sign Supabase URL')
+          }
+        }
+      } else {
+        console.log('[video/publish] mux not configured — skipping')
+      }
+    } catch (muxErr: any) {
+      // Mux failure is non-fatal — the report still publishes, the
+      // feed just won't get HLS for this video until manual retry.
+      console.warn('[video/publish] mux push failed (non-fatal):', muxErr?.message || muxErr)
+    }
+  }
+
   // V10.7.E.4 (May 2026, QA round 6) — run the Paradocs analysis pass
   // synchronously while the user waits on the publish button. The
   // earlier fire-and-forget HTTP variant (round 5) was unreliable on

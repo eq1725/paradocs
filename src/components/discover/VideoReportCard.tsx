@@ -152,6 +152,54 @@ export default function VideoReportCard(props: VideoReportCardProps) {
     return function () { io.disconnect() }
   }, [shouldLoad, props.isActive, props.index])
 
+  // V11.17.39 — hls.js attachment for Mux HLS streams on non-Safari.
+  // Safari can play .m3u8 natively (canPlayType returns truthy); for
+  // every other browser we dynamic-import hls.js and attach it. The
+  // lib is ~120kb gzipped — we only load when we actually need it
+  // (i.e., when a Mux-served video card becomes shouldLoad), so the
+  // feed bundle stays lean for users who only see photo/text reports.
+  useEffect(function () {
+    if (!shouldLoad) return
+    var el = videoRef.current
+    if (!el) return
+    var url = (props.item as any)?.video?.playback_url
+    if (typeof url !== 'string' || url.indexOf('.m3u8') < 0) return
+    // Safari path — native HLS, src already set declaratively above.
+    var nativeHls = !!(document.createElement('video').canPlayType('application/vnd.apple.mpegurl'))
+    if (nativeHls) return
+
+    var destroyed = false
+    var hlsInstance: any = null
+    ;(async function () {
+      try {
+        var mod = await import('hls.js')
+        var Hls: any = mod.default || mod
+        if (destroyed) return
+        if (!Hls.isSupported || !Hls.isSupported()) {
+          // Last-ditch: try setting src and let the browser figure it out.
+          el!.src = url
+          return
+        }
+        hlsInstance = new Hls({
+          // Tight buffer for feed-scroll: we don't need 30s of lookahead
+          // for a 1-2min clip. Keeps memory + cellular bytes lean.
+          maxBufferLength: 10,
+          maxMaxBufferLength: 30,
+          // Pick a sensible starting bitrate vs always topping out.
+          startLevel: -1, // 'auto'
+        })
+        hlsInstance.loadSource(url)
+        hlsInstance.attachMedia(el!)
+      } catch (e: any) {
+        console.warn('[VideoReportCard] hls.js load failed:', e?.message || e)
+      }
+    })()
+    return function () {
+      destroyed = true
+      try { hlsInstance && hlsInstance.destroy && hlsInstance.destroy() } catch (_e) {}
+    }
+  }, [shouldLoad, props.item])
+
   // V10.7.E.14 — autoplay with sound-when-possible.
   //   - If muted=false (the user previously unmuted and we persisted
   //     the preference), TRY unmuted autoplay first. If the browser
@@ -278,7 +326,25 @@ export default function VideoReportCard(props: VideoReportCardProps) {
       {shouldLoad ? (
         <video
           ref={videoRef}
-          src={video.playback_url}
+          // V11.17.39 — Mux HLS playback. When playback_url ends in
+          // .m3u8 (served from stream.mux.com), Safari plays natively
+          // but Chrome/Firefox/Edge need hls.js to attach a MediaSource.
+          // The useEffect below handles the detection + lazy-loads
+          // hls.js when needed. We DON'T set src on the element for
+          // HLS — the lib attaches its own. For MP4 / Supabase signed
+          // URLs the src prop is set the old way.
+          src={(function () {
+            var url = (video as any).playback_url as string
+            if (typeof url !== 'string') return url
+            // Safari natively plays HLS — set src directly.
+            if (url.indexOf('.m3u8') >= 0 && typeof window !== 'undefined') {
+              var nativeHls = !!(document.createElement('video').canPlayType('application/vnd.apple.mpegurl'))
+              if (nativeHls) return url
+              // Non-Safari: don't set src; useEffect below mounts hls.js
+              return undefined as any
+            }
+            return url
+          })()}
           // V10.7.E.7 — first-paint thumbnail. The poster JPEG was
           // captured client-side at submit and uploaded as a sibling
           // file to the video. feed-v2 signs both URLs in parallel.

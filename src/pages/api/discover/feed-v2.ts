@@ -574,17 +574,31 @@ export default async function handler(
       if (videoReportIds.length > 0) {
         var { data: videoRows } = await supabase
           .from('report_videos')
-          .select('id, report_id, storage_bucket, storage_path, mime_type, duration_sec, transcript_segments, transcript_lang')
+          .select('id, report_id, storage_bucket, storage_path, mime_type, duration_sec, transcript_segments, transcript_lang, mux_playback_id, mux_status')
           .in('report_id', videoReportIds)
           .eq('status', 'ready')
           .order('published_at', { ascending: false, nullsFirst: false } as any)
 
         if (videoRows && videoRows.length > 0) {
-          // Generate signed playback URLs in parallel. 4h TTL — long
-          // enough for a feed-scroll session even with browser tabs
-          // left open. Re-fetch the feed for fresher URLs after that.
+          // V11.17.39 — prefer Mux HLS playback when the video has been
+          // pushed and Mux finished encoding. Mux URLs are public + CDN-
+          // backed (no signing, no TTL), so they're free to construct
+          // and faster to serve than Supabase signed URLs. Fall back to
+          // Supabase signing when mux_playback_id is missing or
+          // mux_status isn't 'ready' yet (e.g. just-published video
+          // mid-encode, or legacy rows that pre-date the Mux pipeline).
           var SIGNED_TTL_SEC = 4 * 60 * 60
           var withUrls = await Promise.all(videoRows.map(async function (v: any) {
+            // Mux path — synchronous, no signing required.
+            if (v.mux_playback_id && v.mux_status === 'ready') {
+              return {
+                ...v,
+                playback_url: 'https://stream.mux.com/' + v.mux_playback_id + '.m3u8',
+                poster_url: 'https://image.mux.com/' + v.mux_playback_id + '/thumbnail.jpg?time=1&width=720',
+                playback_kind: 'hls',
+              }
+            }
+            // Supabase fallback path.
             var bucket = v.storage_bucket || 'report_videos'
             // V10.7.E.7 — derive the sibling poster path by swapping
             // the video file's extension to .jpg. Convention set by
@@ -614,6 +628,7 @@ export default async function handler(
                   ...v,
                   playback_url: signed.data.signedUrl,
                   poster_url: posterSigned?.data?.signedUrl || null,
+                  playback_kind: 'mp4',
                 }
               }
               // V10.7.E — QA #3 (May 2026). The previous catch swallowed
