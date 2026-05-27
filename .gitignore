@@ -73,10 +73,32 @@ public/showcase/*.MOV
 
 # V11.17.39 — operational scratch files that accumulate during mass-
 # ingestion + script runs. None of these belong in version control.
-*.log                   # per-run logs (embed-backfill-full.log etc.)
-*.bak                   # ad-hoc backups of edited files
+# Note: .gitignore does NOT support inline comments — patterns must be
+# alone on the line. Comments go above the patterns.
+
+# per-run logs (embed-backfill-full.log, image-adoption.log, etc.)
+*.log
+
+# ad-hoc backups of edited files
+*.bak
 .env.local.bak
-scripts/.tmp-*.mjs      # one-shot debugging scripts I write inline
-scripts/_*.ts           # diagnostic scratch (_debug-*, _check-*, etc.)
-outputs/*-state.json    # mass-ingestion checkpoint files
-b1-5-smoke-test-*.json  # smoke test artifacts
+
+# one-shot debugging scripts I write inline
+scripts/.tmp-*.mjs
+
+# diagnostic scratch (_debug-*, _check-*, etc.)
+scripts/_*.ts
+
+# mass-ingestion checkpoint files
+outputs/*-state.json
+
+# smoke test artifacts
+b1-5-smoke-test-*.json
+
+# script-run output CSVs (kept locally for review)
+phenomena-emptiness.csv
+merge-low-volume-review.csv
+missing-images.csv
+
+# tilde-suffixed backup files some editors leave behind
+*~
