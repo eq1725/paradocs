@@ -135,7 +135,7 @@ async function fetchWikipediaPageImage(title: string): Promise<Candidate | null>
   })
   let resp
   try {
-    resp = await fetch(WIKIPEDIA_API + '?' + params.toString(), {
+    resp = await rateLimitedWikimediaFetch(WIKIPEDIA_API + '?' + params.toString(), {
       headers: { 'User-Agent': 'Paradocs-ImageAdopt/1.0 (https://www.discoverparadocs.com)' },
     })
   } catch (e: any) { return null }
@@ -182,6 +182,43 @@ async function searchWikipediaForPhenomenon(p: Phenomenon): Promise<Candidate | 
   return null
 }
 
+// ─── Rate-limited Wikimedia fetch (V11.17.39) ─────────────────────────
+//
+// Wikimedia API returns 429 if you hit their endpoints too fast. The
+// query-expansion layer can fire 6 alternative searches × 2 endpoints
+// (pageimage + commons) per phenomenon = 12 requests in quick
+// succession. Multiplied across 542 phenomena that's 6,500+ calls.
+//
+// Their published policy: "use a User-Agent that identifies you,
+// observe robots.txt, respect 429s with backoff, and don't run more
+// than ~10 requests/second."
+//
+// We use a simple token-bucket-style throttle: minimum 200ms between
+// consecutive calls (5 req/sec, well under their limit), plus
+// exponential backoff on 429.
+const WIKIMEDIA_MIN_INTERVAL_MS = 200
+let lastWikimediaCallAt = 0
+
+async function rateLimitedWikimediaFetch(url: string, init?: RequestInit, maxRetries = 3): Promise<Response> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    // Throttle: ensure WIKIMEDIA_MIN_INTERVAL_MS since last call
+    const elapsed = Date.now() - lastWikimediaCallAt
+    if (elapsed < WIKIMEDIA_MIN_INTERVAL_MS) {
+      await new Promise(r => setTimeout(r, WIKIMEDIA_MIN_INTERVAL_MS - elapsed))
+    }
+    lastWikimediaCallAt = Date.now()
+    const resp = await fetch(url, init)
+    if (resp.status !== 429) return resp
+    // 429: exponential backoff (1s, 2s, 4s)
+    const backoffMs = 1000 * Math.pow(2, attempt)
+    console.warn('  wikimedia 429 — backing off ' + backoffMs + 'ms (attempt ' + (attempt + 1) + '/' + maxRetries + ')')
+    await new Promise(r => setTimeout(r, backoffMs))
+  }
+  // Final attempt — even if 429, return so caller can decide
+  lastWikimediaCallAt = Date.now()
+  return fetch(url, init)
+}
+
 // ─── Wikimedia Commons search (fallback) ──────────────────────────────
 
 async function searchWikimedia(query: string, limit = 5): Promise<Candidate[]> {
@@ -196,7 +233,7 @@ async function searchWikimedia(query: string, limit = 5): Promise<Candidate[]> {
   })
   let searchRes
   try {
-    searchRes = await fetch(WIKIMEDIA_API + '?' + params.toString(), {
+    searchRes = await rateLimitedWikimediaFetch(WIKIMEDIA_API + '?' + params.toString(), {
       headers: { 'User-Agent': 'Paradocs-ImageAdopt/1.0 (https://www.discoverparadocs.com)' },
     })
   } catch (e: any) {
@@ -226,7 +263,7 @@ async function searchWikimedia(query: string, limit = 5): Promise<Candidate[]> {
     format: 'json',
     origin: '*',
   })
-  const infoRes = await fetch(WIKIMEDIA_API + '?' + infoParams.toString(), {
+  const infoRes = await rateLimitedWikimediaFetch(WIKIMEDIA_API + '?' + infoParams.toString(), {
     headers: { 'User-Agent': 'Paradocs-ImageAdopt/1.0 (https://www.discoverparadocs.com)' },
   })
   if (!infoRes.ok) return []
@@ -388,7 +425,7 @@ async function searchMultilangWikipedia(p: Phenomenon, extraQueries: string[] = 
           origin: '*',
           redirects: '1',
         })
-        const resp = await fetch(api + '?' + params.toString(), {
+        const resp = await rateLimitedWikimediaFetch(api + '?' + params.toString(), {
           headers: { 'User-Agent': 'Paradocs-ImageAdopt/1.0 (https://www.discoverparadocs.com)' },
         })
         if (!resp.ok) continue
