@@ -764,6 +764,37 @@ export function filterContent(
     return { passed: false, reason: 'Content was deleted or removed' };
   }
 
+  // V11.17.39 (#22) — Paranormal-bearing gate for YouTube comments.
+  //
+  // YouTube adapter scrapes comments on paranormal channels (Jesse Michels,
+  // Anthony Chene, Next Level Soul, etc.), but the COMMENTS themselves are
+  // a firehose of all dramatic personal stories — not just paranormal ones.
+  // Spot-check verification surfaced three landed reports that shouldn't
+  // exist on Paradocs:
+  //   - "Lightning Strike Blindness During Havana Storm" (medical incident)
+  //   - "Charging Bull Elephant Pursues Safari Vehicle" (wildlife)
+  //   - "Pier Stargazing Shifts Witness's Perception of Space" (vague awe)
+  // All three passed length + first-person + dramatic-narrative checks.
+  // None contained any anomalous-experience signal.
+  //
+  // Fix: when the source is YouTube-comments-derived, require at least one
+  // anomalous-experience keyword somewhere in title+description, OR a
+  // pre-set category. The keyword list spans the major Paradocs phenomenon
+  // categories. Costs ~0 (regex), zero false positives on real paranormal
+  // content (a YouTube comment about a shadow figure includes "shadow").
+  //
+  // Scoped to YouTube only — Reddit/NDERF/OBERF/ADCRF have curation upstream.
+  const isYouTube = sourceType === 'youtube' || sourceType === 'youtube-comments'
+  if (isYouTube) {
+    const PARANORMAL_KEYWORDS = /\b(ufo|uap|alien|extraterrestrial|abduct|implant|saucer|disc|orb|triangle|cigar.shaped|tic.tac|ghost|spirit|apparition|phantom|haunt|poltergeist|shadow.figure|shadow.person|shadow.man|hat.man|cryptid|bigfoot|sasquatch|dogman|skinwalker|wendigo|mothman|chupacabra|loch.ness|lake.monster|nde|near.death|out.of.body|astral|astral.projection|life.review|tunnel.of.light|precognit|premonit|telepath|telekines|psychokines|clairvoyan|psychic|possession|possessed|exorcism|demon|djinn|entity|angel|deity|paranormal|supernatural|anomal|synchronic|deja.vu|time.slip|missing.time|mandela.effect|manifestation|apport|reincarnat|past.life|witchcraft|spell|ritual|sigil|ouija|spirit.board|seance|medium(ship)?|channeling|automatic.writing|levitat|telepor|materializ|sleep.paralysis|hag|incubus|succubus|tulpa)\b/i
+    if (!PARANORMAL_KEYWORDS.test(combinedText)) {
+      return {
+        passed: false,
+        reason: 'YouTube source has no paranormal-bearing keywords in title or description (filtered to prevent non-anomalous content like medical/wildlife/awe reports)',
+      };
+    }
+  }
+
   // V11.7 — Non-English content gate. Paradocs is English-only for the
   // V1 launch. Posts in Portuguese / Spanish / French would otherwise
   // pass quality filters (they're English-tuned) and produce broken AI

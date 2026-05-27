@@ -516,11 +516,21 @@ async function findCandidates(
       // mentioned the phenomenon in the title with a sparse body got
       // dropped from the candidate pool. With Reddit reports especially,
       // titles often carry the strongest signal.
+      //
+      // V11.17.39 (#21 fix) — REMOVED source_type='reddit' filter. The
+      // previous filter meant NUFORC, YouTube, NDERF, OBERF, and ADCRF
+      // reports never entered the classifier pipeline despite many of
+      // them being squarely on-target for the per-category TARGETS
+      // (e.g. NDERF reports never got linked to near-death-experience
+      // via this script; they relied on the orchestrator's Stage D
+      // classifier which has separate logic). With the filter removed,
+      // ALL approved reports are candidate-eligible. The existing
+      // rejection memo (#69) and already-linked guard (#69 sibling)
+      // prevent re-processing.
       const kwPattern = '%' + keyword + '%';
       const { data: matches } = await supabase
         .from('reports')
         .select('id, slug, title, description')
-        .eq('source_type', 'reddit')
         .eq('status', 'approved')
         .or('description.ilike.' + kwPattern + ',title.ilike.' + kwPattern)
         .limit(remaining * 3); // over-fetch since some will be already-linked or dups
