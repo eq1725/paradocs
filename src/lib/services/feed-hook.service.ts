@@ -18,7 +18,7 @@
 
 import { createServerClient } from '../supabase'
 import { rewriteWithGuardrails } from '@/lib/ai/rewrite-pipeline'
-import { META_POST_PATTERNS } from '../ingestion/filters/quality-filter'
+import { HOOK_SELF_CONFESSION_PATTERNS } from '../ingestion/filters/quality-filter'
 
 // V11.17.39 (2nd round) — Post-AI-hook backstop. The ingestion-time
 // META filter runs against the ORIGINAL source text (raw Reddit title
@@ -32,10 +32,14 @@ import { META_POST_PATTERNS } from '../ingestion/filters/quality-filter'
 //      direct experience"
 //   - "A resident wonders if their genetic traits might signal
 //      descent from..."
-// Re-running META patterns against the hook catches the slip and
-// archives the report before it reaches the Today feed.
+//
+// We use a NARROWED pattern set here (HOOK_SELF_CONFESSION_PATTERNS) —
+// the full META_POST_PATTERNS over-fires on legit first-person hooks
+// that use general framing like "raises a question" or "the witness
+// wonders if it was real." The narrow set targets only patterns
+// that the AI emits when summarizing genuinely non-experience posts.
 function checkHookForRejection(hook: string): { rejected: boolean; pattern?: string } {
-  for (const pattern of META_POST_PATTERNS) {
+  for (const pattern of HOOK_SELF_CONFESSION_PATTERNS) {
     if (pattern.test(hook)) {
       return { rejected: true, pattern: pattern.source.substring(0, 60) }
     }

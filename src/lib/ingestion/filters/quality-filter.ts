@@ -154,14 +154,50 @@ export const META_POST_PATTERNS = [
   // the witness experienced. Adjacent: "Could I be a starseed?", "Am I
   // psychic?", "Could my dreams mean...". The witness is asking, not
   // recounting.
-  /\b(?:wonders?|wondering)\s+(?:if|whether)\s+(?:their|they|this|he|she|i)\b/i,
+  //
+  // These run at INGEST time against raw Reddit title + body, where
+  // "I wonder if I'm..." is a clear help-seek signal. The post-AI-hook
+  // backstop uses a narrower set (HOOK_SELF_CONFESSION_PATTERNS below)
+  // because the broad "wonders if" form over-fires on legit reports
+  // where the AI hook reads "the witness wonders if this was real."
+  /\b(?:i'?m?|we'?re?)\s+wonder(?:ing)?\s+(?:if|whether)\s+(?:i|we|my|our)\b/i,
   /\b(?:might|may|could)\s+(?:signal|indicate|mean|suggest)\s+(?:descent|ancestry|hybrid|origin|that\s+i)\b/i,
   /\bdescen(?:t|ded|dant)\s+from\s+(?:the\s+)?(?:tall\s+whites?|pleiadian|nordic|sirian|grey|nephilim|star[\s-]?seed)\b/i,
   /\b(?:could|might|may|am)\s+(?:i|they)\s+be\s+(?:a\s+)?(?:starseed|hybrid|chosen|empath|psychic|medium|indigo|crystal|rainbow)\b/i,
-  /\b(?:asks?|asking|seeks?|seeking)\s+(?:meditation|guidance|answers?|clarification|interpretation)\s+(?:on|about|regarding)\b/i,
-  /\bwonders?\s+(?:about|whether|if)\s+(?:the\s+)?(?:meaning|significance|cause|origin|reason)\s+(?:of|behind|for)\b/i,
-  /\b(?:explores?|exploring|considers?|considering)\s+(?:the\s+)?(?:possibility|theory|notion|idea)\s+(?:that|of|whether)\b/i,
   /\b(?:presents?|presenting|describes?|describing)\s+(?:a\s+)?(?:personal\s+)?(?:genealogy|family\s+(?:history|tree)|lineage|ancestry)\b/i,
+];
+
+// V11.17.39 (2nd round) — HIGH-CONFIDENCE patterns safe to apply to
+// the AI-generated feed_hook AFTER rewriting. The full META_POST_PATTERNS
+// set is designed for raw Reddit titles + body text and over-fires on
+// AI-rewritten hooks (e.g. "raises a question" in a legit witness
+// account). This narrow set targets patterns that ONLY appear when the
+// hook itself is summarizing a non-experience post — search-requests,
+// identity-speculation, explicit self-confession ("rather than
+// reporting a direct experience").
+//
+// Tested 2026-05-27: the full pattern set on 135k approved feed_hooks
+// flagged 1697 (1.25%) — false-positive rate ~95%. The narrowed set
+// below targets the ~30-100 actual non-experience hooks.
+export const HOOK_SELF_CONFESSION_PATTERNS = [
+  // Explicit confession that the post is not first-person
+  /\brather\s+than\s+(?:reporting|describing|recounting|sharing)\s+(?:a\s+)?(?:direct|personal|own|witnessed?)\b/i,
+  /\bnot\s+(?:a\s+)?(?:first[-\s]person|direct|witnessed)\s+(?:experience|account|report|encounter)\b/i,
+
+  // Search-request framing — "the user searches for / is attempting to locate"
+  /\b(?:user|someone|the (?:user|poster|op|author))\s+(?:hunts?|searches?|searching)\s+for\s+(?:a\s+specific|the\s+specific)\b/i,
+  /\b(?:user|someone|the (?:user|poster|op|author))\s+(?:is|was)\s+(?:attempting|trying)\s+to\s+(?:locate|find|identify|track\s+down)\b/i,
+  /\bsearches?\s+for\s+(?:a\s+specific|the\s+specific|specifically)\s+(?:video|clip|footage|photo|image|recording|post)\b/i,
+
+  // Identity / ancestry speculation — narrow forms only
+  /\bdescen(?:t|ded|dant)\s+from\s+(?:the\s+)?(?:tall\s+whites?|pleiadian|nordic|sirian|grey|nephilim|star[\s-]?seed)\b/i,
+  /\b(?:might|may|could)\s+(?:signal|indicate|mean|suggest)\s+(?:descent|ancestry|hybrid\s+origin|that\s+i\s+am)\b/i,
+  /\b(?:could|might|may|am)\s+(?:i|they)\s+be\s+(?:a\s+)?(?:starseed|hybrid|chosen\s+one|indigo|crystal\s+child)\b/i,
+  /\b(?:presents?|presenting|describes?|describing)\s+(?:a\s+)?(?:personal\s+)?(?:genealogy|family\s+history|lineage)\b/i,
+
+  // Famous-photograph / lost-media community references
+  /\bcalvine\s+photo\b/i,
+  /\bcirculated\s+widely\b.*\b(?:subreddit|forum|community|reddit)\b/i,
 ];
 
 // Art, merchandise, and promotional content

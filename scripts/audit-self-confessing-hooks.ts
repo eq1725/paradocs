@@ -34,7 +34,7 @@
 
 import 'dotenv/config'
 import { createClient } from '@supabase/supabase-js'
-import { META_POST_PATTERNS } from '../src/lib/ingestion/filters/quality-filter'
+import { HOOK_SELF_CONFESSION_PATTERNS } from '../src/lib/ingestion/filters/quality-filter'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -49,7 +49,7 @@ function parseArgs() {
 }
 
 function findMatchingPattern(text: string): RegExp | null {
-  for (const pattern of META_POST_PATTERNS) {
+  for (const pattern of HOOK_SELF_CONFESSION_PATTERNS) {
     if (pattern.test(text)) return pattern
   }
   return null
