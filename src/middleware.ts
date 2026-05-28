@@ -17,6 +17,14 @@ const PUBLIC_PATHS = [
   '/api/', // All API routes should work with Supabase auth
   '/auth/', // OAuth callback routes
   '/survey', // Public survey page (linked from email campaigns)
+  // V11.17.39 — /citd is the public landing page for the Contact in
+  // the Desert event. The QR code on event marketing material points
+  // here. Visitors must be able to load this page (and only this page)
+  // without basic-auth. They can submit emails to the waitlist via
+  // /api/citd/signup but cannot navigate to any other route until the
+  // BETA_PROTECTION gate is lifted at launch.
+  '/citd',
+  '/showcase/', // /citd uses /showcase/feed.mp4 + /showcase/map.mp4
   '/_next/',
   '/favicon.ico',
   '/images/',

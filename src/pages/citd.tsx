@@ -1,11 +1,25 @@
-import React from 'react'
+import React, { useState } from 'react'
 import Head from 'next/head'
 
 /**
  * /citd — "Contact in the Desert" event landing page.
  *
- * Polished standalone design with phone mockup, app store buttons,
- * and glowing map dots. Self-contained styles via <style jsx>.
+ * Standalone landing page used as the only publicly-accessible route
+ * during the CITD soft-launch (V11.17.39, May 28 2026). QR code on
+ * event marketing materials points here.
+ *
+ * V11.17.39 revisions:
+ *   - Phone mockup interior swapped from CSS/SVG fake-app to the
+ *     production /showcase/feed.mp4 used on the homepage
+ *   - New laptop mockup section paired beneath the phone, showing
+ *     /showcase/map.mp4
+ *   - Email signup form (CITDSignupForm) replaces the App Store /
+ *     Google Play "Coming Soon" badges as the primary CTA. Captures
+ *     to citd_signups via /api/citd/signup
+ *
+ * Middleware (src/middleware.ts) PUBLIC_PATHS includes /citd and
+ * /showcase/ so unauthed visitors (the QR-code traffic) can load this
+ * page + the videos without hitting the dev-gate basic-auth wall.
  *
  * Phase 2 (app launch): Auto-detect iOS / Android and redirect
  *   to the appropriate app store. Fallback to this page for desktop.
@@ -14,6 +28,115 @@ import Head from 'next/head'
 // ── Uncomment when apps are live ──────────────────────────────
 // const APP_STORE_URL = 'https://apps.apple.com/app/paradocs/id...'
 // const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=...'
+
+/**
+ * CITDSignupForm — Inline email-capture form for the CITD landing page.
+ *
+ * Three states: idle / submitting / submitted. On success we replace the
+ * form with a quiet confirmation card so visitors get immediate feedback
+ * without leaving /citd. Errors surface inline below the input.
+ */
+function CITDSignupForm() {
+  var [email, setEmail] = useState('')
+  var [name, setName] = useState('')
+  var [status, setStatus] = useState<'idle' | 'submitting' | 'submitted' | 'error'>('idle')
+  var [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (status === 'submitting' || status === 'submitted') return
+    var trimmed = email.trim().toLowerCase()
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setStatus('error')
+      setErrorMsg('Please enter a valid email address.')
+      return
+    }
+    setStatus('submitting')
+    setErrorMsg(null)
+    try {
+      var resp = await fetch('/api/citd/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: trimmed,
+          name: name.trim() || undefined,
+          referrer: 'citd',
+        }),
+      })
+      if (!resp.ok) {
+        var j: any = null
+        try { j = await resp.json() } catch (_e) { /* ignore */ }
+        setStatus('error')
+        setErrorMsg(j && j.error === 'invalid_email' ? 'That email looks invalid. Double-check it?' : 'Something went wrong. Please try again.')
+        return
+      }
+      setStatus('submitted')
+    } catch (_e) {
+      setStatus('error')
+      setErrorMsg('Network error — please try again in a moment.')
+    }
+  }
+
+  if (status === 'submitted') {
+    return (
+      <div className="citd-signup-success">
+        <div className="citd-signup-success-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+        <div>
+          <div className="citd-signup-success-title">You&rsquo;re on the list.</div>
+          <div className="citd-signup-success-sub">We&rsquo;ll email you the moment the app opens up.</div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <form className="citd-signup-form" onSubmit={handleSubmit} noValidate>
+      <div className="citd-signup-label">Join the launch list</div>
+      <div className="citd-signup-row">
+        <input
+          type="text"
+          name="name"
+          placeholder="Your name (optional)"
+          autoComplete="given-name"
+          className="citd-signup-input citd-signup-input-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={status === 'submitting'}
+          aria-label="Your name (optional)"
+        />
+        <input
+          type="email"
+          name="email"
+          placeholder="you@email.com"
+          autoComplete="email"
+          inputMode="email"
+          required
+          className="citd-signup-input citd-signup-input-email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          disabled={status === 'submitting'}
+          aria-label="Email address"
+        />
+        <button
+          type="submit"
+          className="citd-signup-button"
+          disabled={status === 'submitting'}
+          aria-label="Submit signup"
+        >
+          {status === 'submitting' ? '...' : 'Get notified'}
+        </button>
+      </div>
+      {status === 'error' && errorMsg && (
+        <div className="citd-signup-error" role="alert">{errorMsg}</div>
+      )}
+      <div className="citd-signup-hint">We&rsquo;ll only email you when the app opens.</div>
+    </form>
+  )
+}
 
 export default function CITDPage() {
   // ── Phase 2: auto-redirect to app stores ──────────────────
@@ -61,6 +184,17 @@ export default function CITDPage() {
             The world&rsquo;s largest database of paranormal phenomena is coming to iOS and Android.
             Search millions of reports, map the unexplained, build case files — anywhere.
           </p>
+          {/* V11.17.39 — Email signup form (replaces the previous
+              "Coming Soon" App Store / Google Play badges). CITD
+              visitors join the waitlist; we'll batch-invite once the
+              dev gate is lifted. POSTs to /api/citd/signup which is
+              already in the middleware PUBLIC_PATHS allow-list. */}
+          <CITDSignupForm />
+
+          {/* V11.17.39 — Keep the original App Store / Google Play
+              "Coming Soon" badges at full prominence alongside the
+              email form. Per operator preference: visitors should see
+              the form AND the badges, both treated as primary chrome. */}
           <div className="citd-store-buttons">
             {/* Apple App Store */}
             <div className="citd-store-btn">
@@ -90,164 +224,73 @@ export default function CITDPage() {
           </p>
         </div>
 
-        {/* Right: Phone mockup */}
+        {/* Right: Phone mockup
+            V11.17.39 — The hand-built CSS/SVG fake app that used to
+            render here has been replaced with the actual product video
+            we use on the homepage (/showcase/feed.mp4). Real footage
+            > stylized illustration for an event landing page. The
+            dynamic-island overlay and bezel remain so the phone-frame
+            identity is preserved. */}
         <div className="citd-phone-wrap">
           <div className="citd-bezel">
             <div className="citd-vol-down" />
             <div className="citd-screen-wrap">
               <div className="citd-dynamic-island" />
               <div className="citd-screen">
-                {/* Status bar */}
-                <div className="citd-status-bar">
-                  <span className="citd-status-time">9:41</span>
-                  <div style={{ width: 100 }} />
-                  <div className="citd-status-icons">
-                    <svg viewBox="0 0 18 14" fill="#fff">
-                      <rect x="0" y="10" width="3" height="4" rx="0.5" />
-                      <rect x="5" y="7" width="3" height="7" rx="0.5" />
-                      <rect x="10" y="3" width="3" height="11" rx="0.5" />
-                      <rect x="15" y="0" width="3" height="14" rx="0.5" />
-                    </svg>
-                    <svg viewBox="0 0 16 12" fill="none" stroke="#fff" strokeWidth="1.5" strokeLinecap="round">
-                      <path d="M1 3.5a11 11 0 0 1 14 0" />
-                      <path d="M3.5 6.5a7 7 0 0 1 9 0" />
-                      <path d="M6 9.3a3.5 3.5 0 0 1 4 0" />
-                      <circle cx="8" cy="11.5" r="0.5" fill="#fff" stroke="none" />
-                    </svg>
-                    <svg viewBox="0 0 28 14" fill="none">
-                      <rect x="0.5" y="0.5" width="23" height="13" rx="3" stroke="rgba(255,255,255,0.35)" />
-                      <rect x="24.5" y="4" width="2.5" height="6" rx="1" fill="rgba(255,255,255,0.3)" />
-                      <rect x="2" y="2" width="17" height="10" rx="1.5" fill="#34d399" />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* App header */}
-                <div className="citd-app-header">
-                  <div className="citd-app-logo">
-                    Paradocs<span className="citd-logo-dot">.</span>
-                  </div>
-                  <div className="citd-header-icons">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <circle cx="11" cy="11" r="8" />
-                      <path d="m21 21-4.3-4.3" />
-                    </svg>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <circle cx="12" cy="8" r="4" />
-                      <path d="M5.5 21a7.5 7.5 0 0 1 13 0" />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* Tab bar */}
-                <div className="citd-tab-bar">
-                  <div className="citd-tab citd-tab-active">Map</div>
-                  <div className="citd-tab">Browse</div>
-                  <div className="citd-tab">Search</div>
-                </div>
-
-                {/* Filter bar */}
-                <div className="citd-filter-bar">
-                  <span className="citd-filter-count">41 sightings</span>
-                  <svg className="citd-filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M3 6h18M7 12h10M10 18h4" />
-                  </svg>
-                </div>
-
-                {/* Map with glowing dots */}
-                <div className="citd-map-area">
-                  <div className="mdot mdot-cluster mdot-c1">11</div>
-                  <div className="mdot mdot-cluster mdot-c2">5</div>
-                  <div className="mdot mdot-cluster mdot-c3">6</div>
-                  <div className="mdot mdot-cluster mdot-c4">2</div>
-                  <div className="mdot mdot-cluster mdot-c5">8</div>
-                  <div className="mdot mdot-sm mdot-s1" />
-                  <div className="mdot mdot-sm mdot-s2" />
-                  <div className="mdot mdot-sm mdot-s3" />
-                  <div className="mdot mdot-sm mdot-s4" />
-                  <div className="mdot mdot-sm mdot-s5" />
-                  <div className="mdot mdot-sm mdot-s6" />
-                  <div className="mdot mdot-accent1" />
-                  <div className="mdot mdot-accent2" />
-                  <div className="mdot mdot-accent3" />
-                </div>
-
-                {/* Bottom sheet */}
-                <div className="citd-bottom-sheet">
-                  <div className="citd-sheet-handle" />
-                  <div className="citd-sheet-header">
-                    <span className="citd-sheet-count">41 sightings mapped</span>
-                    <span className="citd-sheet-action">View selected</span>
-                  </div>
-                  <div className="citd-report-card">
-                    <div className="citd-report-top">
-                      <span className="citd-report-badge">UFOs &amp; Aliens</span>
-                      <span className="citd-report-date">2 days ago</span>
-                    </div>
-                    <div className="citd-report-title">Triangle craft over Stephenville, TX</div>
-                    <div className="citd-report-desc">
-                      Multiple witnesses report large, silent triangular object with lights at each vertex
-                      hovering over...
-                    </div>
-                    <div className="citd-report-footer">
-                      <span className="citd-report-location">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                          <circle cx="12" cy="10" r="3" />
-                        </svg>
-                        Stephenville, TX
-                      </span>
-                      <span className="citd-view-report">View Full Report &rarr;</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Bottom nav */}
-                <div className="citd-bottom-nav">
-                  <div className="citd-nav-item">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14 0-5.5 2.5-7 .5 2 1.5 3 3 4.5s2.5 3.5 2.5 6c0 4.14-3.36 7.5-7.5 7.5S3 16.64 3 12.5c0-1.64.42-2.97 1.07-4.07.27-.44.55-.83.83-1.18.56.84 1.53 1.4 2.1 2.75.5 1.18.5 2 .5 3 0 .81.32 1.5.5 1.5z" />
-                    </svg>
-                    Feed
-                  </div>
-                  <div className="citd-nav-item citd-nav-active">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <circle cx="12" cy="12" r="10" />
-                      <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
-                    </svg>
-                    Explore
-                  </div>
-                  <div className="citd-nav-item">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <path d="m10.065 12.493-6.18 1.318a.934.934 0 0 1-1.108-.702l-.537-2.15a1.07 1.07 0 0 1 .691-1.265l13.504-4.44" />
-                      <path d="m13.56 11.747 4.332-.924" />
-                      <path d="m16.243 5.594 2.272.749a.934.934 0 0 1 .578 1.173l-1.186 3.605a.935.935 0 0 1-1.147.581l-.783-.245" />
-                      <path d="m10.065 12.493-.53 1.493a1.93 1.93 0 0 0 1.186 2.455l.013.005a1.93 1.93 0 0 0 2.455-1.186l.53-1.493" />
-                      <path d="M14 22v-6" />
-                      <path d="M6 22v-2.5" />
-                      <path d="M10 22H2" />
-                      <path d="M18 22h-4" />
-                    </svg>
-                    Lab
-                  </div>
-                  <div className="citd-nav-item">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <circle cx="12" cy="8" r="5" />
-                      <path d="M20 21a8 8 0 0 0-16 0" />
-                    </svg>
-                    Profile
-                  </div>
-                </div>
-
-                {/* Home indicator */}
-                <div className="citd-home-indicator">
-                  <div className="citd-home-bar" />
-                </div>
+                <video
+                  className="citd-screen-video"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  preload="auto"
+                  poster="/showcase/feed-poster.jpg"
+                  aria-label="Paradocs feed preview"
+                >
+                  <source src="/showcase/feed.mp4" type="video/mp4" />
+                </video>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* V11.17.39 — Laptop showcase section (Contact in the Desert event).
+          Pairs with the phone mockup above. Same /showcase/map.mp4
+          we use on the homepage. Stacked beneath the hero so visitors
+          who scroll see the desktop / global-map dimension of the
+          product. */}
+      <section className="citd-laptop-section">
+        <h2 className="citd-laptop-heading">
+          Explore <span className="citd-accent">137,000+</span> documented experiences,
+          mapped worldwide.
+        </h2>
+        <p className="citd-laptop-sub">
+          Witness reports, sightings, anomalous phenomena. Filtered, geocoded,
+          and ready to explore from anywhere.
+        </p>
+        <div className="citd-laptop-wrap">
+          <div className="citd-laptop-bezel">
+            <div className="citd-laptop-camera" />
+            <div className="citd-laptop-screen">
+              <video
+                className="citd-laptop-video"
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="auto"
+                poster="/showcase/map-poster.jpg"
+                aria-label="Paradocs interactive map preview"
+              >
+                <source src="/showcase/map.mp4" type="video/mp4" />
+              </video>
+            </div>
+          </div>
+          <div className="citd-laptop-base" />
+          <div className="citd-laptop-notch" />
+        </div>
+      </section>
 
       <style jsx global>{`
         /* ─── CITD Landing Page ─── */
@@ -707,6 +750,234 @@ export default function CITDPage() {
         /* Home indicator */
         .citd-home-indicator { display: flex; justify-content: center; padding: 6px 0 4px; background: rgba(18,18,32,0.97); }
         .citd-home-bar { width: 100px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.15); }
+
+        /* ─── V11.17.39 Phone-screen video ─── */
+        .citd-screen-video {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: center;
+          display: block;
+          background: #0d0d1a;
+        }
+
+        /* ─── V11.17.39 Email signup form ─── */
+        .citd-signup-form {
+          margin: 0 0 28px;
+          max-width: 480px;
+        }
+        @media (max-width: 768px) {
+          .citd-signup-form { margin-left: auto; margin-right: auto; }
+        }
+        .citd-signup-label {
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: #c084fc;
+          margin-bottom: 12px;
+        }
+        .citd-signup-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr auto;
+          gap: 8px;
+          align-items: stretch;
+        }
+        @media (max-width: 640px) {
+          .citd-signup-row {
+            grid-template-columns: 1fr;
+            gap: 8px;
+          }
+        }
+        .citd-signup-input {
+          width: 100%;
+          padding: 13px 14px;
+          font-size: 14px;
+          font-family: inherit;
+          color: #fff;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.12);
+          border-radius: 10px;
+          outline: none;
+          transition: border-color 0.15s, background 0.15s;
+          box-sizing: border-box;
+          min-width: 0;
+        }
+        .citd-signup-input::placeholder { color: rgba(255,255,255,0.4); }
+        .citd-signup-input:focus {
+          border-color: rgba(144, 0, 240, 0.6);
+          background: rgba(255,255,255,0.07);
+        }
+        .citd-signup-input:disabled { opacity: 0.6; cursor: not-allowed; }
+        .citd-signup-button {
+          padding: 13px 22px;
+          font-size: 14px;
+          font-weight: 600;
+          font-family: inherit;
+          color: #fff;
+          background: #9000F0;
+          border: none;
+          border-radius: 10px;
+          cursor: pointer;
+          transition: background 0.15s, transform 0.05s;
+          white-space: nowrap;
+          letter-spacing: 0.01em;
+        }
+        .citd-signup-button:hover { background: #a020ff; }
+        .citd-signup-button:active { transform: scale(0.98); }
+        .citd-signup-button:disabled {
+          background: rgba(144, 0, 240, 0.5);
+          cursor: not-allowed;
+        }
+        .citd-signup-hint {
+          margin-top: 10px;
+          font-size: 12px;
+          color: #666680;
+        }
+        @media (max-width: 768px) {
+          .citd-signup-hint { text-align: center; }
+        }
+        .citd-signup-error {
+          margin-top: 10px;
+          padding: 10px 14px;
+          font-size: 13px;
+          color: #fca5a5;
+          background: rgba(239, 68, 68, 0.08);
+          border: 1px solid rgba(239, 68, 68, 0.25);
+          border-radius: 8px;
+        }
+        .citd-signup-success {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          padding: 16px 18px;
+          margin: 0 0 28px;
+          max-width: 480px;
+          background: rgba(52, 211, 153, 0.07);
+          border: 1px solid rgba(52, 211, 153, 0.32);
+          border-radius: 12px;
+        }
+        @media (max-width: 768px) {
+          .citd-signup-success { margin-left: auto; margin-right: auto; }
+        }
+        .citd-signup-success-icon {
+          flex-shrink: 0;
+          width: 36px; height: 36px;
+          border-radius: 50%;
+          background: rgba(52, 211, 153, 0.18);
+          color: #6ee7b7;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .citd-signup-success-icon svg { width: 18px; height: 18px; }
+        .citd-signup-success-title {
+          font-size: 15px;
+          font-weight: 600;
+          color: #d1fae5;
+          margin-bottom: 2px;
+        }
+        .citd-signup-success-sub {
+          font-size: 13px;
+          color: #a0a0b8;
+        }
+
+        /* Secondary (smaller, dimmer) store badges below the form */
+        .citd-store-buttons-secondary { opacity: 0.72; transform: scale(0.92); transform-origin: left center; margin-bottom: 24px; }
+        @media (max-width: 768px) {
+          .citd-store-buttons-secondary { transform-origin: center; }
+        }
+
+        /* ─── V11.17.39 Laptop section ─── */
+        .citd-laptop-section {
+          position: relative;
+          max-width: 1100px;
+          margin: 0 auto;
+          padding: 20px 24px 80px;
+          text-align: center;
+        }
+        @media (max-width: 768px) {
+          .citd-laptop-section { padding: 8px 16px 64px; }
+        }
+        .citd-laptop-heading {
+          font-family: 'Changa', sans-serif;
+          font-size: clamp(24px, 4vw, 36px);
+          font-weight: 700;
+          line-height: 1.2;
+          color: #fff;
+          margin: 0 0 14px;
+          max-width: 720px;
+          margin-left: auto;
+          margin-right: auto;
+        }
+        .citd-laptop-sub {
+          font-size: 15px;
+          line-height: 1.6;
+          color: #a0a0b8;
+          max-width: 520px;
+          margin: 0 auto 40px;
+        }
+        .citd-laptop-wrap {
+          position: relative;
+          max-width: 840px;
+          margin: 0 auto;
+        }
+        .citd-laptop-bezel {
+          position: relative;
+          border-radius: 12px 12px 4px 4px;
+          background: linear-gradient(145deg, #2a2a3a 0%, #1a1a28 50%, #222233 100%);
+          padding: 14px 14px 14px;
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.06),
+            0 18px 50px rgba(0,0,0,0.55);
+          aspect-ratio: 16 / 10;
+        }
+        @media (max-width: 640px) {
+          .citd-laptop-bezel { padding: 8px 8px 8px; }
+        }
+        .citd-laptop-camera {
+          position: absolute;
+          top: 6px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 4px;
+          height: 4px;
+          border-radius: 50%;
+          background: rgba(255,255,255,0.12);
+        }
+        .citd-laptop-screen {
+          width: 100%;
+          height: 100%;
+          border-radius: 4px;
+          overflow: hidden;
+          background: #0d0d1a;
+          border: 1px solid rgba(0,0,0,0.5);
+        }
+        .citd-laptop-video {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: center;
+          display: block;
+          background: #0d0d1a;
+        }
+        .citd-laptop-base {
+          height: 14px;
+          background: linear-gradient(180deg, #1a1a28 0%, #0a0a14 100%);
+          border-radius: 0 0 20px 20px;
+          margin: 0 -2.5%;
+          box-shadow: 0 12px 24px rgba(0,0,0,0.5);
+          position: relative;
+        }
+        .citd-laptop-notch {
+          width: 80px;
+          height: 6px;
+          background: rgba(0,0,0,0.5);
+          border-radius: 0 0 8px 8px;
+          margin: -14px auto 0;
+          position: relative;
+          z-index: 1;
+        }
       `}</style>
     </>
   )
