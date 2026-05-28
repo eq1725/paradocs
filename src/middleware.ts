@@ -164,12 +164,35 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // Prompt for credentials
+  // V11.17.39 — only include the WWW-Authenticate header on top-level
+  // page navigations. iOS Safari (especially in Private Browsing) is
+  // aggressive about showing the basic-auth popup whenever it sees a
+  // 401 + WWW-Authenticate challenge, even for background subresource
+  // requests (manifest icons, web-app meta-link fetches, sw.js
+  // preloads, etc.). The popup appears on /citd despite the page
+  // itself being allow-listed because some Safari-initiated
+  // background fetch is hitting a gated path and 401-ing.
+  //
+  // Fix: gate the challenge header by request destination. Real human
+  // page navigations get the prompt (so the dev gate keeps working);
+  // every other request type silently 401s with no popup trigger.
+  const secFetchDest = request.headers.get('sec-fetch-dest') || ''
+  const secFetchMode = request.headers.get('sec-fetch-mode') || ''
+  const accept = request.headers.get('accept') || ''
+  const isTopLevelNavigation =
+    secFetchMode === 'navigate' ||
+    secFetchDest === 'document' ||
+    // Fallback heuristic — Safari sometimes omits Sec-Fetch-* headers.
+    (accept.includes('text/html') && !accept.includes('image/'))
+
+  const headers: Record<string, string> = {}
+  if (isTopLevelNavigation) {
+    headers['WWW-Authenticate'] = 'Basic realm="Paradocs - Enter access credentials"'
+  }
+
   return new NextResponse('Authentication required', {
     status: 401,
-    headers: {
-      'WWW-Authenticate': 'Basic realm="Paradocs - Enter access credentials"',
-    },
+    headers,
   })
 }
 
