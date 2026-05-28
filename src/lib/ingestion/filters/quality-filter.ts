@@ -217,7 +217,12 @@ export const HOOK_SELF_CONFESSION_PATTERNS = [
   /\b(?:suppress(?:ing|ion|ed)?|silenc(?:ing|ed)|hid(?:ing|den))\s+(?:ufo|uap|paranormal|disclosure|whistleblower)\b/i,
   /\b(?:mainstream|debunking)\s+narratives?\b/i,
   /\b(?:whistleblower\s+channels?|disclosure\s+discussion)\b/i,
-  /\brecommendation\s+(?:feed|algorithm|engine)\b/i,
+  // V11.17.39 (3rd round dry-run review) — removed the bare
+  // `recommendation feed/algorithm/engine` pattern: it false-positives
+  // on legitimate Spotify/YouTube SYNCHRONICITY reports (e.g. "the gym
+  // speakers played the same song my Spotify recommendation algorithm
+  // just queued"). The platform-bias signal is already caught by the
+  // `algorithm manipulation/suppression/shift/bias` pattern above.
 ];
 
 // Art, merchandise, and promotional content

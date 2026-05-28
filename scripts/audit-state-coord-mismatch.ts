@@ -36,7 +36,21 @@ import stateCentroids from '../src/lib/ingestion/utils/state-centroids.json'
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-const COUNTRY_TOLERANCE_DEG = 1.0  // ~111km — coords this close to country centroid are almost certainly the centroid
+// V11.17.39 (3rd round dry-run review) — tightened tolerances.
+//
+// COUNTRY_TOLERANCE_DEG = 0.05 (~5km): only flag reports whose coords
+//   are basically EXACTLY at country centroid. Real geocoded cities
+//   never land on the centroid by accident. Earlier 1.0° tolerance
+//   false-positived on tiny countries (England) and on coincidental
+//   proximity (US country centroid sits very close to Kansas state
+//   centroid because Kansas IS the geographic center of the US).
+//
+// STATE_TOLERANCE_DEG = 0.05: skip-if-already-at-state-centroid guard.
+//   Many flagged reports already had coords matching their state
+//   centroid (legitimately so) and we were "fixing" them to the same
+//   value. Skip outright.
+const COUNTRY_TOLERANCE_DEG = 0.05
+const STATE_TOLERANCE_DEG = 0.05
 
 function parseArgs() {
   const a = process.argv.slice(2)
@@ -120,7 +134,7 @@ async function main() {
       const lng = typeof r.longitude === 'number' ? r.longitude : parseFloat(String(r.longitude))
       if (isNaN(lat) || isNaN(lng)) continue
 
-      // Are coords near country centroid?
+      // Are coords near country centroid? (tightened to ~5km)
       const dLat = Math.abs(lat - countryEntry.lat)
       const dLng = Math.abs(lng - countryEntry.lng)
       if (dLat > COUNTRY_TOLERANCE_DEG || dLng > COUNTRY_TOLERANCE_DEG) continue  // coords look real
@@ -133,6 +147,17 @@ async function main() {
 
       const stateEntry = ((stateCentroids as any)[iso2] || {})[stateKey]
       if (!stateEntry) continue
+
+      // Skip if coords already match the state centroid (within 5km).
+      // This is the "Kansas case": US country centroid sits within
+      // ~0.5° of Kansas state centroid, so naive country-centroid
+      // detection was flagging Kansas reports correctly placed at
+      // Kansas state centroid. The exact-equality guard above (0.05°)
+      // already handles most of this, but state centroids occasionally
+      // get stored with slight float drift, so we double-check.
+      const dStateLat = Math.abs(lat - stateEntry.lat)
+      const dStateLng = Math.abs(lng - stateEntry.lng)
+      if (dStateLat < STATE_TOLERANCE_DEG && dStateLng < STATE_TOLERANCE_DEG) continue  // already at state centroid — correct
 
       candidates.push({
         id: r.id,
