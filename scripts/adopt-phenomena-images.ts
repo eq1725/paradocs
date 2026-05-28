@@ -322,13 +322,13 @@ async function searchWikimedia(query: string, limit = 5): Promise<Candidate[]> {
       'unknown'
     const author = (meta.Artist?.value as string) || 'Unknown'
     const description = (meta.ImageDescription?.value as string) || page.title
-    // V11.17.39 — wrap URL in wikimediaThumb to cap at 1200px. Without
-    // this, Wikimedia returns the FULL-resolution original (often 8000+
-    // pixels wide for panoramic images), which trips Claude's 8000px
-    // dimension limit at vision-input time.
+    // V11.17.39 — use original URL, not the thumb-rewritten one.
+    // Wikimedia's thumb service returns 400 for some files (small
+    // originals, certain PNGs), and we have sharp downstream to handle
+    // the 8000px dimension cap regardless of source size.
     candidates.push({
       title: page.title,
-      url: wikimediaThumb(info.url, 1200),
+      url: info.url,
       description: stripHtml(description).substring(0, 300),
       license: stripHtml(license),
       attribution: stripHtml(author) + ' (' + stripHtml(license) + ')',
@@ -417,9 +417,9 @@ async function searchOpenverse(query: string, limit = 5): Promise<Candidate[]> {
   const results: any[] = data.results || []
   return results.filter(r => r.url && r.mime_type?.startsWith('image/')).map(r => ({
     title: 'OpenVerse: ' + (r.title || r.id || '').substring(0, 100),
-    // V11.17.39 — wikimediaThumb() is a no-op for non-Wikimedia URLs
-    // (most OpenVerse results), but cleanly caps Wikimedia-backed ones.
-    url: wikimediaThumb(r.url, 1200),
+    // V11.17.39 — use original URL, not thumb-rewritten. Sharp handles
+    // dimension capping downstream.
+    url: r.url,
     description: stripHtml(r.title || '').substring(0, 300),
     license: r.license + (r.license_version ? ' ' + r.license_version : ''),
     attribution: 'Image by ' + (r.creator || 'Unknown') + ' via ' + (r.source || 'OpenVerse') + ' (' + r.license + ')',
