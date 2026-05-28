@@ -236,6 +236,14 @@ export default function CITDPage() {
           name="description"
           content="The world's largest database of paranormal phenomena is coming to iOS and Android."
         />
+        {/* V11.17.40 (CITD hotfix) — Override the app-level viewport meta.
+            _app.tsx sets `user-scalable=no, maximum-scale=1` for the PWA-
+            style in-app surfaces. On a public marketing landing page that
+            policy traps mobile visitors when anything renders even
+            slightly wider than the viewport — no pinch-zoom escape hatch.
+            For /citd we allow zoom (a11y baseline) and rely on
+            width=device-width + viewport-fit=cover for the layout. */}
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta property="og:title" content="Paradocs — The Paranormal, In Your Pocket" />
         <meta
           property="og:description"
@@ -419,6 +427,28 @@ export default function CITDPage() {
         /* ─── CITD Landing Page ─── */
         /* Override any app-level layout */
         body { background: #0a0a14 !important; }
+
+        /* V11.17.40 (CITD hotfix) — Belt-and-suspenders no-horizontal-
+           overflow guard. The QR-code traffic at CITD hits a wide range of
+           Android devices, some with non-standard zoom defaults or weird
+           viewport handling; if any decorative element (phone bezel
+           pseudo-elements, laptop bezel, fixed-position glow) would force
+           horizontal scroll, we clamp it here so the user never sees a
+           clipped page they can't escape from. */
+        html, body {
+          overflow-x: hidden;
+          max-width: 100vw;
+        }
+
+        /* Defensive cap on every direct child of the page wrapper so the
+           hero, laptop section, and footer can't punch past the viewport
+           regardless of inner content width. */
+        .citd-page,
+        .citd-laptop-section,
+        .citd-footer {
+          max-width: 100vw;
+          box-sizing: border-box;
+        }
 
         /* Starfield */
         .citd-page::before {
