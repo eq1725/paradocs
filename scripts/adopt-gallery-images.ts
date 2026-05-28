@@ -177,6 +177,46 @@ async function searchOpenverse(query: string, limit = 5): Promise<Candidate[]> {
   } catch (_e) { return [] }
 }
 
+// ─── Haiku query expansion (V11.17.39, ported from adopt-phenomena-images) ─
+//
+// Compound editorial slugs like "Metallic Disc UFO" don't match image
+// titles. Haiku translates to image-search-friendly queries: synonyms,
+// iconic case names, native-script forms, broader parent terms.
+async function getExpandedQueries(p: any): Promise<string[]> {
+  if (!ANTHROPIC_API_KEY) return []
+  const system = `Generate IMAGE-SEARCH-FRIENDLY query terms for a paranormal phenomenon. The slug is typically a compound editorial label that doesn't match how images are titled on Wikimedia/Commons/OpenVerse. Return 3-6 alternatives covering: native-script translations, common synonyms, iconic case names, visual descriptors. Output ONLY a JSON array of strings, no markdown.
+
+Examples:
+  "Metallic Disc UFO" → ["flying saucer","UFO disc","Kenneth Arnold sighting","saucer-shaped craft"]
+  "Dover Demon" → ["Dover Demon","Bartlett sketch","Dover Massachusetts creature"]
+  "Mirror Gazing" → ["scrying","catoptromancy","obsidian mirror","Aztec mirror"]
+  "Cheonyeo Gwishin" → ["처녀귀신","Korean virgin ghost"]`
+  try {
+    const resp = await fetch(ANTHROPIC_MESSAGES_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: HAIKU_MODEL, max_tokens: 120, system,
+        messages: [{ role: 'user', content:
+          'PHENOMENON: ' + p.name +
+          '\nCATEGORY: ' + p.category +
+          (p.aliases?.length ? '\nALIASES: ' + (p.aliases as string[]).slice(0, 3).join(', ') : '') +
+          (p.ai_summary ? '\nSUMMARY: ' + p.ai_summary.substring(0, 300) : ''),
+        }],
+      }),
+    })
+    if (!resp.ok) return []
+    const data: any = await resp.json()
+    const text = data?.content?.[0]?.text || ''
+    const start = text.indexOf('[')
+    const end = text.lastIndexOf(']')
+    if (start < 0 || end <= start) return []
+    const arr = JSON.parse(text.substring(start, end + 1))
+    if (!Array.isArray(arr)) return []
+    return arr.filter((x: any) => typeof x === 'string' && x.length > 0 && x.length < 80).slice(0, 6)
+  } catch (_e) { return [] }
+}
+
 // ─── Haiku: pick TOP-N candidates that depict the phenomenon ──────────
 async function haikuPickTopN(p: any, candidates: Candidate[], n: number): Promise<{ picks: number[]; reasons: string[]; rejectReason?: string }> {
   if (candidates.length === 0) return { picks: [], reasons: [] }
@@ -198,7 +238,10 @@ async function haikuPickTopN(p: any, candidates: Candidate[], n: number): Promis
       inlined.push({ idx: i, mime: 'image/jpeg', b64: resized.toString('base64') })
     } catch (_e) { /* skip */ }
   }
-  if (inlined.length === 0) return { picks: [], reasons: [] }
+  if (inlined.length === 0) return {
+    picks: [], reasons: [],
+    rejectReason: 'all ' + candidates.length + ' candidates failed to download/sharp-process (mime mismatch, corrupt, too big, or fetch error)',
+  }
 
   const system = `You review candidate images and pick the TOP ${n} that legitimately depict the phenomenon. Goal: variety + accuracy. Pick images showing different angles, eras, styles, or interpretations of the SAME phenomenon. Reject anything tangentially related, wrong species, generic stock, etc.
 
@@ -344,8 +387,22 @@ async function main() {
         add(await searchWikimedia(a, 3))
       }
     }
+    // V11.17.39 — Haiku query expansion fallback when prior layers thin.
+    // Catches compound editorial slugs ("Metallic Disc UFO") that don't
+    // match image titles directly. Haiku suggests broader/synonym terms
+    // we then re-query against Wikimedia + OpenVerse.
+    if (found.length < 3) {
+      const expanded = await getExpandedQueries(p)
+      for (const q of expanded) {
+        if (found.length >= 8) break
+        add(await searchWikimedia(q, 3))
+        if (found.length >= 8) break
+        add(await searchOpenverse(q, 3))
+      }
+    }
+
     if (found.length === 0) {
-      console.log(' — no candidates')
+      console.log(' — no candidates (even after query expansion)')
       nothing++
       continue
     }
