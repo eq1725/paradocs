@@ -539,6 +539,46 @@ export default async function handler(
       return res.status(200).json({ items: [], hasMore: false, totalAvailable: totalAvailable });
     }
 
+    // V11.17.39 (#29) — phenomenon image rotation helper.
+    //
+    // Each phenomenon now has primary_image_url + image_gallery (0-N
+    // additional images stored as JSONB objects: { url, source, license,
+    // attribution, alt_text, added_at }). For visual variety, the feed
+    // picks ONE image from the combined pool deterministically — same
+    // user gets the same image for the same phenomenon on the same day
+    // (consistent across page reloads + scroll), but different users
+    // see different picks AND the same user sees rotation across days.
+    //
+    // Hash seed = userIdSeed + ':' + dayStamp + ':' + phenomenon.id —
+    // gives stable variety. Index into [primary, ...gallery_urls].
+    function pickPhenomenonImage(phen: any): string | null {
+      var primary: string | null = phen.primary_image_url || null
+      var gallery: any[] = Array.isArray(phen.image_gallery) ? phen.image_gallery : []
+      var galleryUrls: string[] = gallery
+        .map(function (g: any) {
+          if (typeof g === 'string') return g
+          if (g && typeof g === 'object') return g.url || g.src || null
+          return null
+        })
+        .filter(function (u: string | null): u is string { return !!u })
+      var pool: string[] = []
+      if (primary) pool.push(primary)
+      for (var pi = 0; pi < galleryUrls.length; pi++) {
+        if (galleryUrls[pi] !== primary) pool.push(galleryUrls[pi])
+      }
+      if (pool.length === 0) return null
+      if (pool.length === 1) return pool[0]
+      // Deterministic hash from (user, day, phenomenon) → index
+      var hashStr = userIdSeed + ':' + dayStamp + ':' + (phen.id || phen.slug || '')
+      var h = 0
+      for (var ci = 0; ci < hashStr.length; ci++) {
+        h = ((h << 5) - h) + hashStr.charCodeAt(ci)
+        h |= 0
+      }
+      var idx = Math.abs(h) % pool.length
+      return pool[idx]
+    }
+
     // ---- Fetch full data for each type ----
     var phenMap: Record<string, any> = {};
     var reportMap: Record<string, any> = {};
@@ -546,7 +586,10 @@ export default async function handler(
     if (phenIds.length > 0) {
       var { data: fullPhen } = await supabase
         .from('phenomena')
-        .select('id, name, slug, category, icon, ai_summary, display_blurb, ai_description, ai_quick_facts, feed_hook, anchor_case_hook, anchor_when, anchor_where, anchor_witness, unresolved_tension, primary_image_url, report_count, primary_regions, first_reported_date, aliases')
+        // V11.17.39 (#29) — include image_gallery so the random-pick
+        // helper can rotate through 2-3 images per phenomenon for visual
+        // variety across users/days.
+        .select('id, name, slug, category, icon, ai_summary, display_blurb, ai_description, ai_quick_facts, feed_hook, anchor_case_hook, anchor_when, anchor_where, anchor_witness, unresolved_tension, primary_image_url, image_gallery, report_count, primary_regions, first_reported_date, aliases')
         .in('id', phenIds);
 
       if (fullPhen) {
@@ -706,7 +749,10 @@ export default async function handler(
           var phenIds = Array.from(new Set(rpLinks.map(function (l) { return l.phenomenon_id; })));
           var { data: phenData } = await supabase
             .from('phenomena')
-            .select('id, name, primary_image_url')
+            // V11.17.39 (#29) — include image_gallery so the rotation
+            // applies even for report cards that borrow a phenomenon's
+            // image (when the report itself lacks one).
+            .select('id, slug, name, primary_image_url, image_gallery')
             .in('id', phenIds);
 
           if (phenData) {
@@ -715,9 +761,12 @@ export default async function handler(
             rpLinks.forEach(function (link) {
               var r = reportMap[link.report_id];
               var ph = phenImgMap[link.phenomenon_id];
-              if (r && ph && ph.primary_image_url && ph.primary_image_url !== placeholderUrl && !r.associated_image_url) {
-                r.associated_image_url = ph.primary_image_url;
-                r.associated_image_source = ph.name;
+              if (r && ph && !r.associated_image_url) {
+                var pickedUrl = pickPhenomenonImage(ph)
+                if (pickedUrl && pickedUrl !== placeholderUrl) {
+                  r.associated_image_url = pickedUrl;
+                  r.associated_image_source = ph.name;
+                }
               }
             });
           }
@@ -800,7 +849,11 @@ export default async function handler(
           anchor_where: p.anchor_where || null,
           anchor_witness: p.anchor_witness || null,
           unresolved_tension: p.unresolved_tension || null,
-          primary_image_url: p.primary_image_url,
+          // V11.17.39 (#29) — rotate through primary + image_gallery so
+          // users see visual variety across the same phenomenon over
+          // days. Front-end still consumes primary_image_url as the
+          // single image field; the back-end transparently shuffles.
+          primary_image_url: pickPhenomenonImage(p),
           report_count: p.report_count,
           primary_regions: p.primary_regions,
           first_reported_date: p.first_reported_date,
