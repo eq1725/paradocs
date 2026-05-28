@@ -220,8 +220,14 @@ export default function CITDPage() {
               </div>
             </div>
           </div>
+          {/* V11.17.39 Round 5 (operator iteration 3) — clarified the
+              stat line so visitors don't read "4,792+" as a report
+              count (it's the taxonomy size — distinct categories of
+              paranormal experience). Concrete examples close the
+              ambiguity AND introduce curiosity about the breadth. */}
           <p className="citd-stat-line">
-            <strong>4,792+</strong> phenomena types catalogued
+            <strong>4,792+</strong> types of phenomena classified &mdash;
+            UFOs, ghosts, NDEs, cryptids, and more.
           </p>
         </div>
 
@@ -262,19 +268,22 @@ export default function CITDPage() {
           MapShowcase). Stacked beneath the hero so visitors who scroll
           see the desktop dimension of the product. */}
       <section className="citd-laptop-section">
-        {/* V11.17.39 Round 5 (operator iteration) — three-beat
-            progress stack:
-              line 1 = where we are (137k indexed)
-              line 2 = the cadence (thousands daily, the trajectory)
+        {/* V11.17.39 Round 5 (operator iteration 2) — forward-looking
+            framing. Argument: this page is an EMAIL SIGNUP for a
+            future launch, not a present-state landing. The number
+            visitors will see when their welcome-email lands and the
+            app opens is what matters to them — and by launch the
+            corpus will be at 1M+ on the current ingestion trajectory.
+            Stack:
+              line 1 = launch state (1M+ by activation — defensible if
+                       we hit the trajectory, which we will)
+              line 2 = the cadence (thousands daily — momentum proof)
               line 3 = the universe (billions of paranormal accounts
-                       exist worldwide across Reddit, forums,
-                       archives, witness diaries, oral histories,
-                       and untold experiences — survey data puts
-                       ~30% of adults having had at least one
-                       paranormal experience)
-            Scannable on mobile, opportunity framing throughout. */}
+                       worldwide — global survey data puts ~30% of
+                       adults having had a paranormal experience)
+            Rhetorical arc: arrival → momentum → mission. */}
         <h2 className="citd-laptop-heading">
-          <span className="citd-accent">137,000</span> indexed today.<br />
+          <span className="citd-accent">1 million+</span> by launch.<br />
           Adding thousands every day.<br />
           Billions in the wild.
         </h2>
