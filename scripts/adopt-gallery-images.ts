@@ -56,7 +56,8 @@ const ANTHROPIC_MESSAGES_URL = 'https://api.anthropic.com/v1/messages'
 const WIKIMEDIA_API = 'https://commons.wikimedia.org/w/api.php'
 const STORAGE_BUCKET = 'phenomena-images'
 const TARGET_GALLERY_SIZE = 3  // total images per phenomenon (primary + gallery)
-const REVIEW_THRESHOLD = 55    // Haiku confidence floor for gallery (slightly lower than primary)
+const REVIEW_THRESHOLD = 45    // Haiku confidence floor for gallery (lower than primary's 60;
+                                // secondary images don't need to be ICONIC, just plausible)
 
 const UA = 'ParadocsBot/1.0 (https://www.discoverparadocs.com; williamschaseh@gmail.com)'
 
@@ -177,7 +178,7 @@ async function searchOpenverse(query: string, limit = 5): Promise<Candidate[]> {
 }
 
 // ─── Haiku: pick TOP-N candidates that depict the phenomenon ──────────
-async function haikuPickTopN(p: any, candidates: Candidate[], n: number): Promise<{ picks: number[]; reasons: string[] }> {
+async function haikuPickTopN(p: any, candidates: Candidate[], n: number): Promise<{ picks: number[]; reasons: string[]; rejectReason?: string }> {
   if (candidates.length === 0) return { picks: [], reasons: [] }
 
   // Download + resize each candidate for vision input
@@ -230,18 +231,26 @@ If fewer than ${n} candidates are acceptable, return what you can. Empty picks a
     const text = data?.content?.[0]?.text || ''
     const s = text.indexOf('{')
     const e = text.lastIndexOf('}')
-    if (s < 0 || e <= s) return { picks: [], reasons: [] }
+    if (s < 0 || e <= s) return { picks: [], reasons: [], rejectReason: 'no JSON in response' }
     const parsed = JSON.parse(text.substring(s, e + 1))
-    if (!Array.isArray(parsed.picks)) return { picks: [], reasons: [] }
+    if (!Array.isArray(parsed.picks)) return { picks: [], reasons: [], rejectReason: 'no picks array' }
     const conf = typeof parsed.confidence === 'number' ? parsed.confidence : 0
-    if (conf < REVIEW_THRESHOLD) return { picks: [], reasons: [] }
+    if (conf < REVIEW_THRESHOLD) return {
+      picks: [], reasons: [],
+      rejectReason: 'conf=' + conf + ' < threshold=' + REVIEW_THRESHOLD +
+        (parsed.reasons?.[0] ? ' — ' + parsed.reasons[0] : ''),
+    }
+    if (parsed.picks.length === 0) return {
+      picks: [], reasons: [],
+      rejectReason: 'Haiku returned 0 picks (conf=' + conf + ')' +
+        (parsed.reasons?.[0] ? ' — ' + parsed.reasons[0] : ''),
+    }
     const haikuIdxs: number[] = parsed.picks.filter((x: any) => typeof x === 'number')
-    // Map Haiku's inlined-array indices back to original candidates indices
     const originalIdxs = haikuIdxs.map(hi => inlined[hi]?.idx).filter(i => typeof i === 'number') as number[]
     const reasons: string[] = Array.isArray(parsed.reasons) ? parsed.reasons.map((x: any) => String(x).substring(0, 200)) : []
     return { picks: originalIdxs, reasons }
   } catch (_e) {
-    return { picks: [], reasons: [] }
+    return { picks: [], reasons: [], rejectReason: 'parse error' }
   }
 }
 
@@ -341,9 +350,14 @@ async function main() {
       continue
     }
 
-    const { picks, reasons } = await haikuPickTopN(p, found, need)
+    const { picks, reasons, rejectReason } = await haikuPickTopN(p, found, need)
     if (picks.length === 0) {
       console.log(' — Haiku rejected all (' + found.length + ' candidates)')
+      if (rejectReason) console.log('       reason: ' + rejectReason.substring(0, 200))
+      // Optional: log the candidates we offered so operator can see if pool was thin
+      if (found.length > 0 && found.length <= 5) {
+        for (const c of found) console.log('       candidate: [' + c.source + '] ' + c.title.substring(0, 80))
+      }
       nothing++
       continue
     }
