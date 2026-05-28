@@ -280,9 +280,18 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
   // COUNTRY_CENTROIDS table from V10.7.I has been removed — we just
   // read what the DB gives us.
   const mapCoords = useMemo(() => {
-    if (typeof report?.latitude === 'number' && typeof report?.longitude === 'number') {
+    // V11.17.39 — Supabase REST returns numeric DB columns as STRINGS in
+    // some response paths. Previous strict `typeof === 'number'` check
+    // would fail on string lat/lng, mapCoords would be null, and the
+    // ReportLocationMap would fall back to (0,0) → Africa. Parse to
+    // float and validate.
+    const rawLat: any = (report as any)?.latitude
+    const rawLng: any = (report as any)?.longitude
+    const lat = typeof rawLat === 'number' ? rawLat : parseFloat(String(rawLat ?? ''))
+    const lng = typeof rawLng === 'number' ? rawLng : parseFloat(String(rawLng ?? ''))
+    if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) {
       const synthetic = (report as any).coords_synthetic === true
-      return { lat: report.latitude, lng: report.longitude, fromFallback: synthetic }
+      return { lat, lng, fromFallback: synthetic }
     }
     return null
   }, [report])
@@ -463,7 +472,8 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
             placeholder makes the missing-data state explicit instead
             of misleading the user with a geographically wrong header. */}
         {(function () {
-          var hasCoords = typeof report?.latitude === 'number' && typeof report?.longitude === 'number'
+          // V11.17.39 — string/number-safe coord check, matches mapCoords logic
+          var hasCoords = !!mapCoords
           var hasRegionHint = !!(report as any)?.country_code || !!(report as any)?.state_province || !!(report as any)?.country
           if (!hasCoords && !hasRegionHint) {
             return (

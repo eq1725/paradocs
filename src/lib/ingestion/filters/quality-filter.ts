@@ -118,6 +118,19 @@ export const META_POST_PATTERNS = [
   // Reports framed as ABOUT specific public figures' statements/podcasts
   /\b(?:retired|former)\s+(?:navy|air force|cia|nasa|pentagon|congressman)\b.*\b(?:discusses?|talks?|appeared|hosting|interview)\b/i,
   /\b(?:setileading|prominent|senior)\s+(?:director|commander|official|figure)\s+(?:discusses?|hosts?|appears?|interviewed)\b/i,
+
+  // V11.17.39 — search-request / "where can I find this video" patterns.
+  // Spot-check found reports like "A user hunts for a viral video of a
+  // ball-of-light UFO captured in Peru or Brazil..." getting through
+  // because they're framed in third-person and reference paranormal
+  // content without describing an actual experience.
+  /\b(?:user|someone|i'?m?|the (?:user|poster|op|author))\s+(?:hunts?|searches?|searching|is\s+looking|wants?\s+to\s+find)\s+(?:for|out)\b/i,
+  /\bwhere\s+can\s+i\s+(?:find|see|watch|locate)\b/i,
+  /\b(?:trying|tried)\s+to\s+(?:find|locate|track\s+down|identify)\b.*\b(?:video|clip|footage|post|story|recording)\b/i,
+  /\b(?:lost|missing|deleted)\s+(?:link|video|clip|footage|thread|post)\b/i,
+  /\bcirculated\s+widely\b/i,  // "the post circulated widely on the subreddit"
+  /\b(?:does anyone (?:remember|have|know)|anyone\s+(?:remember|have|know))\s+(?:that|the|a)?\s*(?:video|clip|footage|post|article|story)\b/i,
+  /\bcalvine\s+photo\b/i,  // Specific famous photograph regularly producing commentary, not experiences
 ];
 
 // Art, merchandise, and promotional content
@@ -860,7 +873,12 @@ export function filterContent(
         // Generic anomaly
         'paranormal','supernatural','anomal','unexplain','unexplainable','strange.encounter','strange.experience',
         // Memory / time anomalies
-        'synchronic','deja.vu','time.slip','missing.time','lost.time','hours.unaccounted','compressed.time',
+        // V11.17.39 hotfix — removed 'hours.unaccounted'. The phrase
+        // matches innocent lost-child stories ("Hours Unaccounted For"
+        // about a kid wandering off at a campsite) which aren't paranormal.
+        // The narrower terms missing.time / lost.time / time.slip catch
+        // the real missing-time anomaly cases without false positives.
+        'synchronic','deja.vu','time.slip','missing.time','lost.time','compressed.time',
         'time.stood.still','time.skipped','timeline.shift','mandela.effect',
         'shared.memory','identical.memory','mutual.memory','same.memory','diverge.*memory',
         // Manifestation / materialization
