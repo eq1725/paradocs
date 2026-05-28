@@ -318,7 +318,21 @@ function formatDateForTitle(date: Date | string | null | undefined): string | nu
 //   - Expanded verb list: questions, asks, ponders, debates, theorizes
 //     (UK: theorises). Catches "X Questions Y" headlines from Haiku
 //     that turn help-seek bodies into question-format headlines.
-const THIRD_PERSON_FRAMING_PREFIX = /^(?:[A-Za-z][A-Za-z'\-]+\s+){0,2}(?:witness(?:es)?|local|resident|user|reader|listener|viewer|practitioner|researcher|investigator|skeptic|believer|experiencer|patient|subject|student|tourist|traveler|visitor|medium|meditator|seeker|poster|anonymous|tulpamancer|witch|magician|occultist|mystic|monk|devotee|channeler|empath|sensitive|lightworker|spiritualist|shaman|man|woman|teen|teenager|girl|boy|child|family|hiker|driver|trucker|camper|hunter|officer|soldier|sailor|pilot|nurse|doctor|teacher|farmer|fisherman)\s+(?:reports?|describes?|recounts?|sees?|saw|seeks?|encounters?|claims?|shares?|details?|struggles?|wonders?|pursues?|finds?|gets?|receives?|questions?|asks?|ponders?|debates?|theori[sz]es?|plans?|considers?|considering|hopes?|wants?|intends?|prepares?|anticipates?)\s+/i;
+const THIRD_PERSON_FRAMING_PREFIX = /^(?:[A-Za-z][A-Za-z'\-]+\s+){0,2}(?:witness(?:es)?|local|resident|user|reader|listener|viewer|practitioner|researcher|investigator|skeptic|believer|experiencer|patient|subject|student|tourist|traveler|visitor|medium|meditator|seeker|poster|anonymous|tulpamancer|witch|magician|occultist|mystic|monk|devotee|channeler|empath|sensitive|lightworker|spiritualist|shaman|man|woman|teen|teenager|girl|boy|child|family|hiker|driver|trucker|camper|hunter|officer|soldier|sailor|pilot|nurse|doctor|teacher|farmer|fisherman)\s+(?:reports?|describes?|recounts?|sees?|saw|seeks?|encounters?|claims?|shares?|details?|struggles?|wonders?|pursues?|finds?|gets?|receives?|questions?|asks?|ponders?|debates?|theori[sz]es?|plans?|considers?|considering|hopes?|wants?|intends?|prepares?|anticipates?|searches?|searching|hunts?|hunting|looks?(?:\s+for)?|attempts?|attempting)\s+/i;
+
+// V11.17.39 (2nd round) — Loose noun-verb proximity catcher. The
+// strict prefix above requires "Noun Verb" to be adjacent (or with at
+// most 2 prefix words). Real AI-generated titles often inject long
+// adjective phrases between the noun and the verb:
+//   "A Covington resident with oculocutaneous albinism and a maternal
+//    line of reported psychic practitioners wonders if their..."
+// Here "resident" is followed by "with oculocutaneous albinism..."
+// which the strict prefix can't tunnel through. This loose variant
+// allows up to ~12 intervening words between the noun and the
+// classifying verb. Limited to the "introspection / question" verb
+// set so we don't over-strip legitimate witness reports that happen
+// to start with a noun phrase.
+const THIRD_PERSON_INTROSPECTION_LOOSE = /^(?:[A-Za-z][A-Za-z'\-]+\s+){0,2}(?:witness(?:es)?|resident|user|reader|listener|viewer|practitioner|researcher|investigator|seeker|poster|man|woman|teen|teenager|hiker|driver|family)(?:\s+\S+){0,12}?\s+(?:wonders?|wondering|asks?|asking|seeks?|seeking|searches?|searching|hunts?|hunting|attempts?|attempting|considers?|considering|explores?|exploring|presents?|presenting)\s+/i;
 
 /**
  * Strip leading "Witness Reports X" / "Researcher Struggles With X" style
@@ -335,6 +349,10 @@ export function stripThirdPersonFraming(title: string): string {
   // "Witness Reports: Researcher Struggles With..."
   var s = title.replace(THIRD_PERSON_FRAMING_PREFIX, '').trim();
   s = s.replace(THIRD_PERSON_FRAMING_PREFIX, '').trim();
+  // V11.17.39 (2nd round) — loose-proximity introspection pass for
+  // titles where the verb is separated from the noun by a long
+  // adjective phrase ("A resident with X and Y wonders if Z").
+  s = s.replace(THIRD_PERSON_INTROSPECTION_LOOSE, '').trim();
   return s.length > 0 ? s : title;  // never return empty
 }
 

@@ -18,6 +18,30 @@
 
 import { createServerClient } from '../supabase'
 import { rewriteWithGuardrails } from '@/lib/ai/rewrite-pipeline'
+import { META_POST_PATTERNS } from '../ingestion/filters/quality-filter'
+
+// V11.17.39 (2nd round) — Post-AI-hook backstop. The ingestion-time
+// META filter runs against the ORIGINAL source text (raw Reddit title
+// + body), which can obfuscate the post's true nature with vague
+// framing. The AI hook, by contrast, distills the post's actual
+// semantic content into 2 sentences — and when that content is a
+// search-request or identity-speculation, the hook itself often says
+// so explicitly:
+//   - "A user searches for a specific video showing..."
+//   - "The user is attempting to locate... rather than reporting a
+//      direct experience"
+//   - "A resident wonders if their genetic traits might signal
+//      descent from..."
+// Re-running META patterns against the hook catches the slip and
+// archives the report before it reaches the Today feed.
+function checkHookForRejection(hook: string): { rejected: boolean; pattern?: string } {
+  for (const pattern of META_POST_PATTERNS) {
+    if (pattern.test(hook)) {
+      return { rejected: true, pattern: pattern.source.substring(0, 60) }
+    }
+  }
+  return { rejected: false }
+}
 
 const HOOK_TONE_INSTRUCTIONS = [
   'You are writing a TWO-SENTENCE hook for the Paradocs discovery feed (Today tab).',
@@ -108,6 +132,25 @@ export async function generateAndSaveFeedHook(reportId: string): Promise<string 
   // Reject too-short outputs (the V6 rule).
   if (result.output.length < 30) {
     console.warn('[FeedHook] Hook too short, skipping: ' + result.output.substring(0, 50))
+    return null
+  }
+
+  // V11.17.39 (2nd round) — re-test META patterns against the AI-
+  // generated hook. If the AI summarizes the post as a search-request
+  // / speculation / commentary, that's a self-confession and we
+  // archive the report rather than letting it surface in feeds.
+  const hookCheck = checkHookForRejection(result.output)
+  if (hookCheck.rejected) {
+    console.warn('[FeedHook] AI hook self-confessed as non-experience for ' + reportId +
+      ' (pattern: ' + hookCheck.pattern + ') — archiving')
+    await (supabase.from('reports') as any)
+      .update({
+        feed_hook: result.output,
+        feed_hook_generated_at: new Date().toISOString(),
+        status: 'archived',
+        moderation_notes: 'V11.17.39 — AI hook flagged as non-experience: ' + hookCheck.pattern,
+      })
+      .eq('id', reportId)
     return null
   }
 

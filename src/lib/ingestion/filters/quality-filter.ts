@@ -131,6 +131,37 @@ export const META_POST_PATTERNS = [
   /\bcirculated\s+widely\b/i,  // "the post circulated widely on the subreddit"
   /\b(?:does anyone (?:remember|have|know)|anyone\s+(?:remember|have|know))\s+(?:that|the|a)?\s*(?:video|clip|footage|post|article|story)\b/i,
   /\bcalvine\s+photo\b/i,  // Specific famous photograph regularly producing commentary, not experiences
+
+  // V11.17.39 (2nd round) — caught a slip on "A user searches for a
+  // specific video showing a family in a car witnessing what appears
+  // to be military aircraft pursuing an object…" — distinct from the
+  // V11 "user hunts" pattern because of the article "a" between
+  // "searches for" and the object. Strengthen with: "user is/was
+  // attempting to locate/identify/find", "rather than reporting"
+  // (AI-summary self-confession), and bare "searches for a specific
+  // video/photo/clip" framing.
+  /\b(?:user|someone|the (?:user|poster|op|author))\s+(?:is|was)\s+(?:attempting|trying)\s+to\s+(?:locate|find|identify|track\s+down)\b/i,
+  /\brather\s+than\s+(?:reporting|describing|recounting|sharing)\s+(?:a\s+)?(?:direct|personal|own|witnessed?)\b/i,
+  /\bnot\s+(?:a\s+)?(?:first[-\s]person|direct|witnessed)\s+(?:experience|account|report|encounter)\b/i,
+  /\bsearches?\s+for\s+(?:a\s+specific|the\s+specific|specifically)\b/i,
+
+  // V11.17.39 (2nd round) — IDENTITY / ANCESTRY SPECULATION reports.
+  // Caught a slip on "A Covington resident with oculocutaneous albinism
+  // and a maternal line of reported psychic practitioners wonders if
+  // their unusual genetic traits might signal descent from the 'Tall
+  // Whites.'" These are introspective questions about the witness's
+  // identity / ancestry / abilities, not reports of a paranormal event
+  // the witness experienced. Adjacent: "Could I be a starseed?", "Am I
+  // psychic?", "Could my dreams mean...". The witness is asking, not
+  // recounting.
+  /\b(?:wonders?|wondering)\s+(?:if|whether)\s+(?:their|they|this|he|she|i)\b/i,
+  /\b(?:might|may|could)\s+(?:signal|indicate|mean|suggest)\s+(?:descent|ancestry|hybrid|origin|that\s+i)\b/i,
+  /\bdescen(?:t|ded|dant)\s+from\s+(?:the\s+)?(?:tall\s+whites?|pleiadian|nordic|sirian|grey|nephilim|star[\s-]?seed)\b/i,
+  /\b(?:could|might|may|am)\s+(?:i|they)\s+be\s+(?:a\s+)?(?:starseed|hybrid|chosen|empath|psychic|medium|indigo|crystal|rainbow)\b/i,
+  /\b(?:asks?|asking|seeks?|seeking)\s+(?:meditation|guidance|answers?|clarification|interpretation)\s+(?:on|about|regarding)\b/i,
+  /\bwonders?\s+(?:about|whether|if)\s+(?:the\s+)?(?:meaning|significance|cause|origin|reason)\s+(?:of|behind|for)\b/i,
+  /\b(?:explores?|exploring|considers?|considering)\s+(?:the\s+)?(?:possibility|theory|notion|idea)\s+(?:that|of|whether)\b/i,
+  /\b(?:presents?|presenting|describes?|describing)\s+(?:a\s+)?(?:personal\s+)?(?:genealogy|family\s+(?:history|tree)|lineage|ancestry)\b/i,
 ];
 
 // Art, merchandise, and promotional content
