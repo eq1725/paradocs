@@ -1096,6 +1096,7 @@ function ExploreBrowseMode() {
     setSelectedTypes([])
     setSearchQuery('')
     setCountry('')
+    setStateFilter(null)  // V11.17.39 — clear conditional state filter too
     setCredibility('')
     setDateFrom('')
     setDateTo('')
@@ -1106,6 +1107,40 @@ function ExploreBrowseMode() {
     setSort('newest')
     setPage(1)
   }
+
+  // V11.17.39 — Bug #2: conditional State/Province filter.
+  // When the user picks a country, fetch the distinct subdivisions
+  // for that country (sorted by report count desc). Render the
+  // dropdown only when >= 2 subdivisions exist. Clear the state
+  // selection whenever the country changes so a stale state from a
+  // previous country can't apply to a new one.
+  var [stateOptions, setStateOptions] = useState<Array<{ state: string; count: number }>>([])
+  var [statesLoading, setStatesLoading] = useState(false)
+  useEffect(function() {
+    if (!country) {
+      setStateOptions([])
+      if (stateFilter) setStateFilter(null)
+      return
+    }
+    var cancelled = false
+    setStatesLoading(true)
+    fetch('/api/explore/states?country=' + encodeURIComponent(country))
+      .then(function(r) { return r.json() })
+      .then(function(j) {
+        if (cancelled) return
+        var list = Array.isArray(j.states) ? j.states : []
+        setStateOptions(list)
+        // If the previously-selected state isn't in the new country's
+        // options, clear it. (User switched US → Canada with a US
+        // state still selected.)
+        if (stateFilter && !list.some(function(s: any) { return s.state === stateFilter })) {
+          setStateFilter(null)
+        }
+      })
+      .catch(function() { if (!cancelled) setStateOptions([]) })
+      .finally(function() { if (!cancelled) setStatesLoading(false) })
+    return function() { cancelled = true }
+  }, [country])
 
   var hasActiveFilters = category !== 'all' || selectedCategories.length > 0 ||
     selectedTypes.length > 0 || searchQuery || country || credibility ||
@@ -1783,6 +1818,30 @@ function ExploreBrowseMode() {
               </div>
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div><label className="block text-sm text-gray-400 mb-2">Country</label><select value={country} onChange={function(e: any) { setCountry(e.target.value); setPage(1) }} className="w-full"><option value="">All countries</option>{COUNTRIES.map(function(c: string) { return <option key={c} value={c}>{c}</option> })}</select></div>
+                {/* V11.17.39 — Bug #2: conditional State/Province filter.
+                    Renders only when a country is selected AND that
+                    country has >= 2 subdivisions in our corpus.
+                    Subdivision label is generic ("State / Province")
+                    because the same UI serves US states, CA provinces,
+                    UK constituent countries, AU states/territories,
+                    DE Länder, etc. Options are pulled from actual data
+                    so we don't show empty subdivisions. */}
+                {country && stateOptions.length > 0 && (
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">State / Province</label>
+                    <select
+                      value={stateFilter || ''}
+                      onChange={function(e: any) { setStateFilter(e.target.value || null); setPage(1) }}
+                      className="w-full"
+                      disabled={statesLoading}
+                    >
+                      <option value="">All in {country}</option>
+                      {stateOptions.map(function(s: any) {
+                        return <option key={s.state} value={s.state}>{s.state} ({s.count})</option>
+                      })}
+                    </select>
+                  </div>
+                )}
                 {/* Credibility filter dropdown removed — we no longer surface
                     the coarse Low/Medium/High bucketing to users (QA/QC Apr 14 2026). */}
                 <div><label className="block text-sm text-gray-400 mb-2">Date From</label><input type="date" value={dateFrom} onChange={function(e: any) { setDateFrom(e.target.value); setPage(1) }} className="w-full" /></div>
