@@ -81,7 +81,11 @@ export default function MapShowcase() {
                   className="absolute inset-0 w-full h-full object-cover"
                   style={{ backgroundColor: '#0a0f1a' }}
                 >
-                  <source src="/showcase/map.mp4" type="video/mp4" />
+                  {/* V11.17.39 — swapped to desktop-demo.mp4 (full
+                      Paradocs desktop walkthrough, replaces the older
+                      map-only loop). Same laptop mockup wrapper, just
+                      richer demo content. */}
+                  <source src="/showcase/desktop-demo.mp4" type="video/mp4" />
                 </video>
               ) : (
                 <div className="absolute inset-0 bg-[#0a0f1a]">

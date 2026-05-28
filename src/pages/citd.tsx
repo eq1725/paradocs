@@ -256,10 +256,10 @@ export default function CITDPage() {
       </div>
 
       {/* V11.17.39 — Laptop showcase section (Contact in the Desert event).
-          Pairs with the phone mockup above. Same /showcase/map.mp4
-          we use on the homepage. Stacked beneath the hero so visitors
-          who scroll see the desktop / global-map dimension of the
-          product. */}
+          Pairs with the phone mockup above. Uses /showcase/desktop-demo.mp4
+          (full Paradocs desktop walkthrough, also used on the homepage's
+          MapShowcase). Stacked beneath the hero so visitors who scroll
+          see the desktop dimension of the product. */}
       <section className="citd-laptop-section">
         <h2 className="citd-laptop-heading">
           Explore <span className="citd-accent">137,000+</span> documented experiences,
@@ -283,7 +283,7 @@ export default function CITDPage() {
                 poster="/showcase/map-poster.jpg"
                 aria-label="Paradocs interactive map preview"
               >
-                <source src="/showcase/map.mp4" type="video/mp4" />
+                <source src="/showcase/desktop-demo.mp4" type="video/mp4" />
               </video>
             </div>
           </div>
