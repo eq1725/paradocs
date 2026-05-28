@@ -80,16 +80,22 @@ function CITDSignupForm() {
 
   if (status === 'submitted') {
     return (
-      <div className="citd-signup-success">
-        <div className="citd-signup-success-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
+      <div className="citd-signup-success-block">
+        <div className="citd-signup-success">
+          <div className="citd-signup-success-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+          <div>
+            <div className="citd-signup-success-title">You&rsquo;re on the list.</div>
+            <div className="citd-signup-success-sub">We&rsquo;ll email you the moment the app opens up.</div>
+          </div>
         </div>
-        <div>
-          <div className="citd-signup-success-title">You&rsquo;re on the list.</div>
-          <div className="citd-signup-success-sub">We&rsquo;ll email you the moment the app opens up.</div>
-        </div>
+        {/* V11.17.39 Round 6 — Post-conversion social CTA. The user
+            has just committed; surface the soft channels for ongoing
+            engagement while they wait for launch. */}
+        <CITDSocialStrip label="While you wait, follow along." align="left" />
       </div>
     )
   }
@@ -125,6 +131,89 @@ function CITDSignupForm() {
       )}
       <div className="citd-signup-hint">No spam. One email at launch.</div>
     </form>
+  )
+}
+
+/**
+ * V11.17.39 (Round 6, operator iteration) — Social link strip.
+ * Renders 4 brand-mark SVGs (YouTube, TikTok, X, Facebook) as a clean
+ * accessible row. Used in two slots on /citd:
+ *   1. Bottom-of-page footer-style row (trust signal, low intrusion)
+ *   2. Inside the email-signup success card ("while you wait" CTA)
+ *
+ * Conversion rationale: socials on a signup landing can DEPRESS the
+ * primary CTA conversion if placed too close to the form. Putting
+ * them at the page bottom + post-conversion success card maximizes
+ * trust + post-conversion engagement without competing with the
+ * form when it matters most.
+ *
+ * Visual: 22px brand SVGs in 44px tappable circles, cream at 55%
+ * opacity (muted), full opacity on hover. New-tab link with proper
+ * rel attributes.
+ */
+var CITD_SOCIALS = [
+  {
+    name: 'YouTube',
+    href: 'https://www.youtube.com/@DiscoverParadocs',
+    // Standard YouTube brand mark
+    svg: (
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+      </svg>
+    ),
+  },
+  {
+    name: 'TikTok',
+    href: 'https://www.tiktok.com/@discoverparadocs',
+    svg: (
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5.8 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1.84-.1z" />
+      </svg>
+    ),
+  },
+  {
+    name: 'X (Twitter)',
+    href: 'https://x.com/ParadocsProject',
+    svg: (
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+      </svg>
+    ),
+  },
+  {
+    name: 'Facebook',
+    href: 'https://www.facebook.com/discoverparadocs',
+    svg: (
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+      </svg>
+    ),
+  },
+]
+
+function CITDSocialStrip(props: { label?: string; align?: 'center' | 'left' }) {
+  var align = props.align || 'center'
+  return (
+    <div className={'citd-socials citd-socials-align-' + align} role="group" aria-label="Follow Paradocs">
+      {props.label && <div className="citd-socials-label">{props.label}</div>}
+      <div className="citd-socials-row">
+        {CITD_SOCIALS.map(function (s) {
+          return (
+            <a
+              key={s.name}
+              href={s.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="citd-social-link"
+              aria-label={s.name}
+              title={s.name}
+            >
+              {s.svg}
+            </a>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -314,6 +403,17 @@ export default function CITDPage() {
           <div className="citd-laptop-notch" />
         </div>
       </section>
+
+      {/* V11.17.39 Round 6 — Footer-style social strip. Bottom of
+          page placement = trust signal + soft secondary CTA without
+          competing with the email form above-the-fold. Visitors who
+          aren't ready to commit-to-email get a softer follow channel. */}
+      <footer className="citd-footer">
+        <CITDSocialStrip label="Follow along" align="center" />
+        <p className="citd-footer-wordmark">
+          Paradocs<span className="citd-footer-dot">.</span>
+        </p>
+      </footer>
 
       <style jsx global>{`
         /* ─── CITD Landing Page ─── */
@@ -1022,6 +1122,85 @@ export default function CITDPage() {
           position: relative;
           z-index: 1;
         }
+
+        /* ─── V11.17.39 Round 6 — Social strip ─── */
+        .citd-socials {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .citd-socials-align-center { align-items: center; text-align: center; }
+        .citd-socials-align-left { align-items: flex-start; text-align: left; }
+        @media (max-width: 768px) {
+          .citd-socials-align-left { align-items: center; text-align: center; }
+        }
+        .citd-socials-label {
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: rgba(255,255,255,0.45);
+        }
+        .citd-socials-row {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .citd-social-link {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 44px;
+          height: 44px;
+          border-radius: 50%;
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.10);
+          color: rgba(242, 234, 216, 0.55);
+          text-decoration: none;
+          transition: color 0.15s, background 0.15s, border-color 0.15s, transform 0.08s;
+        }
+        .citd-social-link:hover {
+          color: rgba(242, 234, 216, 1);
+          background: rgba(144, 0, 240, 0.12);
+          border-color: rgba(144, 0, 240, 0.40);
+        }
+        .citd-social-link:active { transform: scale(0.95); }
+        .citd-social-link svg { width: 20px; height: 20px; display: block; }
+
+        /* ─── V11.17.39 Round 6 — Success block wrapper ─── */
+        .citd-signup-success-block {
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+          max-width: 480px;
+          margin: 0 0 28px;
+        }
+        @media (max-width: 768px) {
+          .citd-signup-success-block { margin-left: auto; margin-right: auto; align-items: center; }
+        }
+
+        /* ─── V11.17.39 Round 6 — Page footer ─── */
+        .citd-footer {
+          position: relative;
+          max-width: 1100px;
+          margin: 0 auto;
+          padding: 24px 24px 56px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 22px;
+        }
+        @media (max-width: 768px) {
+          .citd-footer { padding: 12px 20px 56px; }
+        }
+        .citd-footer-wordmark {
+          font-family: 'Changa One', 'Changa', sans-serif;
+          font-size: 18px;
+          color: rgba(255, 255, 255, 0.35);
+          margin: 0;
+          letter-spacing: 0.01em;
+        }
+        .citd-footer-dot { color: #9000F0; }
       `}</style>
     </>
   )
