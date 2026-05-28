@@ -65,6 +65,24 @@ KEEP — first-person experience reports:
   - "I experienced an OBE during cardiac arrest"
   - Witness recollections, even decades old, even with secondhand framing
   - Reports that retell what a witness experienced or saw
+  - V11.17.39 — POLTERGEIST / OBJECT MOVEMENT / REALITY-SHIFT reports
+    are first-person paranormal experiences and KEEP. Patterns:
+      - "Shampoo bottles reversed overnight"
+      - "Keys vanish from counter, reappear in different room"
+      - "Memorabilia rearranges itself when I'm not home"
+      - "I remember the movie ending differently — Mandela-effect"
+    These ARE in our taxonomy (poltergeist, vanishing-object,
+    reality-shift, manifestation-experience). Do not archive them
+    just because the witness describes a mundane object — the
+    object's anomalous behavior IS the paranormal claim.
+  - V11.17.39 — RADAR / SENSOR / INSTRUMENT witness accounts are
+    first-person KEEP when the report is from someone operating or
+    monitoring the instrument:
+      - "Four objects detected on radar, then silence" — KEEP if
+        narrated from the operator's POV
+      - "We tracked the targets on FLIR for 12 minutes"
+    Only ARCHIVE if it's third-party reporting ON someone else's
+    sensor data (e.g. "Pentagon analyzes leaked radar footage").
 
 ARCHIVE — third-party commentary / analysis / discourse:
   - "Community debates whether disclosure is happening"
@@ -94,11 +112,21 @@ function parseArgs() {
   const a = process.argv.slice(2)
   function flag(n: string, d: string | null = null): string | null { const i = a.indexOf(n); return i < 0 ? d : a[i + 1] }
   function bool(n: string): boolean { return a.indexOf(n) >= 0 }
+  // V11.17.39 — --exclude-ids takes a comma-separated list of full or
+  // short (first-8-hex) report ids that should be skipped during
+  // --apply, even if Haiku flags them for archive. Use for operator
+  // overrides on borderline picks vetted by hand.
+  const excludeRaw = flag('--exclude-ids', '') || ''
+  const excludeIds = excludeRaw
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean)
   return {
     apply: bool('--apply'),
     dryRun: bool('--dry-run') || !bool('--apply'),
     limit: parseInt(flag('--limit', '0') || '0'),
     concurrency: parseInt(flag('--concurrency', '8') || '8'),
+    excludeIds,
   }
 }
 
@@ -192,15 +220,37 @@ async function main() {
       }
     }
   }
-  const workers = []
+  const workers: Promise<void>[] = []
   for (let w = 0; w < args.concurrency; w++) workers.push(worker())
   await Promise.all(workers)
+
+  // V11.17.39 — operator override: skip any toArchive entries whose id
+  // (or 8-char prefix) appears in --exclude-ids. Reported so the
+  // operator can see what was held back.
+  let excluded: any[] = []
+  if (args.excludeIds.length > 0) {
+    const keepers: any[] = []
+    for (const r of toArchive) {
+      const idLower = String(r.id).toLowerCase()
+      const isExcluded = args.excludeIds.some(ex => idLower === ex || idLower.startsWith(ex))
+      if (isExcluded) excluded.push(r)
+      else keepers.push(r)
+    }
+    toArchive.length = 0
+    toArchive.push(...keepers)
+  }
 
   console.log()
   console.log('=== Pre-flight ===')
   console.log('Will archive (high-conf):  ' + toArchive.length)
   console.log('Keep (first-person/uncertain): ' + toKeep.length)
   console.log('Haiku-failed:              ' + failed.length)
+  if (excluded.length > 0) {
+    console.log('Operator-excluded:         ' + excluded.length)
+    for (const r of excluded) {
+      console.log('  KEEP (override): ' + r.id.substring(0, 8) + ' | ' + (r.title || '').substring(0, 80))
+    }
+  }
   console.log()
 
   // V11.17.39 — randomized samples for confidence check (not first-N,
