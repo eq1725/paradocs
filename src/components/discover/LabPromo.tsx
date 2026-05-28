@@ -164,53 +164,61 @@ export function LabPromo(props: LabPromoProps) {
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_22%,rgba(99,102,241,0.18),transparent_55%)]" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_78%_78%,rgba(168,85,247,0.12),transparent_55%)]" />
 
-      {/* Content stack */}
+      {/* V11.17.39 — Compressed vertical rhythm so the CTA fits within
+          the Today-feed mobile viewport. Earlier sizing (72px wordmark,
+          220px Radar, generous gutters) caused the CTA to sit below the
+          fold on iPhone 14 Pro and similar. Now:
+          - Wordmark trimmed 72→52px (still feels like the identity)
+          - Radar trimmed 220→168px
+          - Inter-block gutters tightened 24→14px
+          - Bottom padding clamped to the mobile-tab-bar reserve only
+          - justify-between to anchor CTA at the bottom of the safe area */}
       <div className={
-        'relative z-10 h-full flex flex-col items-center px-6 sm:px-10 transition-all duration-700 ' +
-        'pt-[calc(env(safe-area-inset-top,0px)+3.5rem)] pb-[calc(80px+env(safe-area-inset-bottom,0px)+24px)] md:pb-8 ' +
+        'relative z-10 h-full flex flex-col items-center px-5 sm:px-8 transition-all duration-700 ' +
+        'pt-[calc(env(safe-area-inset-top,0px)+2.5rem)] pb-[calc(80px+env(safe-area-inset-bottom,0px)+12px)] md:pb-6 ' +
         (props.isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4')
       }>
         {/* Lab wordmark — Changa One */}
-        <h2 className="font-brand text-[64px] sm:text-[72px] leading-none text-[#f2ead8] tracking-tight">
+        <h2 className="font-brand text-[52px] sm:text-[60px] leading-none text-[#f2ead8] tracking-tight">
           Lab
         </h2>
 
         {/* Real Radar — reveal mode, faux match data */}
-        <div className="mt-3 mb-6 flex items-center justify-center">
+        <div className="mt-2 mb-4 flex items-center justify-center">
           <RadarVisualization
             matches={FAUX_MATCHES}
             user={{ latitude: null, longitude: null }}
             mode={props.isActive ? 'reveal' : 'idle'}
             filter="all"
-            size={220}
+            size={168}
             centerLabel="YOU"
           />
         </div>
 
         {/* Headline + sub-line */}
         <div className="text-center max-w-sm">
-          <h3 className="font-display font-semibold text-[#f2ead8] text-[22px] leading-snug">
+          <h3 className="font-display font-semibold text-[#f2ead8] text-[20px] leading-tight">
             {headline}
           </h3>
-          <p className="font-display font-normal text-[#f2ead8]/70 text-[15px] mt-2 leading-relaxed">
+          <p className="font-display font-normal text-[#f2ead8]/70 text-[14px] mt-1.5 leading-snug">
             {SUB_HEADLINE}
           </p>
         </div>
 
         {/* Hairline-divided benefit rows */}
-        <div className="w-full max-w-sm mt-6 border-t border-b border-[#f2ead8]/12">
+        <div className="w-full max-w-sm mt-4 border-t border-b border-[#f2ead8]/12">
           {BENEFITS.map(function (b, i) {
             var isLast = i === BENEFITS.length - 1
             return (
               <div
                 key={i}
                 className={
-                  'flex items-baseline justify-between py-3 px-1 ' +
+                  'flex items-baseline justify-between py-2.5 px-1 ' +
                   (isLast ? '' : 'border-b border-[#f2ead8]/10')
                 }
               >
-                <span className="font-display font-medium text-[14px] text-[#f2ead8]">{b.text}</span>
-                <span className="font-display font-medium text-[10px] uppercase tracking-[0.16em] text-[#f2ead8]/45 whitespace-nowrap pl-3">
+                <span className="font-display font-medium text-[13px] text-[#f2ead8]">{b.text}</span>
+                <span className="font-display font-medium text-[9.5px] uppercase tracking-[0.16em] text-[#f2ead8]/45 whitespace-nowrap pl-3">
                   {b.tab}
                 </span>
               </div>
@@ -218,15 +226,17 @@ export function LabPromo(props: LabPromoProps) {
           })}
         </div>
 
-        {/* CTA — cream button on indigo per panel pixel direction */}
-        <div className="mt-7 text-center">
+        {/* CTA — cream button on indigo per panel pixel direction.
+            mt-auto pushes the CTA group to the bottom of the available
+            space so it always sits above the mobile tab-bar gutter. */}
+        <div className="mt-auto pt-5 text-center w-full">
           <Link
             href="/pricing"
-            className="inline-flex items-center justify-center px-9 py-3.5 bg-[#f2ead8] hover:bg-white text-[#1e1b4b] rounded-full font-display font-semibold text-[15px] transition-colors"
+            className="inline-flex items-center justify-center px-9 py-3 bg-[#f2ead8] hover:bg-white text-[#1e1b4b] rounded-full font-display font-semibold text-[14px] transition-colors"
           >
             Start 7-day free trial
           </Link>
-          <p className="font-display font-normal text-[12px] text-[#f2ead8]/50 mt-3">
+          <p className="font-display font-normal text-[11px] text-[#f2ead8]/50 mt-2.5">
             Then $5.99/mo · Cancel anytime
           </p>
         </div>

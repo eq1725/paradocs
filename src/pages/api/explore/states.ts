@@ -62,9 +62,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       offset += PAGE_SIZE
     }
 
+    // V11.17.39 — alphabetical sort (operator preference). Count is
+    // still rendered inline so users see relative density. Previous
+    // count-desc sort buried less-populous states which is a poor UX
+    // when a user is looking for a specific state by name.
     const states = Object.entries(counts)
       .map(([state, count]) => ({ state, count }))
-      .sort((a, b) => (b.count - a.count) || a.state.localeCompare(b.state))
+      .sort((a, b) => a.state.localeCompare(b.state))
 
     // If only 0 or 1 distinct subdivision, return empty — the filter
     // dropdown should not render (nothing to choose between).

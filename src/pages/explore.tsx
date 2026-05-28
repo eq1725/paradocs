@@ -1816,8 +1816,14 @@ function ExploreBrowseMode() {
                 <label className="block text-sm text-gray-400 mb-2">Filter by Phenomenon</label>
                 <SubcategoryFilter selectedCategories={selectedCategories} selectedTypes={selectedTypes} onCategoriesChange={function(cats: any) { setSelectedCategories(cats); setPage(1) }} onTypesChange={function(types: any) { setSelectedTypes(types); setPage(1) }} compact />
               </div>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div><label className="block text-sm text-gray-400 mb-2">Country</label><select value={country} onChange={function(e: any) { setCountry(e.target.value); setPage(1) }} className="w-full"><option value="">All countries</option>{COUNTRIES.map(function(c: string) { return <option key={c} value={c}>{c}</option> })}</select></div>
+              {/* V11.17.39 — `min-w-0` on the grid + each cell + `box-border`
+                  on inputs so native date pickers (which have an intrinsic
+                  content-driven width on iOS) don't overflow their column.
+                  Without min-w-0, grid items default to min-content which
+                  pushes the date input — with its "MM/DD/YYYY" placeholder
+                  and trailing calendar icon — past the column edge. */}
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 min-w-0">
+                <div className="min-w-0"><label className="block text-sm text-gray-400 mb-2">Country</label><select value={country} onChange={function(e: any) { setCountry(e.target.value); setPage(1) }} className="w-full min-w-0 box-border"><option value="">All countries</option>{COUNTRIES.map(function(c: string) { return <option key={c} value={c}>{c}</option> })}</select></div>
                 {/* V11.17.39 — Bug #2: conditional State/Province filter.
                     Renders only when a country is selected AND that
                     country has >= 2 subdivisions in our corpus.
@@ -1827,12 +1833,12 @@ function ExploreBrowseMode() {
                     DE Länder, etc. Options are pulled from actual data
                     so we don't show empty subdivisions. */}
                 {country && stateOptions.length > 0 && (
-                  <div>
+                  <div className="min-w-0">
                     <label className="block text-sm text-gray-400 mb-2">State / Province</label>
                     <select
                       value={stateFilter || ''}
                       onChange={function(e: any) { setStateFilter(e.target.value || null); setPage(1) }}
-                      className="w-full"
+                      className="w-full min-w-0 box-border"
                       disabled={statesLoading}
                     >
                       <option value="">All in {country}</option>
@@ -1844,8 +1850,8 @@ function ExploreBrowseMode() {
                 )}
                 {/* Credibility filter dropdown removed — we no longer surface
                     the coarse Low/Medium/High bucketing to users (QA/QC Apr 14 2026). */}
-                <div><label className="block text-sm text-gray-400 mb-2">Date From</label><input type="date" value={dateFrom} onChange={function(e: any) { setDateFrom(e.target.value); setPage(1) }} className="w-full" /></div>
-                <div><label className="block text-sm text-gray-400 mb-2">Date To</label><input type="date" value={dateTo} onChange={function(e: any) { setDateTo(e.target.value); setPage(1) }} className="w-full" /></div>
+                <div className="min-w-0"><label className="block text-sm text-gray-400 mb-2">Date From</label><input type="date" value={dateFrom} onChange={function(e: any) { setDateFrom(e.target.value); setPage(1) }} className="w-full min-w-0 box-border" /></div>
+                <div className="min-w-0"><label className="block text-sm text-gray-400 mb-2">Date To</label><input type="date" value={dateTo} onChange={function(e: any) { setDateTo(e.target.value); setPage(1) }} className="w-full min-w-0 box-border" /></div>
               </div>
               <div className="flex flex-wrap gap-4 mt-4">
                 <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={hasEvidence} onChange={function(e: any) { setHasEvidence(e.target.checked); setPage(1) }} className="rounded bg-white/5 border-white/20" /><span className="text-sm text-gray-300">Has evidence</span></label>
