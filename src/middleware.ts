@@ -24,14 +24,37 @@ const PUBLIC_PATHS = [
   // /api/citd/signup but cannot navigate to any other route until the
   // BETA_PROTECTION gate is lifted at launch.
   '/citd',
-  '/showcase/', // /citd uses /showcase/feed.mp4 + /showcase/map.mp4
+  '/showcase/', // /citd uses /showcase/feed.mp4 + /showcase/desktop-demo.mp4
   '/_next/',
   '/favicon.ico',
   '/images/',
   '/fonts/',
+  // V11.17.39 — common public folder subdirs that _app.tsx / various
+  // pages reference as background assets.
+  '/icons/',
+  '/splash/',
+  '/avatars/',
+  '/categories/',
 ]
 
+// V11.17.39 — static-asset extensions that should bypass basic auth
+// regardless of where they live. Without this, hits to root-level
+// public files like /sw.js, /manifest.json, /apple-touch-icon.png,
+// /device-phone.svg etc. all 401 → trigger the WWW-Authenticate
+// popup on otherwise-public pages (operator-observed on /citd: the
+// page itself was allow-listed but the SW + manifest + favicon
+// fetches each surfaced a sign-in prompt).
+//
+// Conservative list — only well-known static formats. Any future
+// data-bearing endpoint we add as a bare /foo.json route stays
+// gated unless explicitly allow-listed.
+const STATIC_ASSET_EXT_RE = /\.(?:js|css|map|png|jpg|jpeg|gif|webp|avif|svg|ico|webmanifest|json|woff|woff2|ttf|otf|eot|mp4|webm|m3u8|ts|mov|txt|xml)$/i
+
 function isPublicPath(pathname: string): boolean {
+  // V11.17.39 — bypass auth for static-asset extensions regardless
+  // of path. Keeps PUBLIC_PATHS focused on routes; lets every
+  // /public folder file load without enumerating each one.
+  if (STATIC_ASSET_EXT_RE.test(pathname)) return true
   return PUBLIC_PATHS.some(path => pathname.startsWith(path))
 }
 

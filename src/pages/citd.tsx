@@ -262,15 +262,21 @@ export default function CITDPage() {
           MapShowcase). Stacked beneath the hero so visitors who scroll
           see the desktop dimension of the product. */}
       <section className="citd-laptop-section">
-        {/* V11.17.39 Round 5 — heading reframes 137k as floor not
-            ceiling. "Millions more in the wild" bridges to the
-            broader brand claim (the paranormal corpus across Reddit,
-            forums, archives is in the millions; Paradocs has indexed
-            137k so far) without overclaiming. Two-beat scannable on
-            mobile, opportunity framing vs. deficit framing. */}
+        {/* V11.17.39 Round 5 (operator iteration) — three-beat
+            progress stack:
+              line 1 = where we are (137k indexed)
+              line 2 = the cadence (thousands daily, the trajectory)
+              line 3 = the universe (billions of paranormal accounts
+                       exist worldwide across Reddit, forums,
+                       archives, witness diaries, oral histories,
+                       and untold experiences — survey data puts
+                       ~30% of adults having had at least one
+                       paranormal experience)
+            Scannable on mobile, opportunity framing throughout. */}
         <h2 className="citd-laptop-heading">
-          <span className="citd-accent">137,000</span> experiences mapped.<br />
-          Millions more in the wild.
+          <span className="citd-accent">137,000</span> indexed today.<br />
+          Adding thousands every day.<br />
+          Billions in the wild.
         </h2>
         <p className="citd-laptop-sub">
           A growing archive of documented sightings, encounters, and the
