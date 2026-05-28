@@ -193,7 +193,12 @@ export const HOOK_SELF_CONFESSION_PATTERNS = [
   /\bdescen(?:t|ded|dant)\s+from\s+(?:the\s+)?(?:tall\s+whites?|pleiadian|nordic|sirian|grey|nephilim|star[\s-]?seed)\b/i,
   /\b(?:might|may|could)\s+(?:signal|indicate|mean|suggest)\s+(?:descent|ancestry|hybrid\s+origin|that\s+i\s+am)\b/i,
   /\b(?:could|might|may|am)\s+(?:i|they)\s+be\s+(?:a\s+)?(?:starseed|hybrid|chosen\s+one|indigo|crystal\s+child)\b/i,
-  /\b(?:presents?|presenting|describes?|describing)\s+(?:a\s+)?(?:personal\s+)?(?:genealogy|family\s+history|lineage)\b/i,
+  // V11.17.39 (3rd round) — dropped "presents/describes a personal
+  // genealogy/family history/lineage" — fires on legit witness reports
+  // that mention inherited paranormal traits ("describes a family
+  // history of orb visitations"). The Covington identity-speculation
+  // case is still caught by the "descent from <Tall Whites|...>" and
+  // "might signal descent" patterns above.
 
   // Famous-photograph / lost-media community references
   /\bcalvine\s+photo\b/i,
