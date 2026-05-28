@@ -1,7 +1,17 @@
 'use client'
 
 /**
- * LabPromo — V11.17.39 (Round 5 — operator feedback iteration 3)
+ * LabPromo — V11.17.40 (impression telemetry + paywall click logging)
+ *
+ * V11.17.40 — Backlog #4 frequency cap. On mount, fires a fire-and-
+ * forget POST to /api/lab/promo/event { event_type: 'shown' } so the
+ * server-side cap (6/week) + cooldown logic stays accurate across
+ * sessions and devices. The CTA tap now also logs 'clicked' before
+ * navigating to /pricing (treated as the paywall_view signal — 7d
+ * cooldown). Dismiss is wired from discover.tsx since the dismiss
+ * action lives in the swipe handler, not here.
+ *
+ * Original (Round 5):
  *
  * Lab subscription upsell card injected into the Today feed. Replaces
  * the legacy ResearchHubPromo.
@@ -37,9 +47,10 @@
  * SWC compliant: var + function() form.
  */
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { logLabPromoEvent } from '@/lib/lab-promo-telemetry'
 
 export interface PromoCardData {
   item_type: 'promo'
@@ -166,6 +177,10 @@ function RadarTeaser(props: { size?: number; active: boolean }) {
 
 export function LabPromo(props: LabPromoProps) {
   var [fp, setFp] = useState<Footprint | null>(null)
+  // V11.17.40 — log 'shown' once per mount-becomes-active so the
+  // server-side cap counts correctly. Using a ref guards against
+  // double-fire across React-strict-mode or rapid isActive toggles.
+  var shownLoggedRef = useRef(false)
 
   useEffect(function () {
     if (!props.isActive) return
@@ -192,6 +207,21 @@ export function LabPromo(props: LabPromoProps) {
     load()
     return function () { cancelled = true }
   }, [props.isActive])
+
+  // V11.17.40 — fire-and-forget 'shown' telemetry on activation.
+  // Kept in a separate effect so it doesn't gate on footprint load
+  // (we want the impression counted even if /footprint times out).
+  useEffect(function () {
+    if (!props.isActive) return
+    if (shownLoggedRef.current) return
+    shownLoggedRef.current = true
+    logLabPromoEvent('shown').catch(function () { /* swallow */ })
+  }, [props.isActive])
+
+  function handleCtaClick() {
+    // Fire-and-forget; don't block navigation on telemetry.
+    logLabPromoEvent('clicked').catch(function () { /* swallow */ })
+  }
 
   var headline = pickHeadline(fp)
 
@@ -266,6 +296,7 @@ export function LabPromo(props: LabPromoProps) {
         <div className="mt-auto pt-4 text-center w-full">
           <Link
             href="/pricing"
+            onClick={handleCtaClick}
             className="inline-flex items-center justify-center px-9 py-3 bg-[#f2ead8] hover:bg-white text-[#1e1b4b] rounded-full font-display font-semibold text-[14px] transition-colors"
           >
             Start 7-day free trial

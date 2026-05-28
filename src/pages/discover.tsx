@@ -59,6 +59,7 @@ import type { OnThisDateData } from '@/components/discover/OnThisDateCard'
 //     selection happens on /pricing after intent signal)
 import { LabPromo } from '@/components/discover/LabPromo'
 import type { PromoCardData } from '@/components/discover/LabPromo'
+import { fetchLabPromoShouldShow, logLabPromoEvent } from '@/lib/lab-promo-telemetry'
 import { CaseViewGate } from '@/components/discover/CaseViewGate'
 import { TopicOnboarding, isOnboardingComplete, getOnboardingTopics } from '@/components/discover/TopicOnboarding'
 import { RabbitHolePanel } from '@/components/discover/RabbitHolePanel'
@@ -108,7 +109,11 @@ var CATEGORY_COLORS: Record<string, string> = {
   esoteric_practices: '#f48fb1',
 }
 
-// Promo dismissal tracking — panel review #15 (tier-aware promo)
+// V11.17.40 — Legacy localStorage dismissal counter retained as a
+// fail-open fallback ONLY. The authoritative source is now the
+// /api/lab/promo/should-show endpoint (lab_promo_impressions table).
+// Once the server-side cooldown logic is verified in production
+// across a release cycle, this legacy gate can be removed entirely.
 var PROMO_DISMISS_KEY = 'today_promo_dismissals_v1'
 function getPromoDismissals(): number {
   if (typeof window === 'undefined') return 0
@@ -121,6 +126,13 @@ function bumpPromoDismissals() {
   if (typeof window === 'undefined') return
   try { localStorage.setItem(PROMO_DISMISS_KEY, String(getPromoDismissals() + 1)) } catch (e) {}
 }
+
+// V11.17.40 — how many promo slots to seed into the feed when
+// `should_show=true`. Server still enforces the 6/week hard cap;
+// this is just the client-side budget within a single session.
+// Most users won't swipe past 60 cards, so 4 placements at cadence
+// 12 (every 12th card) gives a comfortable upper bound.
+var PROMO_SESSION_PLACEMENTS = 4
 
 // Lens post-filter — applied client-side after feed-v2 returns the scored
 // items. The category param is passed directly to feed-v2 (server-side filter).
@@ -755,18 +767,44 @@ export default function DiscoverPage() {
       )
     }
 
-    Promise.all(fetches).then(function () {
-      var promoSkip = userTier === 'pro' || userTier === 'enterprise' || getPromoDismissals() >= 2
-      if (!promoSkip) {
-        // Vary position by ±3 within session seed for variety
-        var jitter = (sessionSeed.current % 7) - 3   // -3..+3
-        var promoPos = Math.max(11, 14 + jitter)
-        var promoCard: PromoCardData = {
-          item_type: 'promo',
-          id: 'promo-research-hub-1',
-          promo_type: 'research_hub',
+    Promise.all(fetches).then(async function () {
+      // V11.17.40 — Backlog #4 cadence + cap + cooldown. Tier gate
+      // and legacy localStorage counter remain as the fast pre-check
+      // (no network round-trip for known-skip users); the server-side
+      // decision adds the 6/week hard cap + 48h dismiss + 7d paywall
+      // cooldowns on top.
+      var tierSkip = userTier === 'pro' || userTier === 'enterprise'
+      var legacySkip = getPromoDismissals() >= 2
+      if (!tierSkip && !legacySkip) {
+        try {
+          var decision = await fetchLabPromoShouldShow()
+          if (decision.should_show) {
+            var cadence = decision.cadence
+            // Slight ±3 jitter to the first placement so two adjacent
+            // sessions don't both put the promo at the same index.
+            var jitter = (sessionSeed.current % 7) - 3   // -3..+3
+            var firstPos = Math.max(8, cadence + jitter)
+            for (var k = 0; k < PROMO_SESSION_PLACEMENTS; k++) {
+              var promoPos = firstPos + (k * cadence)
+              var promoCard: PromoCardData = {
+                item_type: 'promo',
+                id: 'promo-lab-' + (k + 1),
+                promo_type: 'research_hub',
+              }
+              pendingSpecialCards.current.push({ card: promoCard, position: promoPos })
+            }
+          }
+        } catch (_e) {
+          // Network fail → fall back to legacy single-position behavior.
+          var fbJitter = (sessionSeed.current % 7) - 3
+          var fbPos = Math.max(11, 14 + fbJitter)
+          var fbCard: PromoCardData = {
+            item_type: 'promo',
+            id: 'promo-lab-fallback',
+            promo_type: 'research_hub',
+          }
+          pendingSpecialCards.current.push({ card: fbCard, position: fbPos })
         }
-        pendingSpecialCards.current.push({ card: promoCard, position: promoPos })
       }
       pendingSpecialCards.current.sort(function (a, b) { return b.position - a.position })
 
@@ -941,7 +979,11 @@ export default function DiscoverPage() {
 
   function doDismiss(item: ExtendedFeedItem) {
     feedEvents.trackDismiss(item.id, item.item_type, (item as any).category || '')
-    if (item.item_type === 'promo') bumpPromoDismissals()
+    if (item.item_type === 'promo') {
+      bumpPromoDismissals()
+      // V11.17.40 — server-side 48h dismiss cooldown. Fire-and-forget.
+      logLabPromoEvent('dismissed', { promo_id: item.id }).catch(function () {})
+    }
     haptic(15)
     flash('Dismissed')
   }
