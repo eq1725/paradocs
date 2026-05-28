@@ -36,20 +36,24 @@ import stateCentroids from '../src/lib/ingestion/utils/state-centroids.json'
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-// V11.17.39 (3rd round dry-run review) — tightened tolerances.
+// V11.17.39 (4th round) — Detection logic switched from "near country
+// centroid" to "coords_synthetic=true AND not-near-state-centroid."
 //
-// COUNTRY_TOLERANCE_DEG = 0.05 (~5km): only flag reports whose coords
-//   are basically EXACTLY at country centroid. Real geocoded cities
-//   never land on the centroid by accident. Earlier 1.0° tolerance
-//   false-positived on tiny countries (England) and on coincidental
-//   proximity (US country centroid sits very close to Kansas state
-//   centroid because Kansas IS the geographic center of the US).
+// Why: spot-check found the Three Roommates California report at
+// (39.78, -100.45) — neither at US country centroid (39.83, -98.58)
+// nor at CA state centroid (36.78, -119.42). It's at some non-centroid
+// dead-reckoning point in western Kansas. The `coords_synthetic=true`
+// flag is the canonical signal that the coords are a fallback; the
+// previous "near country centroid" check missed reports whose fallback
+// landed at non-centroid points.
 //
-// STATE_TOLERANCE_DEG = 0.05: skip-if-already-at-state-centroid guard.
-//   Many flagged reports already had coords matching their state
-//   centroid (legitimately so) and we were "fixing" them to the same
-//   value. Skip outright.
-const COUNTRY_TOLERANCE_DEG = 0.05
+// New detection:
+//   status='approved' AND state_province IS NOT NULL AND
+//   coords_synthetic=true AND coords NOT within STATE_TOLERANCE of
+//   the state's centroid → swap to state centroid.
+//
+// This trusts the existing synthetic flag and doesn't try to guess
+// which centroid the coords are "near." Cleaner.
 const STATE_TOLERANCE_DEG = 0.05
 
 function parseArgs() {
@@ -102,7 +106,11 @@ async function main() {
   const countryNameMap = buildCountryNameMap()
   const stateNameMap = buildStateNameMap()
 
-  // Page through approved reports with state_province + coords set.
+  // Page through approved synthetic-coord reports with state_province
+  // + coords set. The coords_synthetic flag is the canonical signal
+  // that these are fallback coords — we trust it and verify whether
+  // the fallback landed at the state centroid (correct) or somewhere
+  // else (incorrect).
   const candidates: any[] = []
   let lastId = ''
   let scanned = 0
@@ -110,6 +118,7 @@ async function main() {
     let q = s.from('reports')
       .select('id, slug, title, country, state_province, city, latitude, longitude, coords_synthetic')
       .eq('status', 'approved')
+      .eq('coords_synthetic', true)
       .not('state_province', 'is', null)
       .not('latitude', 'is', null)
       .not('longitude', 'is', null)
@@ -122,42 +131,30 @@ async function main() {
 
     for (const r of data as any[]) {
       scanned++
-      // Resolve country → ISO2
+      // Resolve country → ISO2 so we can look up state centroids.
       const countryRaw = (r.country || '').toString().toLowerCase().trim()
       if (!countryRaw) continue
       const iso2 = countryNameMap[countryRaw]
       if (!iso2) continue
-      const countryEntry = (countryCentroids as any)[iso2]
-      if (!countryEntry) continue
 
       const lat = typeof r.latitude === 'number' ? r.latitude : parseFloat(String(r.latitude))
       const lng = typeof r.longitude === 'number' ? r.longitude : parseFloat(String(r.longitude))
       if (isNaN(lat) || isNaN(lng)) continue
 
-      // Are coords near country centroid? (tightened to ~5km)
-      const dLat = Math.abs(lat - countryEntry.lat)
-      const dLng = Math.abs(lng - countryEntry.lng)
-      if (dLat > COUNTRY_TOLERANCE_DEG || dLng > COUNTRY_TOLERANCE_DEG) continue  // coords look real
-
       // We need a state centroid to swap in. Look up by state name.
       const stateMap = stateNameMap[iso2] || {}
       const stateRaw = (r.state_province || '').toString().toLowerCase().trim()
       const stateKey = stateMap[stateRaw]
-      if (!stateKey) continue  // unknown state — leave alone, MapTiler is supposed to handle long-tail
+      if (!stateKey) continue  // unknown state — leave alone
 
       const stateEntry = ((stateCentroids as any)[iso2] || {})[stateKey]
       if (!stateEntry) continue
 
-      // Skip if coords already match the state centroid (within 5km).
-      // This is the "Kansas case": US country centroid sits within
-      // ~0.5° of Kansas state centroid, so naive country-centroid
-      // detection was flagging Kansas reports correctly placed at
-      // Kansas state centroid. The exact-equality guard above (0.05°)
-      // already handles most of this, but state centroids occasionally
-      // get stored with slight float drift, so we double-check.
+      // Skip if coords already match the state centroid (within 5km) —
+      // those synthetic coords landed in the right place.
       const dStateLat = Math.abs(lat - stateEntry.lat)
       const dStateLng = Math.abs(lng - stateEntry.lng)
-      if (dStateLat < STATE_TOLERANCE_DEG && dStateLng < STATE_TOLERANCE_DEG) continue  // already at state centroid — correct
+      if (dStateLat < STATE_TOLERANCE_DEG && dStateLng < STATE_TOLERANCE_DEG) continue
 
       candidates.push({
         id: r.id,
