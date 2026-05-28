@@ -202,12 +202,32 @@ async function main() {
   console.log('Keep (first-person/uncertain): ' + toKeep.length)
   console.log('Haiku-failed:              ' + failed.length)
   console.log()
-  console.log('Sample archive (first 20):')
-  for (const r of toArchive.slice(0, 20)) {
+
+  // V11.17.39 — randomized samples for confidence check (not first-N,
+  // which is insertion-order biased). 30 archive + 30 keep so the
+  // operator can verify both directions before pulling the trigger.
+  function shuffle<T>(arr: T[]): T[] {
+    const a = arr.slice()
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[a[i], a[j]] = [a[j], a[i]]
+    }
+    return a
+  }
+  const archiveSample = shuffle(toArchive).slice(0, 30)
+  const keepSample = shuffle(toKeep).slice(0, 30)
+
+  console.log('Random ARCHIVE sample (30):')
+  for (const r of archiveSample) {
     console.log('  ' + r.id.substring(0, 8) + ' | ' + (r.title || '').substring(0, 80))
     if (r._verdict?.reason) console.log('       reason: ' + r._verdict.reason.substring(0, 120))
   }
-  if (toArchive.length > 20) console.log('  ... ' + (toArchive.length - 20) + ' more')
+  console.log()
+  console.log('Random KEEP sample (30) — to spot false-negatives:')
+  for (const r of keepSample) {
+    console.log('  ' + r.id.substring(0, 8) + ' [' + (r._verdict?.verdict || '?') + '/' + (r._verdict?.confidence || '?') + '] ' + (r.title || '').substring(0, 78))
+    if (r._verdict?.reason) console.log('       reason: ' + r._verdict.reason.substring(0, 120))
+  }
   console.log()
 
   if (args.dryRun) {
