@@ -43,6 +43,10 @@ import { ArrowLeft, Bookmark, BookmarkCheck, Share2, Loader2, TrendingUp, FileTe
 import dynamic from 'next/dynamic'
 import { type LocationPrecision } from './ReportLocationMap'
 const ReportLocationMap = dynamic(() => import('./ReportLocationMap'), { ssr: false })
+// V11.17.39 — null-location header backdrop. Real maplibre map (same
+// dataviz-dark style as ReportLocationMap), so dynamic-import to keep
+// SSR clean and share the same load-once pattern.
+const WorldMapBackdrop = dynamic(() => import('./WorldMapBackdrop'), { ssr: false })
 import ReportMeta from './ReportMeta'
 // V11.11 — IngestedBadge header variant removed (was redundant with
 // the SourceBlock under the narrative). Import kept-out so no dead
@@ -476,17 +480,12 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
           var hasCoords = !!mapCoords
           var hasRegionHint = !!(report as any)?.country_code || !!(report as any)?.state_province || !!(report as any)?.country
           if (!hasCoords && !hasRegionHint) {
-            return (
-              <div className="relative h-[22vh] sm:h-[35vh] min-h-[160px] max-h-[320px] bg-gradient-to-b from-gray-900 via-gray-950 to-gray-950 border-b border-gray-800/60 flex items-center justify-center px-6">
-                <div className="text-center max-w-md">
-                  <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-1">Location</p>
-                  <p className="text-sm text-gray-300">Not specified in source</p>
-                  <p className="text-[11px] text-gray-500 mt-1.5 leading-relaxed">
-                    The witness did not record where the incident took place — or the geography hasn&apos;t been extracted from the source text yet.
-                  </p>
-                </div>
-              </div>
-            )
+            // V11.17.39 — superimpose "Not specified" over a stylized
+            // world-map silhouette so the header has the same visual
+            // weight as a located report, but the missing-data state
+            // is explicit (vs. the prior bug where null coords fell
+            // back to (0,0) and rendered "AFRICA").
+            return <WorldMapBackdrop />
           }
           return (
             <div className="relative h-[22vh] sm:h-[35vh] min-h-[160px] max-h-[320px]">
