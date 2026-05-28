@@ -203,6 +203,21 @@ export const HOOK_SELF_CONFESSION_PATTERNS = [
   // Famous-photograph / lost-media community references
   /\bcalvine\s+photo\b/i,
   /\bcirculated\s+widely\b.*\b(?:subreddit|forum|community|reddit)\b/i,
+
+  // V11.17.39 (3rd round) — algorithmic / platform-suppression complaints.
+  // Caught a slip on "A UFO researcher reports their YouTube algorithm
+  // shifted overnight, replacing trusted whistleblower channels with
+  // mainstream debunking narratives. The witness suspects intentional
+  // algorithmic manipulation to suppress UFO disclosure discussion."
+  // This is platform-meta commentary masquerading as a "report" because
+  // the framing uses "the witness" — but no paranormal event is being
+  // witnessed. The witness is complaining about YouTube's recommendation
+  // feed. These three patterns catch the genre cleanly.
+  /\balgorithm(?:ic)?\s+(?:manipulation|suppression|shift(?:ed)?|bias|censorship|change)\b/i,
+  /\b(?:suppress(?:ing|ion|ed)?|silenc(?:ing|ed)|hid(?:ing|den))\s+(?:ufo|uap|paranormal|disclosure|whistleblower)\b/i,
+  /\b(?:mainstream|debunking)\s+narratives?\b/i,
+  /\b(?:whistleblower\s+channels?|disclosure\s+discussion)\b/i,
+  /\brecommendation\s+(?:feed|algorithm|engine)\b/i,
 ];
 
 // Art, merchandise, and promotional content
