@@ -185,6 +185,20 @@ export function middleware(request: NextRequest) {
     // Fallback heuristic — Safari sometimes omits Sec-Fetch-* headers.
     (accept.includes('text/html') && !accept.includes('image/'))
 
+  // V11.17.39 (operator) — Soft-launch bare-domain redirect. When an
+  // unauthed visitor navigates to the root URL (or any not-yet-
+  // public page they typed manually), bounce them to /citd instead
+  // of throwing the basic-auth popup at them. Only do this for top-
+  // level navigations — subresources should still silently 401 so
+  // we don't accidentally redirect-loop a missing favicon.
+  //
+  // Devs/admins with a valid session cookie never reach this branch
+  // (they passed the cookie check above), so the homepage stays
+  // accessible for the team.
+  if (isTopLevelNavigation && pathname === '/') {
+    return NextResponse.redirect(new URL('/citd', request.url), { status: 307 })
+  }
+
   const headers: Record<string, string> = {}
   if (isTopLevelNavigation) {
     headers['WWW-Authenticate'] = 'Basic realm="Paradocs - Enter access credentials"'
