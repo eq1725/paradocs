@@ -85,6 +85,39 @@ export const META_POST_PATTERNS = [
   // form regardless of the subject pronoun's distance.
   /\bhave\s+been\s+(?:planning|wanting|hoping|trying|considering|thinking\s+about|looking\s+forward)\s+to\b/i,
   /\bfor\s+years\s+(?:i'?ve|i\s+have|i\s+had|i\s+(?:was|am|am\s+still))?\s*been\s+(?:planning|wanting|hoping|trying)\s+to\b/i,
+
+  // V11.17.39 — Discourse / community-commentary / news-analysis patterns.
+  //
+  // Bug from operator spot-check: the Today feed surfaced "Community
+  // members debate whether recent video releases and media coverage
+  // represent the major UAP disclosure...". That's third-party
+  // analytical commentary about UFO community discourse — NOT a
+  // first-person experience report. Several similar reports were
+  // accepted: "Disclosure Redefined as Acknowledgment Alone",
+  // "Iraq Footage Sparks Debate Over Camera Artifacts", "Prominent
+  // Voices Fall Silent on UFO Disclosure", etc.
+  //
+  // The pattern: third-person aggregation language about a community,
+  // debate, disclosure event, public figure, or news coverage. These
+  // pass the seeker filters because they don't ASK anything — they
+  // discuss/analyze/debate without a witness anchor.
+  /\b(community members|the community)\s+(?:debate|discuss|speculate|question|wonder|argue|debate)\b/i,
+  /\b(researchers|witnesses|believers|skeptics|enthusiasts|members)\s+(?:debate|discuss|speculate|question|argue)\b/i,
+  /\b(sparks?|fuel(?:s|ed)|raises?|reignites?)\s+(?:debate|discussion|controversy|questions?|speculation)\b/i,
+  /\b(prominent|notable|leading|senior)\s+(?:figures?|voices?|researchers?|commentators?|members?)\s+(?:fall|stay|grow|remain)\s+silent\b/i,
+  /\b(intelligence community|research community|ufo community|paranormal community|disclosure community)\s+(?:resistance|silence|response|reaction|stance|position)\b/i,
+  /\b(media coverage|press coverage|news coverage)\s+(?:gap|silence|absence|imbalance)\b/i,
+  /\b(?:redefined?|reframed?|recasts?)\s+(?:as|to mean|by)\b/i,
+  /\b(?:scrutiny|examination|analysis)\s+(?:of|from|under)\b.*\b(?:disclosure|community|figures?|claims?|narrative)\b/i,
+  /\b(?:examines?|documents?|critiques?|analyzes?|catalogs?)\s+(?:the\s+)?(?:deaths|claims|statements|responses|silence|resistance|narrative)\b/i,
+  /\b(coordinated|orchestrated|systematic)\s+(?:accounts?|attacks?|silencing|disinformation)\b/i,
+  /\b(disclosure|acknowledgment|announcement)\s+(?:event|moment|deadline|stance|timeline)\b/i,
+  /\b(?:report|deadline|timeline)\s+(?:approaching|imminent|forthcoming|expected)\b/i,
+  /\b(month|week|year)\s+in\s+r\/[a-z]+\b/i,  // "Month in r/UFOs" community-summary posts
+  /\bdeaths?\s+in\s+the\s+(?:ufo|paranormal|uap)\s+(?:research|community)\b/i,
+  // Reports framed as ABOUT specific public figures' statements/podcasts
+  /\b(?:retired|former)\s+(?:navy|air force|cia|nasa|pentagon|congressman)\b.*\b(?:discusses?|talks?|appeared|hosting|interview)\b/i,
+  /\b(?:setileading|prominent|senior)\s+(?:director|commander|official|figure)\s+(?:discusses?|hosts?|appears?|interviewed)\b/i,
 ];
 
 // Art, merchandise, and promotional content

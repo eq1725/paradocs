@@ -21,7 +21,7 @@
  * SWC: var + function() form.
  */
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { ThumbsUp, ThumbsDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -56,6 +56,18 @@ export default function ThumbsFeedback(props: ThumbsFeedbackProps) {
   // delta from props so the parent's stale data doesn't override our
   // local intent. Reset on prop change (new card).
   var [voteDelta, setVoteDelta] = useState<{ up: number; down: number }>({ up: 0, down: 0 })
+
+  // V11.17.39 — reset local vote state when the user swipes to a new
+  // card. Without this, the ThumbsFeedback instance is reused across
+  // cards (React keeps the component mounted, swaps props), so a vote
+  // recorded on card 1 leaves the green "up" pill visually selected
+  // when card 2 renders. Resetting on reportId change matches the
+  // physical "this is a new card" mental model.
+  useEffect(function () {
+    setVote(null)
+    setVoteDelta({ up: 0, down: 0 })
+    setSubmitting(false)
+  }, [props.reportId])
 
   async function submitVote(sentiment: 'positive' | 'negative') {
     if (submitting) return
