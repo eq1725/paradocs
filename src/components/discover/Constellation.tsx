@@ -58,10 +58,10 @@ export function Constellation() {
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/30">
         <span className="text-primary-400 text-sm">{'\u2726'}</span>
         <span className="text-primary-400 text-[9px] font-sans font-semibold uppercase tracking-widest">
-          Constellation
+          Radar
         </span>
         <span className="text-gray-500 text-[8px] font-sans">
-          Full case files & connections
+          Your patterns, your saves
         </span>
       </div>
     </div>

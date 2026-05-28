@@ -217,7 +217,7 @@ export default function ShareConstellation({
         <div className="flex items-center justify-between p-4 border-b border-gray-800">
           <div className="flex items-center gap-2">
             <Share2 className="w-5 h-5 text-primary-400" />
-            <h2 className="text-white font-semibold">Share Constellation</h2>
+            <h2 className="text-white font-semibold">Share Radar</h2>
           </div>
           <button onClick={onClose} className="text-gray-500 hover:text-white">
             <X className="w-5 h-5" />
@@ -236,7 +236,7 @@ export default function ShareConstellation({
               <div>
                 <div className="text-sm text-white">Public Profile</div>
                 <div className="text-xs text-gray-500">
-                  {isProfilePublic ? 'Anyone can view your constellation' : 'Only you can see your constellation'}
+                  {isProfilePublic ? 'Anyone can view your Radar' : 'Only you can see your Radar'}
                 </div>
               </div>
             </div>
@@ -280,7 +280,7 @@ export default function ShareConstellation({
             >
               <Image className="w-5 h-5 text-purple-400 shrink-0" />
               <div className="flex-1">
-                <div className="text-sm text-white">Constellation Map</div>
+                <div className="text-sm text-white">Radar Map</div>
                 <div className="text-xs text-gray-500">High-res PNG with Paradocs branding</div>
               </div>
               <Download className="w-4 h-4 text-gray-500" />
@@ -302,7 +302,7 @@ export default function ShareConstellation({
 
           {exporting && (
             <div className="text-center text-sm text-primary-400 py-2">
-              Generating {exportType === 'map' ? 'constellation' : 'stats card'}...
+              Generating {exportType === 'map' ? 'Radar' : 'stats card'}...
             </div>
           )}
         </div>

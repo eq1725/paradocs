@@ -51,8 +51,14 @@ import { ClusteringCard } from '@/components/discover/ClusteringCard'
 import type { ClusterCardData } from '@/components/discover/ClusteringCard'
 import { OnThisDateCard } from '@/components/discover/OnThisDateCard'
 import type { OnThisDateData } from '@/components/discover/OnThisDateCard'
-import { ResearchHubPromo } from '@/components/discover/ResearchHubPromo'
-import type { PromoCardData } from '@/components/discover/ResearchHubPromo'
+// V11.17.39 — Lab upsell card (replaces ResearchHubPromo).
+//   - Real production RadarVisualization w/ reveal animation
+//   - 5-variant headline ladder driven by /api/lab/footprint
+//   - Hairline-divided benefits mapped to Library / Your Story / Explore
+//   - Single-tier $5.99 footer (Pro deliberately not shown — tier
+//     selection happens on /pricing after intent signal)
+import { LabPromo } from '@/components/discover/LabPromo'
+import type { PromoCardData } from '@/components/discover/LabPromo'
 import { CaseViewGate } from '@/components/discover/CaseViewGate'
 import { TopicOnboarding, isOnboardingComplete, getOnboardingTopics } from '@/components/discover/TopicOnboarding'
 import { RabbitHolePanel } from '@/components/discover/RabbitHolePanel'
@@ -1325,7 +1331,7 @@ export default function DiscoverPage() {
 
     if (card.item_type === 'cluster') return <ClusteringCard item={card as ClusterCardData} isActive={true} />
     if (card.item_type === 'on_this_date') return <OnThisDateCard item={card as OnThisDateData} isActive={true} />
-    if (card.item_type === 'promo') return <ResearchHubPromo isActive={true} />
+    if (card.item_type === 'promo') return <LabPromo isActive={true} />
 
     if (card.item_type === 'report' && gateStatus.status.isViewGated) {
       var reportItem = card as ReportItem
