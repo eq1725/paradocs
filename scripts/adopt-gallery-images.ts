@@ -150,7 +150,11 @@ async function searchWikimedia(query: string, limit = 5): Promise<Candidate[]> {
     const license = (meta.LicenseShortName?.value as string) || 'unknown'
     out.push({
       title: page.title,
-      url: wikimediaThumb(info.url, 1200),
+      // V11.17.39 — don't rewrite to thumbnail URL. Wikimedia returns 400
+      // for some files (small originals, certain PNGs) when we ask for a
+      // 1200px thumb. Use the original URL — sharp handles dimension
+      // capping on the downloaded buffer regardless of source size.
+      url: info.url,
       description: stripHtml(meta.ImageDescription?.value || page.title).substring(0, 300),
       license: stripHtml(license),
       attribution: stripHtml((meta.Artist?.value as string) || 'Unknown') + ' (' + stripHtml(license) + ')',
@@ -168,7 +172,7 @@ async function searchOpenverse(query: string, limit = 5): Promise<Candidate[]> {
     const data: any = await resp.json()
     return (data.results || []).filter((r: any) => r.url && r.mime_type?.startsWith('image/')).map((r: any) => ({
       title: 'OpenVerse: ' + (r.title || '').substring(0, 100),
-      url: wikimediaThumb(r.url, 1200),
+      url: r.url,
       description: stripHtml(r.title || '').substring(0, 300),
       license: r.license || 'unknown',
       attribution: 'Image by ' + (r.creator || 'Unknown') + ' via ' + (r.source || 'OpenVerse'),
