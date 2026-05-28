@@ -38,7 +38,9 @@ import Head from 'next/head'
  */
 function CITDSignupForm() {
   var [email, setEmail] = useState('')
-  var [name, setName] = useState('')
+  // V11.17.39 — name field removed per Round 5 panel (mobile-conversion
+  // optimization). Name capture moves to post-signup welcome email or
+  // a profile flow at launch.
   var [status, setStatus] = useState<'idle' | 'submitting' | 'submitted' | 'error'>('idle')
   var [errorMsg, setErrorMsg] = useState<string | null>(null)
 
@@ -59,7 +61,6 @@ function CITDSignupForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: trimmed,
-          name: name.trim() || undefined,
           referrer: 'citd',
         }),
       })
@@ -98,17 +99,6 @@ function CITDSignupForm() {
       <div className="citd-signup-label">Join the launch list</div>
       <div className="citd-signup-row">
         <input
-          type="text"
-          name="name"
-          placeholder="Your name (optional)"
-          autoComplete="given-name"
-          className="citd-signup-input citd-signup-input-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          disabled={status === 'submitting'}
-          aria-label="Your name (optional)"
-        />
-        <input
           type="email"
           name="email"
           placeholder="you@email.com"
@@ -127,13 +117,13 @@ function CITDSignupForm() {
           disabled={status === 'submitting'}
           aria-label="Submit signup"
         >
-          {status === 'submitting' ? '...' : 'Get notified'}
+          {status === 'submitting' ? '...' : 'Notify me'}
         </button>
       </div>
       {status === 'error' && errorMsg && (
         <div className="citd-signup-error" role="alert">{errorMsg}</div>
       )}
-      <div className="citd-signup-hint">We&rsquo;ll only email you when the app opens.</div>
+      <div className="citd-signup-hint">No spam. One email at launch.</div>
     </form>
   )
 }
@@ -175,27 +165,38 @@ export default function CITDPage() {
       <div className="citd-page">
         {/* Left: Content */}
         <div className="citd-content">
-          <div className="citd-badge">Coming Soon</div>
+          {/* V11.17.39 — "Coming Soon" pill kept on desktop, hidden on
+              mobile (competes with the emotional sub-headline at small
+              widths, per Round 5 panel review). */}
+          <div className="citd-badge citd-badge-desktop-only">Coming Soon</div>
           <h1 className="citd-headline">
             The paranormal,<br />
             in your <span className="citd-accent">pocket.</span>
           </h1>
-          <p className="citd-desc">
-            The world&rsquo;s largest database of paranormal phenomena is coming to iOS and Android.
-            Search millions of reports, map the unexplained, build case files — anywhere.
+          {/* V11.17.39 — "You're not alone" emotional throughline.
+              Panel-locked Round 5: declarative, specific, quiet. Sub-
+              headline position directly under H1; replaces the longer
+              marketing description that ran here previously (which now
+              feels generic next to this line). */}
+          <p className="citd-subhead">
+            You&rsquo;re not the only one who saw something.
           </p>
           {/* V11.17.39 — Email signup form (replaces the previous
               "Coming Soon" App Store / Google Play badges). CITD
               visitors join the waitlist; we'll batch-invite once the
               dev gate is lifted. POSTs to /api/citd/signup which is
-              already in the middleware PUBLIC_PATHS allow-list. */}
+              already in the middleware PUBLIC_PATHS allow-list.
+              Single-field (email only) per Round 5 panel — name fields
+              measurably depress mobile conversion. */}
           <CITDSignupForm />
 
-          {/* V11.17.39 — Keep the original App Store / Google Play
-              "Coming Soon" badges at full prominence alongside the
-              email form. Per operator preference: visitors should see
-              the form AND the badges, both treated as primary chrome. */}
-          <div className="citd-store-buttons">
+          {/* V11.17.39 — App Store / Google Play "Coming Soon" badges.
+              Kept at full prominence on desktop (alongside the email
+              form). Hidden on mobile (Round 5 panel) — visitors at
+              CITD scanning on phones need vertical space for the form;
+              the badges signal "coming to app stores" which is
+              redundant with the form's "Notify me at launch" intent. */}
+          <div className="citd-store-buttons citd-store-buttons-desktop-only">
             {/* Apple App Store */}
             <div className="citd-store-btn">
               <span className="citd-soon-tag">Soon</span>
@@ -261,13 +262,20 @@ export default function CITDPage() {
           MapShowcase). Stacked beneath the hero so visitors who scroll
           see the desktop dimension of the product. */}
       <section className="citd-laptop-section">
+        {/* V11.17.39 Round 5 — heading reframes 137k as floor not
+            ceiling. "Millions more in the wild" bridges to the
+            broader brand claim (the paranormal corpus across Reddit,
+            forums, archives is in the millions; Paradocs has indexed
+            137k so far) without overclaiming. Two-beat scannable on
+            mobile, opportunity framing vs. deficit framing. */}
         <h2 className="citd-laptop-heading">
-          Explore <span className="citd-accent">137,000+</span> documented experiences,
-          mapped worldwide.
+          <span className="citd-accent">137,000</span> experiences mapped.<br />
+          Millions more in the wild.
         </h2>
         <p className="citd-laptop-sub">
-          Witness reports, sightings, anomalous phenomena. Filtered, geocoded,
-          and ready to explore from anywhere.
+          A growing archive of documented sightings, encounters, and the
+          unexplained &mdash; searchable, mapped, and connected to accounts
+          like yours.
         </p>
         <div className="citd-laptop-wrap">
           <div className="citd-laptop-bezel">
@@ -750,6 +758,27 @@ export default function CITDPage() {
         /* Home indicator */
         .citd-home-indicator { display: flex; justify-content: center; padding: 6px 0 4px; background: rgba(18,18,32,0.97); }
         .citd-home-bar { width: 100px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.15); }
+
+        /* ─── V11.17.39 Round 5 — Sub-headline ("You're not alone") ─── */
+        .citd-subhead {
+          font-family: 'Changa', sans-serif;
+          font-size: clamp(17px, 2.2vw, 22px);
+          font-weight: 500;
+          line-height: 1.4;
+          color: rgba(255, 255, 255, 0.78);
+          margin: -8px 0 32px;
+          max-width: 460px;
+          letter-spacing: 0.005em;
+        }
+        @media (max-width: 768px) {
+          .citd-subhead { margin-left: auto; margin-right: auto; margin-top: 0; margin-bottom: 24px; }
+        }
+
+        /* ─── V11.17.39 Round 5 — Mobile-hide rules per panel ─── */
+        @media (max-width: 768px) {
+          .citd-badge-desktop-only,
+          .citd-store-buttons-desktop-only { display: none !important; }
+        }
 
         /* ─── V11.17.39 Phone-screen video ─── */
         .citd-screen-video {
