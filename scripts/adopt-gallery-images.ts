@@ -227,16 +227,31 @@ async function haikuPickTopN(p: any, candidates: Candidate[], n: number): Promis
     const c = candidates[i]
     try {
       const r = await fetch(c.url, { headers: { 'User-Agent': UA } })
-      if (!r.ok) continue
+      if (!r.ok) {
+        console.log('       [' + i + '] fetch ' + r.status + ' for ' + c.url.substring(0, 80))
+        continue
+      }
       const mime = r.headers.get('content-type')?.split(';')[0].trim() || ''
-      if (!mime.startsWith('image/')) continue
+      if (!mime.startsWith('image/')) {
+        console.log('       [' + i + '] non-image mime "' + mime + '" for ' + c.url.substring(0, 80))
+        continue
+      }
       const ab = await r.arrayBuffer()
-      const resized = await sharp(Buffer.from(ab))
-        .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 82 }).toBuffer()
-      if (resized.length > 5 * 1024 * 1024) continue
-      inlined.push({ idx: i, mime: 'image/jpeg', b64: resized.toString('base64') })
-    } catch (_e) { /* skip */ }
+      try {
+        const resized = await sharp(Buffer.from(ab))
+          .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 82 }).toBuffer()
+        if (resized.length > 5 * 1024 * 1024) {
+          console.log('       [' + i + '] resized still > 5MB (' + (resized.length / 1024 / 1024).toFixed(1) + 'MB)')
+          continue
+        }
+        inlined.push({ idx: i, mime: 'image/jpeg', b64: resized.toString('base64') })
+      } catch (sharpErr: any) {
+        console.log('       [' + i + '] sharp failed: ' + (sharpErr?.message || sharpErr).substring(0, 100))
+      }
+    } catch (fetchErr: any) {
+      console.log('       [' + i + '] fetch error: ' + (fetchErr?.message || fetchErr).substring(0, 100))
+    }
   }
   if (inlined.length === 0) return {
     picks: [], reasons: [],
