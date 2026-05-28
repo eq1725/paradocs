@@ -12,7 +12,11 @@ import { initPostHog, identify, reset, capture } from '@/lib/posthog'
 import { supabase } from '@/lib/supabase'
 
 // Pages that should NOT have the main app layout (nav, footer, etc.)
-const STANDALONE_PAGES = ['/beta-access', '/survey']
+// V11.17.39 — /citd is the CITD event landing page, gated as the only
+// publicly-accessible route during the soft launch. Visitors arriving
+// from the QR code must not see nav links (those lead to basic-auth-
+// walled routes) or the footer (also has links to gated pages).
+const STANDALONE_PAGES = ['/beta-access', '/survey', '/citd']
 
 // Pages/routes that have their own complete layout (like DashboardLayout).
 // V9.6 — /account/* is now under the default Layout (same as /profile)
