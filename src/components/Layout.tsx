@@ -248,9 +248,18 @@ export default function Layout({ children }: LayoutProps) {
       <NavigationHelper />
 
       {/* Main content - accounts for header + safe area (Dynamic Island) + bottom nav.
-          /discover handles its own bottom padding via .mobile-content-pb on the inner pane,
-          so we suppress the global pb-20 there to avoid double padding (panel review fix). */}
-      <main className={'main-content-pt min-h-screen ' + (router.pathname === '/discover' ? 'pb-0' : 'pb-20 md:pb-0')}>
+          V11.17.41 — switched from Tailwind pb-20 (flat 80px) to the
+          existing .mobile-content-pb utility which does
+          calc(64px + env(safe-area-inset-bottom) + 0.5rem). The flat
+          80px wasn't enough for iPhones with a home indicator —
+          nav height (56px) + safe area (~34px) = ~90px — so feed
+          cards visibly scrolled under the bottom tab bar. The
+          utility resets to padding-bottom:1.5rem at md+ via its own
+          @media block, so the md:pb-0 suffix isn't needed anymore.
+          /discover still handles its own bottom padding via
+          .mobile-content-pb on the inner pane (suppressed here to
+          avoid doubling). */}
+      <main className={'main-content-pt min-h-screen ' + (router.pathname === '/discover' ? 'pb-0' : 'mobile-content-pb')}>
         {children}
       </main>
 
