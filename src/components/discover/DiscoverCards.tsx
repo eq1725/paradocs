@@ -908,34 +908,16 @@ export function TextReportCard(props: {
   var hasLocation = !!(item.city || item.state_province || item.country || item.location_name)
   var locationStr = formatLocationLabel(item, { maxParts: 3 }) || ''
 
-  // Badge parts: category + year (if known)
+  // V11.17.41 — Badge parts simplified to category · location. Year
+  // removed from the top line per operator review for cross-card-type
+  // consistency with the phenomenon spotlight (which dropped the year
+  // because 238 phens carry bogus first_reported_date). Even on report
+  // cards where event_date is per-report data, dropping the year
+  // prevents any future class of misleading-year render. The event
+  // date still surfaces below in the meta strip (formatReportDate with
+  // precision context) and on the report page itself.
   var badgeParts: string[] = []
   badgeParts.push(config?.label || item.category)
-  // V11.17.39 — suppress badge year when the extracted event_date is
-  // wildly older than the source post (>100 years gap). This is the
-  // classic "AI pulled the building's construction year" failure mode:
-  // a Reddit post from 2024 about a "170-year-old rental" gets
-  // event_date=1855, which then renders bare on the badge as
-  // "GHOSTS & HAUNTINGS · 1855" — misleading without the body context.
-  // The same heuristic skips badge years for plainly historical
-  // pre-1900 dates that we can't verify against a source-creation
-  // anchor. Year-on-the-meta-strip (formatReportDate) is unaffected
-  // because that one renders with precision context ("c. 1855").
-  if (item.event_date) {
-    var yearMatch = item.event_date.match(/\d{4}/)
-    if (yearMatch) {
-      var extractedYear = parseInt(yearMatch[0], 10)
-      var sourceYear = item.created_at ? new Date(item.created_at).getFullYear() : new Date().getFullYear()
-      var yearGap = sourceYear - extractedYear
-      // Trust the extracted year if (a) gap < 100 years, or (b) the
-      // source itself is editorial / historical-curated where deep
-      // history is the entire point.
-      var isHistoricalSource = item.source_type === 'editorial' || item.source_type === 'curated'
-      if (yearGap < 100 || isHistoricalSource) {
-        badgeParts.push(yearMatch[0])
-      }
-    }
-  }
   if (locationStr) badgeParts.push(locationStr.length > 20 ? locationStr.substring(0, 18) + '\u2026' : locationStr)
 
   // Meta strip now carries: location (or Unknown), formatted date, source label, type
@@ -1197,33 +1179,13 @@ export function MediaReportCard(props: {
   if (item.country) locationParts.push(item.country)
   var locationStr = locationParts.join(', ')
 
+  // V11.17.41 — Year removed from badge per operator review (see the
+  // PhenomenonSpotlight equivalent above for the rationale + history).
+  // Top line is now category · location. The event date still surfaces
+  // below in the meta strip with precision context and on the report
+  // page itself.
   var badgeParts: string[] = []
   badgeParts.push(config?.label || item.category)
-  // V11.17.39 — suppress badge year when the extracted event_date is
-  // wildly older than the source post (>100 years gap). This is the
-  // classic "AI pulled the building's construction year" failure mode:
-  // a Reddit post from 2024 about a "170-year-old rental" gets
-  // event_date=1855, which then renders bare on the badge as
-  // "GHOSTS & HAUNTINGS · 1855" — misleading without the body context.
-  // The same heuristic skips badge years for plainly historical
-  // pre-1900 dates that we can't verify against a source-creation
-  // anchor. Year-on-the-meta-strip (formatReportDate) is unaffected
-  // because that one renders with precision context ("c. 1855").
-  if (item.event_date) {
-    var yearMatch = item.event_date.match(/\d{4}/)
-    if (yearMatch) {
-      var extractedYear = parseInt(yearMatch[0], 10)
-      var sourceYear = item.created_at ? new Date(item.created_at).getFullYear() : new Date().getFullYear()
-      var yearGap = sourceYear - extractedYear
-      // Trust the extracted year if (a) gap < 100 years, or (b) the
-      // source itself is editorial / historical-curated where deep
-      // history is the entire point.
-      var isHistoricalSource = item.source_type === 'editorial' || item.source_type === 'curated'
-      if (yearGap < 100 || isHistoricalSource) {
-        badgeParts.push(yearMatch[0])
-      }
-    }
-  }
   if (locationStr) badgeParts.push(locationStr.length > 20 ? locationStr.substring(0, 18) + '\u2026' : locationStr)
 
   var metaParts: string[] = []
