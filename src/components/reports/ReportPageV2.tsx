@@ -490,7 +490,16 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
           // if the witness had reported from there, contradicting
           // the explicit "unknown" label.
           var locNameRaw = ((report as any)?.location_name || '').toString().trim().toLowerCase()
-          var locationNameIsUnknown = !!locNameRaw && /^\(?\s*(location|geo(graphy)?|place)?\s*unknown\s*\)?$/i.test(locNameRaw)
+          // Matches: "unknown", "(location unknown)", "location unknown",
+          // "geography unknown", "place unknown", "n/a", "n.a.", "n/a,",
+          // each with surrounding whitespace tolerated. Does NOT match
+          // "unknown, Saxony" or "Unknown, Iowa" — those have a real
+          // region anchor on the right side that the located-map path
+          // can still use; the verbose "unknown" prefix is fine.
+          var locationNameIsUnknown = !!locNameRaw && (
+            /^\(?\s*(location|geo(graphy)?|place)?\s*unknown\s*\)?$/i.test(locNameRaw) ||
+            /^n[.]?\s*\/?\s*a[.]?\s*,?$/i.test(locNameRaw)
+          )
           if ((!hasCoords && !hasRegionHint) || locationNameIsUnknown) {
             // V11.17.39 — superimpose "Not specified" over a stylized
             // world-map silhouette so the header has the same visual
