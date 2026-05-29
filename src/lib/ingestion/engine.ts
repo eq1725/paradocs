@@ -1418,19 +1418,46 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                   acConfidence = typeof acRaw.confidence === 'number' ? acRaw.confidence : 0;
                   acGenre = typeof acRaw.genre === 'string' ? acRaw.genre : '';
                 }
-                var failsAnomalyGate = acAnomalous === 'no' && acConfidence >= 0.7;
+                // V11.17.41 (operator follow-up) — Two-tier anomaly gate:
+                //   conf >= 0.9 → status='archived' (skip the admin queue
+                //     entirely — Haiku is unambiguous about this not being
+                //     anomalous content). Keeps the pending-review queue
+                //     lean for the borderline cases that actually need a
+                //     human read.
+                //   0.7 <= conf < 0.9 → status='pending_review' (admin
+                //     decides; the gate is confident enough to pull from
+                //     live, but not confident enough to commit to archive)
+                //   conf < 0.7 → no demotion (uncertainty respected)
+                // Both tiers log distinct reasons so admins can spot-check
+                // calibration by grepping the ingestion log for the
+                // V11.17.41-auto-archived marker vs V11.17.41-pending.
+                var anomalyAutoArchive = acAnomalous === 'no' && acConfidence >= 0.9;
+                var anomalyPending = acAnomalous === 'no' && acConfidence >= 0.7 && acConfidence < 0.9;
                 var demoteReason: string | null = null;
+                var demoteTargetStatus: 'pending_review' | 'archived' = 'pending_review';
                 if (!hasNarrative) demoteReason = 'Sonnet narrative refusal';
                 else if (!hasPullQuote) demoteReason = 'Sonnet pull_quote empty after voice-corrective retry (V11.8)';
-                else if (failsAnomalyGate) demoteReason = 'Haiku anomaly gate failed (V11.17.41) — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2);
+                else if (anomalyAutoArchive) {
+                  demoteReason = 'Haiku anomaly gate — auto-archived (V11.17.41) — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2);
+                  demoteTargetStatus = 'archived';
+                }
+                else if (anomalyPending) {
+                  demoteReason = 'Haiku anomaly gate — pending (V11.17.41) — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2);
+                  demoteTargetStatus = 'pending_review';
+                }
                 if (demoteReason) {
                   await supabase
                     .from('reports')
-                    .update({ status: 'pending_review', updated_at: new Date().toISOString() })
+                    .update({ status: demoteTargetStatus, updated_at: new Date().toISOString() })
                     .eq('id', insertedReport.id);
-                  status = 'pending_review';
-                  pendingReview++;
-                  console.log('[Ingestion] Demoted to pending_review (' + demoteReason + '): ' + slug);
+                  // V11.17.41 — local status tracker widens to include
+                  // 'archived' as a possible outcome alongside the original
+                  // 'approved' | 'pending_review' | 'rejected' from
+                  // getStatusFromScore. Downstream callers only use this
+                  // for counting + logging, so the wider type is safe.
+                  status = demoteTargetStatus as any;
+                  if (demoteTargetStatus === 'pending_review') pendingReview++;
+                  console.log('[Ingestion] Demoted to ' + demoteTargetStatus + ' (' + demoteReason + '): ' + slug);
                 }
               } catch (demoteErr) {
                 // Demotion check is best-effort. If the re-query fails,
