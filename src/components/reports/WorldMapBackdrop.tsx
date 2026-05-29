@@ -113,13 +113,27 @@ export default function WorldMapBackdrop() {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
 
+  // V11.17.41 rev-4 — Diagnostic logging. The operator's prod
+  // DevTools shows zero `[WorldMapBackdrop]` console messages AND
+  // zero MapTiler network requests, meaning either useEffect never
+  // fires or it bails on `containerRef.current === null` silently.
+  // Hydration recovery from React #423 (caused by MetaMask's SES
+  // injection) may be unmounting/remounting the component before
+  // init can run. These logs let us see the lifecycle directly.
+  console.log('[WorldMapBackdrop] component render — MAPTILER_KEY set?', !!MAPTILER_KEY, 'key length:', MAPTILER_KEY.length)
+
   useEffect(() => {
+    console.log('[WorldMapBackdrop] useEffect fired — containerRef.current:', containerRef.current)
     const el = containerRef.current
-    if (!el) return
+    if (!el) {
+      console.warn('[WorldMapBackdrop] containerRef is null at useEffect time — aborting')
+      return
+    }
     if (!MAPTILER_KEY) {
       console.warn('[WorldMapBackdrop] NEXT_PUBLIC_MAPTILER_KEY missing — map will not render')
       return
     }
+    console.log('[WorldMapBackdrop] container dimensions at useEffect:', el.clientWidth, 'x', el.clientHeight)
 
     let disposed = false
     let readyDisposer: (() => void) | null = null
@@ -128,10 +142,12 @@ export default function WorldMapBackdrop() {
     let fallbackTimer: ReturnType<typeof setTimeout> | null = null
 
     const initMap = () => {
+      console.log('[WorldMapBackdrop] initMap called — disposed:', disposed, 'mapRef.current:', !!mapRef.current, 'containerRef.current:', !!containerRef.current)
       if (disposed) return
       if (mapRef.current) return
       if (!containerRef.current) return
       try {
+        console.log('[WorldMapBackdrop] creating maplibregl.Map')
         const map = new maplibregl.Map({
           container: containerRef.current,
           style: MAP_STYLE,
@@ -146,6 +162,7 @@ export default function WorldMapBackdrop() {
           touchPitch: false,
         })
         mapRef.current = map
+        console.log('[WorldMapBackdrop] maplibregl.Map created successfully')
 
         readyDisposer = whenMapReady(map, () => {
           try { map.resize() } catch (_e) { /* ignore */ }
@@ -169,8 +186,10 @@ export default function WorldMapBackdrop() {
 
     // If the container already has non-zero dimensions, init immediately.
     if (el.clientWidth > 0 && el.clientHeight > 0) {
+      console.log('[WorldMapBackdrop] container has dimensions — init immediately')
       initMap()
     } else if (typeof ResizeObserver !== 'undefined') {
+      console.log('[WorldMapBackdrop] container has zero dimensions — deferring init via ResizeObserver')
       // Otherwise wait for layout to settle. Init once the container has
       // both width and height — maplibre against a 0×0 canvas never
       // fetches tiles, and a later resize doesn't recover.
