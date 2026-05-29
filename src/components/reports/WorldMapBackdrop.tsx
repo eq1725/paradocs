@@ -1,15 +1,27 @@
 'use client'
 
 /**
- * WorldMapBackdrop — V11.17.39
+ * WorldMapBackdrop — V11.17.41
  *
  * Renders the same MapTiler dataviz-dark map used on located report
  * pages, zoomed to a full world view with no pin / marker / halo, and
- * overlays "Location: Not specified" centered on top. The point is
- * visual continuity with the standard report header: a located report
- * and a null-location report should feel like the same page chrome,
- * with the difference being explicit text rather than a different
- * graphic.
+ * overlays "Location not specified" centered on top with a brand-
+ * purple gradient treatment so the missing-data state reads as
+ * deliberate editorial restraint, not as a load failure.
+ *
+ * V11.17.41 changes (operator iteration after CITD-week QA):
+ *   - center moved from [0, 20] → [12, 10]. The old centre put Africa
+ *     prominently in the visible band, which read as "this is an
+ *     Africa report" at a glance. The new centre balances Africa /
+ *     Eurasia / Americas / Pacific so no single continent dominates.
+ *   - zoom dropped from 1.2 → 0.8 so the curve of the earth across
+ *     hemispheres reads at a glance — more "global", less "regional".
+ *   - Brand-purple gradient layer added over the map vignette so the
+ *     band reads as Paradocs editorial chrome, not as a generic
+ *     fallback. Combined treatment (Lena's recommendation from the #5
+ *     panel applied here too — "card style, not absence").
+ *   - Typography pushed larger + Changa serif on the headline to match
+ *     the editorial register of the rest of the report page chrome.
  *
  * Why a real maplibre instance instead of static SVG:
  *   Chase 2026-05-27 — "the map needs to match the map same style we
@@ -20,16 +32,11 @@
  *   (~50KB of vector tiles), and get pixel-identical styling.
  *
  * Map config notes:
- *   - center=[0, 20] — same fallback used by ReportLocationMap when
- *     coords are entirely missing, biases away from Antarctica.
- *   - zoom=1.2 — shows the full world map without aggressive
- *     letterboxing on mobile widths.
  *   - interactive=false + all drag/zoom/touch off — this is a
  *     decorative band, not a navigable map.
  *   - Admin-border overlays added the same way ReportLocationMap
  *     does so country/state edges read consistently.
- *   - A semi-opaque vignette over the map so the text overlay reads
- *     with enough contrast at the band's small height.
+ *   - Brand-purple gradient + dim vignette over the map for contrast.
  */
 
 import React, { useEffect, useRef } from 'react'
@@ -71,8 +78,12 @@ export default function WorldMapBackdrop() {
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: MAP_STYLE,
-      center: [0, 20],
-      zoom: 1.2,
+      // V11.17.41 — balanced global centre. [12, 10] keeps Africa, the
+      // Americas, Eurasia, and the Pacific roughly proportional in the
+      // visible band so the view reads as "global, no specific region"
+      // rather than the old [0, 20] which read as Africa-centric.
+      center: [12, 10],
+      zoom: 0.8,
       attributionControl: false,
       interactive: false,
       dragPan: false,
@@ -149,26 +160,33 @@ export default function WorldMapBackdrop() {
   }, [])
 
   return (
-    <div className="relative h-[22vh] sm:h-[35vh] min-h-[160px] max-h-[320px] overflow-hidden border-b border-gray-800/60 bg-gray-950">
+    <div className="relative h-[22vh] sm:h-[35vh] min-h-[180px] max-h-[340px] overflow-hidden border-b border-gray-800/60 bg-gray-950">
       {/* Real map — same dataviz-dark style as located reports */}
       <div ref={containerRef} className="absolute inset-0" aria-hidden="true" />
 
-      {/* Vignette / dim layer so the overlay text reads with enough
-          contrast at this band's small height. Top-down gradient
-          keeps the bottom edge stronger where the text sits. */}
+      {/* V11.17.41 — Dim vignette PLUS brand-purple radial wash so the
+          band reads as deliberate editorial chrome (Paradocs colour
+          identity) rather than a load-failure fallback. The two
+          layers stack: the dark vignette establishes contrast for the
+          overlay text, and the purple wash carries brand register. */}
       <div
         className="absolute inset-0 pointer-events-none"
-        style={{ background: 'linear-gradient(to bottom, rgba(2,6,23,0.35) 0%, rgba(2,6,23,0.65) 60%, rgba(2,6,23,0.78) 100%)' }}
+        style={{ background: 'linear-gradient(to bottom, rgba(2,6,23,0.42) 0%, rgba(2,6,23,0.72) 60%, rgba(2,6,23,0.85) 100%)' }}
+        aria-hidden="true"
+      />
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: 'radial-gradient(ellipse at 50% 55%, rgba(144,0,240,0.22) 0%, rgba(144,0,240,0.10) 35%, transparent 65%)' }}
         aria-hidden="true"
       />
 
-      {/* Foreground text — sits on top of the map */}
+      {/* Foreground text — sits on top of the map + gradients */}
       <div className="relative h-full flex items-center justify-center px-6">
         <div className="text-center max-w-md">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-gray-300 mb-1.5">Location</p>
-          <p className="text-base sm:text-lg font-medium text-gray-50">Not specified</p>
-          <p className="text-[11px] sm:text-xs text-gray-300/85 mt-2 leading-relaxed">
-            The witness did not record where the incident took place — or the geography hasn&apos;t been extracted from the source text yet.
+          <p className="text-[10px] uppercase tracking-[0.22em] text-[#c4b5fd] mb-2 font-medium">Location</p>
+          <p className="font-display text-xl sm:text-2xl font-semibold text-gray-50 tracking-tight" style={{ letterSpacing: '-0.005em' }}>Not on record</p>
+          <p className="text-[11px] sm:text-xs text-gray-300/80 mt-2.5 leading-relaxed max-w-sm mx-auto">
+            The witness did not record where this took place &mdash; or the geography hasn&apos;t been extracted from the source yet.
           </p>
         </div>
       </div>

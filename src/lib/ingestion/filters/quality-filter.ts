@@ -223,6 +223,33 @@ export const HOOK_SELF_CONFESSION_PATTERNS = [
   // speakers played the same song my Spotify recommendation algorithm
   // just queued"). The platform-bias signal is already caught by the
   // `algorithm manipulation/suppression/shift/bias` pattern above.
+
+  // V11.17.41 — Mundane life-anecdote backstop for YouTube comment
+  // ingestion. Four reports surfaced during CITD-week QA where the
+  // Haiku-rewrite layer was producing fluent feed_hooks for
+  // YouTube-comment narratives that contained NO anomalous content at
+  // all — perceptual-phenomenon explainers ("trails become invisible
+  // when viewed from the side"), hiking misadventures ("misjudges a
+  // trail loop, becomes dangerously dehydrated, loses keys"), wildlife
+  // encounters ("bull elephant charging the family's vehicle"). The
+  // patterns below target the most distinctive narrative shapes for
+  // each genre.
+  //
+  // Tuning principle: these target the mundane narrative ARC itself
+  // (the recovery, the misjudgment, the charged-by-elephant). A real
+  // witness report mentioning hiking ("I was hiking when I saw the
+  // orb") does not trigger because the trigger is the mundane-resolution
+  // structure, not the activity. The big lift is the Haiku audit
+  // (scripts/audit-youtube-anomaly-content.ts) — these patterns are
+  // the cheap pre-filter that catches the clear cases for $0.
+  /\bmisjudges?\s+(?:a\s+)?(?:trail|route|distance|path|hike|loop|turn)\b/i,
+  /\b(?:becomes?|became|got|getting)\s+dangerous(?:ly)?\s+dehydrat(?:ed|ion)\b/i,
+  /\b(?:charged|charging|chased|pursued|pursues?)\s+(?:by\s+|the\s+(?:family['’]?s?\s+)?(?:vehicle|car|jeep|truck|safari))\s*(?:bull\s+)?(?:elephant|moose|rhino|hippo|gorilla|bear|cougar|lion|tiger|wolf|stag|boar|buffalo|hyena)\b/i,
+  /\b(?:bull\s+)?elephant\s+(?:charging|pursues?|charges?|charged)\s+(?:the\s+|their\s+|a\s+)?(?:family|safari|tour|tourist|vehicle|jeep|landrover|land\s*rover|truck)\b/i,
+  /\bperceptual\s+phenomenon\b.*\b(?:encountered|experienced)\s+repeatedly\b/i,
+  /\b(?:trails?|roads?|paths?)\s+(?:become|becoming|are|appear)\s+(?:nearly\s+)?invisible\s+when\s+viewed\b/i,
+  /\b(?:lifelong|seasoned|experienced)\s+(?:desert|mountain|forest|trail|wilderness|backcountry|high\s+desert)\s+(?:walker|hiker|trekker|runner|guide|enthusiast)\b/i,
+  /\brecover(?:ing|s)?\s+(?:them|it|these|those|their\s+\w+)\s+only\s+by\s+retracing\b/i,
 ];
 
 // Art, merchandise, and promotional content
