@@ -479,7 +479,19 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
           // V11.17.39 — string/number-safe coord check, matches mapCoords logic
           var hasCoords = !!mapCoords
           var hasRegionHint = !!(report as any)?.country_code || !!(report as any)?.state_province || !!(report as any)?.country
-          if (!hasCoords && !hasRegionHint) {
+          // V11.17.41 rev-2 — also fire WorldMapBackdrop when the
+          // location_name display label is explicitly an "unknown"
+          // marker, regardless of orphan coords. Audit found 13
+          // approved reports with location_name='(location unknown)'
+          // or similar AND lat/lng pointing to some unrelated point
+          // (e.g. Sasquatch report with location_name='(location
+          // unknown)' but coords in West Virginia). Without this
+          // check the page rendered the bogus West Virginia map as
+          // if the witness had reported from there, contradicting
+          // the explicit "unknown" label.
+          var locNameRaw = ((report as any)?.location_name || '').toString().trim().toLowerCase()
+          var locationNameIsUnknown = !!locNameRaw && /^\(?\s*(location|geo(graphy)?|place)?\s*unknown\s*\)?$/i.test(locNameRaw)
+          if ((!hasCoords && !hasRegionHint) || locationNameIsUnknown) {
             // V11.17.39 — superimpose "Not specified" over a stylized
             // world-map silhouette so the header has the same visual
             // weight as a located report, but the missing-data state
