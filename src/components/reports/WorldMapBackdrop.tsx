@@ -67,6 +67,11 @@ function whenMapReady(map: maplibregl.Map, fn: () => void): () => void {
 }
 
 function addAdminBorderOverlays(map: maplibregl.Map) {
+  // V11.17.41 rev-7 — Borders thickened + opacity bumped at world zoom
+  // levels (1-3). Without this, dataviz-dark at zoom 1.1 paints continents
+  // in colors nearly identical to the ocean — the operator saw the band
+  // as a flat dark surface even though tiles were loading fine. Brighter,
+  // thicker country lines give the eye edges to lock onto.
   try {
     const style = map.getStyle()
     const firstSymbolId = style?.layers?.find((L: any) => L.type === 'symbol')?.id
@@ -79,10 +84,10 @@ function addAdminBorderOverlays(map: maplibregl.Map) {
         filter: ['all', ['in', 'admin_level', 3, 4], ['==', 'maritime', 0]],
         paint: {
           'line-color': '#c4b5fd',
-          'line-opacity': 0.9,
+          'line-opacity': 0.55,
           'line-width': [
             'interpolate', ['linear'], ['zoom'],
-            3, 0.8, 5, 1.6, 7, 2.2, 10, 3.0,
+            1, 0.6, 3, 1.2, 5, 1.8, 7, 2.4, 10, 3.0,
           ],
         },
       }, firstSymbolId)
@@ -96,10 +101,10 @@ function addAdminBorderOverlays(map: maplibregl.Map) {
         filter: ['all', ['==', 'admin_level', 2], ['==', 'maritime', 0], ['==', 'disputed', 0]],
         paint: {
           'line-color': '#ddd6fe',
-          'line-opacity': 0.95,
+          'line-opacity': 1.0,
           'line-width': [
             'interpolate', ['linear'], ['zoom'],
-            1, 0.8, 3, 1.5, 6, 2.3, 10, 3.2,
+            1, 1.4, 3, 2.0, 5, 2.6, 7, 3.0, 10, 3.4,
           ],
         },
       }, firstSymbolId)
@@ -115,10 +120,6 @@ export default function WorldMapBackdrop() {
   // V11.17.41 rev-5 — Track per-init resources so we can dispose them
   // when re-initialising on a new container (hydration recovery).
   const disposeInitResourcesRef = useRef<(() => void) | null>(null)
-
-  // V11.17.41 rev-6 — Diagnostic logging restored to verify the rev-5
-  // container-change fix is firing. Will be removed once confirmed.
-  console.log('[WMB] render — mapRef:', !!mapRef.current, 'containerRef:', !!containerRef.current)
 
   // V11.17.41 rev-5 — Hydration-recovery-resistant init.
   //
@@ -141,18 +142,13 @@ export default function WorldMapBackdrop() {
 
   useEffect(() => {
     const el = containerRef.current
-    console.log('[WMB] effect — el:', !!el, 'mapRef:', !!mapRef.current, 'getContainer===el:', !!(mapRef.current && mapRef.current.getContainer() === el))
     if (!el) return
     if (!MAPTILER_KEY) {
       console.warn('[WorldMapBackdrop] NEXT_PUBLIC_MAPTILER_KEY missing — map will not render')
       return
     }
     // No-op fast path: map already attached to the current container.
-    if (mapRef.current && mapRef.current.getContainer() === el) {
-      console.log('[WMB] fast-path: map already on current el, no-op')
-      return
-    }
-    console.log('[WMB] container changed or first init — re-attaching map')
+    if (mapRef.current && mapRef.current.getContainer() === el) return
     // Container changed (post-hydration-recovery re-render) or first
     // init. Dispose orphaned map + its per-init resources, then init
     // fresh on the new node.
@@ -172,7 +168,6 @@ export default function WorldMapBackdrop() {
     let fallbackTimer: ReturnType<typeof setTimeout> | null = null
 
     const initMap = () => {
-      console.log('[WMB] initMap — disposed:', disposed, 'mapRef:', !!mapRef.current, 'containerRef:', !!containerRef.current)
       if (disposed) return
       if (mapRef.current) return
       if (!containerRef.current) return
@@ -191,15 +186,6 @@ export default function WorldMapBackdrop() {
           touchPitch: false,
         })
         mapRef.current = map
-        console.log('[WMB] Map created. Style URL:', MAP_STYLE.slice(0, 80))
-
-        // Track load + style events for diagnostics
-        map.on('load', () => { console.log('[WMB] map "load" event fired') })
-        map.on('styledata', () => { console.log('[WMB] map "styledata" event fired') })
-        map.on('error', (e: any) => { console.warn('[WMB] map "error" event:', e?.error?.message || e) })
-        map.on('sourcedata', (e: any) => {
-          if (e.isSourceLoaded) console.log('[WMB] sourcedata loaded:', e.sourceId)
-        })
 
         readyDisposer = whenMapReady(map, () => {
           try { map.resize() } catch (_e) { /* ignore */ }
@@ -298,17 +284,14 @@ export default function WorldMapBackdrop() {
       {/* Real map — same dataviz-dark style as located reports */}
       <div ref={containerRef} className="absolute inset-0" aria-hidden="true" />
 
-      {/* V11.17.41 rev-2 — Light global dim ONLY, so the map stays
-          clearly visible. Dimming is gentle enough that continent
-          outlines and the brand-purple admin borders read at a glance.
-          Heavy contrast work moves onto the centred text card below. */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: 'rgba(2,6,23,0.28)' }}
-        aria-hidden="true"
-      />
+      {/* V11.17.41 rev-7 — Global dim removed entirely. dataviz-dark at
+          zoom 1.1 is already very dark; layering even a 0.28 alpha black
+          gradient on top made the map indistinguishable from the
+          ocean-blue parent background. The brand-purple admin borders
+          (with rev-7's higher opacity + line-width) now carry the visual
+          register; the card's own background takes the contrast burden. */}
 
-      {/* V11.17.41 rev-2 — Tight brand-purple glow centred behind the
+      {/* V11.17.41 rev-7 — Tight brand-purple glow centred behind the
           text card. Carries brand register without covering map. */}
       <div
         className="absolute inset-0 pointer-events-none"
