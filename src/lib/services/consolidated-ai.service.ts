@@ -132,6 +132,40 @@ CONSOLIDATED_SYSTEM_PROMPT = [
   '  these collapse the mystery into a known mechanism. Don\'t.',
   '',
   '====================================================================',
+  'ANOMALY GATE (V11.17.41 — required on every response):',
+  '====================================================================',
+  '- The final field "anomalous_content_check" is a self-audit. After',
+  '  drafting the other fields, look back at the SOURCE TEXT (not your',
+  '  rewrite of it) and ask: does this account actually describe an',
+  '  anomalous / paranormal / unexplained personal experience that',
+  '  Paradocs should archive?',
+  '- KEEP (anomalous="yes") — first-hand or close-witness accounts of:',
+  '  UFO sightings, encounters with non-human entities, missing time,',
+  '  apparitions, hauntings, poltergeist activity, witnessed phenomena,',
+  '  precognitive dreams that came true, telepathy, OBE, NDE, sleep',
+  '  paralysis with sensed presence, cryptid sightings, witness sketches,',
+  '  shared synchronicity, manifestation experiences, and similar.',
+  '- ARCHIVE (anomalous="no") — accounts that are NOT actually anomalous',
+  '  even when fluent narrative makes them sound like reports:',
+  '   - mundane hiking, navigation, dehydration, or outdoor misadventure',
+  '     stories (the witness got lost, got dehydrated, took a wrong turn)',
+  '   - wildlife encounters where the danger is the animal, not anything',
+  '     unexplained (charged by an elephant, snake-bit, swarmed by bees)',
+  '   - perceptual-quirk explainers — describing normal optics or',
+  '     spatial perception ("trails become invisible from the side") as',
+  '     if they were anomalous',
+  '   - platform / algorithm / media-bias complaints (YouTube',
+  '     recommendations, channel demonetization, debunking narratives)',
+  '   - opinion pieces, theory posts, news summaries, advice requests',
+  '   - product reviews, equipment troubleshooting, how-to questions',
+  '   - personal psychological/emotional change narratives with no',
+  '     anomalous element',
+  '- Be STRICT. False negatives are recoverable (admin can re-approve',
+  '  from pending_review); false positives clutter the live archive.',
+  '- If unsure, set anomalous="yes" with confidence <0.7 so the gate',
+  '  does NOT fire — uncertainty is not grounds for rejection.',
+  '',
+  '====================================================================',
   'STRUCTURE — Return ONLY valid JSON (no markdown fences, no commentary):',
   '====================================================================',
   '{',
@@ -156,6 +190,21 @@ CONSOLIDATED_SYSTEM_PROMPT = [
   '    "with_others": true | false | null,',
   '    "prior_similar_experience": true | false | null,',
   '    "confidence": 0.0-1.0',
+  '  },',
+  // V11.17.41 — ingest-time anomaly gate. After CITD-week QA caught
+  // YouTube comments being rewritten into fluent feed_hooks despite
+  // containing zero anomalous content (hiking misadventures, wildlife
+  // pursuits, perceptual-quirk explainers), we added an explicit
+  // self-check field. Engine.ts reads paradocs_assessment.
+  // anomalous_content_check after persistence and demotes the row to
+  // pending_review when anomalous="no" with confidence >= 0.7. Zero
+  // marginal cost — same single Haiku call already runs for every
+  // ingested report.
+  '  "anomalous_content_check": {',
+  '    "anomalous": "yes|no",',
+  '    "confidence": 0.0-1.0,',
+  '    "reason": "<one sentence — required even when anomalous=yes>",',
+  '    "genre": "<if anomalous=no, one of: hiking_misadventure | wildlife_encounter | perceptual_quirk | platform_complaint | opinion_theory | advice_request | product_review | news_summary | other_mundane | other; if anomalous=yes, the empty string>"',
   '  }',
   '}',
   '',
@@ -671,6 +720,11 @@ export async function persistConsolidatedResult(
     emotional_tone: p.emotional_tone || null,
     suggested_category: p.suggested_category || null,
     discovery_tags: Array.isArray(p.discovery_tags) ? p.discovery_tags : [],
+    // V11.17.41 — anomaly self-check from the same Haiku call. Engine.ts
+    // reads this after persistence and demotes the row to pending_review
+    // when anomalous="no" + confidence>=0.7. Stored verbatim so admins
+    // can review the reason + genre on the pending-review queue.
+    anomalous_content_check: normalizeAnomalyCheck(p.anomalous_content_check),
   }
   if (p.suggested_category && reportCategory && p.suggested_category !== reportCategory) {
     assessmentData.category_mismatch = true
@@ -683,6 +737,24 @@ export async function persistConsolidatedResult(
   // The WitnessProfilePill component only renders chips for valid enum
   // keys, so the literal age silently drops from the UI. Defensive
   // mapping covers all the common breakdowns we've seen.
+  // V11.17.41 — defensive: Haiku may return string variants ("Yes"/"YES"/"true"),
+  // missing fields, or odd confidence formats. Normalize into a canonical
+  // shape so engine.ts can read it deterministically.
+  function normalizeAnomalyCheck(raw: any): { anomalous: 'yes' | 'no' | 'unknown'; confidence: number; reason: string; genre: string } {
+    var def = { anomalous: 'unknown' as 'yes' | 'no' | 'unknown', confidence: 0, reason: '', genre: '' }
+    if (!raw || typeof raw !== 'object') return def
+    var aRaw = String(raw.anomalous ?? '').toLowerCase().trim()
+    var a: 'yes' | 'no' | 'unknown' = 'unknown'
+    if (aRaw === 'yes' || aRaw === 'true' || aRaw === 'y') a = 'yes'
+    else if (aRaw === 'no' || aRaw === 'false' || aRaw === 'n') a = 'no'
+    var c = typeof raw.confidence === 'number' ? raw.confidence : parseFloat(String(raw.confidence ?? ''))
+    if (isNaN(c)) c = 0
+    if (c < 0) c = 0
+    if (c > 1) c = 1
+    var reason = typeof raw.reason === 'string' ? raw.reason.slice(0, 500) : ''
+    var genre = typeof raw.genre === 'string' ? raw.genre.slice(0, 60) : ''
+    return { anomalous: a, confidence: c, reason: reason, genre: genre }
+  }
   function normalizeAgeRange(raw: any): string {
     if (typeof raw !== 'string') return 'unspecified'
     var trimmed = raw.trim().toLowerCase()

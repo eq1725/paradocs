@@ -1395,9 +1395,34 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                 var assessment: any = postAnalysisRow ? postAnalysisRow.paradocs_assessment : null;
                 var pullQuoteRaw = assessment && typeof assessment === 'object' ? assessment.pull_quote : null;
                 var hasPullQuote = !!(pullQuoteRaw && typeof pullQuoteRaw === 'string' && pullQuoteRaw.trim().length > 0);
+                // V11.17.41 — Anomaly content gate. Both consolidated-ai
+                // and paradocs-analysis services now emit
+                // paradocs_assessment.anomalous_content_check from the
+                // SAME Haiku call that already runs for every ingested
+                // report — zero marginal cost. The Haiku self-audit asks
+                // "is this actually a paranormal/anomalous experience,
+                // or a mundane life anecdote / opinion piece / platform
+                // complaint that just LOOKS like one after rewriting?"
+                // When anomalous='no' with confidence >=0.7, demote to
+                // pending_review so admin can confirm before the row
+                // ever goes live. This replaces the post-hoc audit
+                // script (scripts/audit-youtube-anomaly-content.ts) as
+                // the primary gate; the script remains available as a
+                // back-fill tool for historical rows.
+                var acRaw = assessment && typeof assessment === 'object' ? (assessment as any).anomalous_content_check : null;
+                var acAnomalous: string | null = null;
+                var acConfidence: number = 0;
+                var acGenre: string = '';
+                if (acRaw && typeof acRaw === 'object') {
+                  acAnomalous = typeof acRaw.anomalous === 'string' ? acRaw.anomalous : null;
+                  acConfidence = typeof acRaw.confidence === 'number' ? acRaw.confidence : 0;
+                  acGenre = typeof acRaw.genre === 'string' ? acRaw.genre : '';
+                }
+                var failsAnomalyGate = acAnomalous === 'no' && acConfidence >= 0.7;
                 var demoteReason: string | null = null;
                 if (!hasNarrative) demoteReason = 'Sonnet narrative refusal';
                 else if (!hasPullQuote) demoteReason = 'Sonnet pull_quote empty after voice-corrective retry (V11.8)';
+                else if (failsAnomalyGate) demoteReason = 'Haiku anomaly gate failed (V11.17.41) — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2);
                 if (demoteReason) {
                   await supabase
                     .from('reports')

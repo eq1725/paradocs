@@ -250,8 +250,24 @@ var SYSTEM_PROMPT = ANTI_FABRICATION_PREAMBLE
   + '  "similar_phenomena": ["phenomenon 1", "phenomenon 2"],\n'
   + '  "emotional_tone": "frightening|awe_inspiring|ambiguous|clinical|unsettling|hopeful",\n'
   + '  "suggested_category": "<the category YOU think fits best, from the allowed list>",\n'
-  + '  "discovery_tags": ["<3-6 plain-language tags for user-facing discovery>"]\n'
+  + '  "discovery_tags": ["<3-6 plain-language tags for user-facing discovery>"],\n'
+  // V11.17.41 — ingest-time anomaly gate (mirrors consolidated-ai.service).
+  // Engine.ts reads paradocs_assessment.anomalous_content_check after
+  // persistence and demotes the row to pending_review when anomalous="no"
+  // with confidence >= 0.7. Same Haiku call already runs for every
+  // ingested report — zero marginal cost.
+  + '  "anomalous_content_check": {\n'
+  + '    "anomalous": "yes|no",\n'
+  + '    "confidence": "0.0-1.0",\n'
+  + '    "reason": "<one sentence — required even when anomalous=yes>",\n'
+  + '    "genre": "<if anomalous=no, one of: hiking_misadventure | wildlife_encounter | perceptual_quirk | platform_complaint | opinion_theory | advice_request | product_review | news_summary | other_mundane | other; if anomalous=yes, empty string>"\n'
+  + '  }\n'
   + '}\n\n'
+  + 'ANOMALY GATE — required on every response:\n'
+  + '- After drafting the other fields, re-read the SOURCE TEXT (not your rewrite) and self-audit: is this account actually a first-hand or close-witness anomalous experience?\n'
+  + '- KEEP (anomalous="yes") — UFO sightings, non-human entities, missing time, apparitions, hauntings, poltergeists, witnessed phenomena, precognitive dreams that came true, telepathy, OBE, NDE, sleep paralysis with sensed presence, cryptid sightings, witness sketches, synchronicity, manifestation experiences.\n'
+  + '- ARCHIVE (anomalous="no") — mundane hiking/navigation/dehydration stories; wildlife encounters where the danger is the animal; perceptual-quirk explainers (normal optics described as anomalous); platform/algorithm/media-bias complaints; opinion/theory pieces, advice requests, product reviews; personal psychological change with no anomalous element.\n'
+  + '- Be STRICT. False negatives recoverable from pending_review; false positives clutter the live archive. If unsure, set anomalous="yes" with confidence <0.7.\n\n'
   + 'HOOK RULES:\n'
   + '- Start with the most unusual, specific, or inexplicable element.\n'
   + '- Never start with "A witness" or "In [year]".\n'
@@ -1183,6 +1199,27 @@ function parseAnalysisJson(text: string): ParadocsAnalysisResult | null {
       }
     }
 
+    // V11.17.41 — normalize anomalous_content_check. Same shape as
+    // consolidated-ai.service so engine.ts reads either path identically.
+    var ac = parsed.anomalous_content_check
+    if (ac && typeof ac === 'object') {
+      var aRaw = String(ac.anomalous == null ? '' : ac.anomalous).toLowerCase().trim()
+      var anomalous: 'yes' | 'no' | 'unknown' = 'unknown'
+      if (aRaw === 'yes' || aRaw === 'true' || aRaw === 'y') anomalous = 'yes'
+      else if (aRaw === 'no' || aRaw === 'false' || aRaw === 'n') anomalous = 'no'
+      var conf = typeof ac.confidence === 'number' ? ac.confidence : parseFloat(String(ac.confidence == null ? '' : ac.confidence))
+      if (isNaN(conf) || conf < 0) conf = 0
+      if (conf > 1) conf = 1
+      parsed.anomalous_content_check = {
+        anomalous: anomalous,
+        confidence: conf,
+        reason: typeof ac.reason === 'string' ? ac.reason.slice(0, 500) : '',
+        genre: typeof ac.genre === 'string' ? ac.genre.slice(0, 60) : '',
+      }
+    } else {
+      parsed.anomalous_content_check = { anomalous: 'unknown', confidence: 0, reason: '', genre: '' }
+    }
+
     return parsed as ParadocsAnalysisResult
   } catch (err) {
     console.error('[ParadocsAnalysis] JSON parse failed:', err)
@@ -1567,7 +1604,11 @@ export async function generateAndSaveParadocsAnalysis(reportId: string): Promise
         frames: result.frames || [],
         open_questions: result.open_questions || [],
         mundane_explanations: result.mundane_explanations || [],
-        similar_phenomena: result.similar_phenomena
+        similar_phenomena: result.similar_phenomena,
+        // V11.17.41 — anomaly self-check stored verbatim so engine.ts
+        // can demote and the admin pending-review queue can show the
+        // reason + genre when a row gates out.
+        anomalous_content_check: (result as any).anomalous_content_check || { anomalous: 'unknown', confidence: 0, reason: '', genre: '' },
       }
       if (result.emotional_tone) {
         assessmentData.emotional_tone = result.emotional_tone
@@ -1908,7 +1949,9 @@ export async function generateAndSaveDirect(reportId: string): Promise<{ success
       frames: result.frames || [],
       open_questions: result.open_questions || [],
       mundane_explanations: result.mundane_explanations || [],
-      similar_phenomena: result.similar_phenomena
+      similar_phenomena: result.similar_phenomena,
+      // V11.17.41 — anomaly self-check; engine.ts demotes on this.
+      anomalous_content_check: (result as any).anomalous_content_check || { anomalous: 'unknown', confidence: 0, reason: '', genre: '' },
     }
     if (result.emotional_tone) assessmentData.emotional_tone = result.emotional_tone
     if (result.suggested_category) assessmentData.suggested_category = result.suggested_category
