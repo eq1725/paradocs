@@ -27,8 +27,28 @@
 //   v6 — Adds iPhone 16 Pro (1206×2622) and 16 Pro Max (1320×2868)
 //        splash sizes + a universal fallback link tag for any
 //        iOS device that doesn't match a media query.
+//   v7 — V11.17.41 fetch-handler hardening. Two bugs were causing the
+//        WorldMapBackdrop map to never render (and several Wikimedia
+//        thumbnails to 400):
+//          (a) The page-navigation handler's .catch() returned
+//              caches.match() which resolves to undefined on cache
+//              miss. event.respondWith(undefined) throws
+//              "TypeError: Failed to convert value to 'Response'"
+//              which then poisoned the page.
+//          (b) The static-asset regex matched ANY .png/.jpg/.svg URL
+//              regardless of origin. SW intercepted cross-origin
+//              fetches (MapTiler sprite PNGs, Wikimedia thumbnails,
+//              Mux poster images, Supabase storage URLs) and the
+//              cache.put() call would throw on opaque CORS responses.
+//              maplibre's tile pipeline broke, maplibre canvas stayed
+//              empty, the WorldMapBackdrop appeared as a void.
+//        Fix: skip cross-origin fetches entirely (let the browser
+//        handle natively — we can't usefully cache opaque responses
+//        anyway), wrap cache.put() in try/catch, and ALWAYS resolve
+//        with a real Response (synthetic 504 fallback when nothing
+//        in cache + network failed).
 
-var CACHE_NAME = 'paradocs-v6';
+var CACHE_NAME = 'paradocs-v7';
 var APP_SHELL = [
   '/',
   '/manifest.json',
@@ -68,17 +88,34 @@ self.addEventListener('activate', function(event) {
   self.clients.claim();
 });
 
-// Fetch: network-first for pages/API, cache-first for static assets
+// Fetch: network-first for pages/API, cache-first for same-origin static assets.
+// V11.17.41 — Hardened to fix two production bugs (see header history v7):
+//   1. Skip ALL cross-origin requests so the SW never intercepts MapTiler
+//      tiles, Wikimedia thumbnails, Mux poster images, Supabase Storage,
+//      etc. Those broke when cache.put() threw on opaque CORS responses,
+//      which then poisoned the whole fetch chain.
+//   2. Every event.respondWith() ALWAYS resolves to a real Response —
+//      synthetic 504 fallback when cache miss + network fail — instead
+//      of resolving to undefined (which throws "TypeError: Failed to
+//      convert value to 'Response'" and breaks the page).
 self.addEventListener('fetch', function(event) {
   var url = new URL(event.request.url);
 
   // Skip non-GET requests
   if (event.request.method !== 'GET') return;
 
+  // Skip cross-origin requests entirely — let the browser handle them
+  // natively. We can't usefully cache opaque cross-origin responses
+  // anyway, and intercepting them was breaking the maplibre tile
+  // pipeline + cross-origin image loads.
+  if (url.origin !== self.location.origin) return;
+
   // Skip API calls and auth — always network
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/auth/')) return;
 
-  // Static assets (icons, images, fonts, CSS, JS chunks): cache-first
+  // Same-origin static assets (icons, our own images, fonts, CSS, JS
+  // chunks): cache-first with try/catch around cache.put + synthetic
+  // 504 fallback so a failed network never returns undefined.
   if (url.pathname.match(/\.(png|jpg|jpeg|gif|svg|ico|woff2?|css|js)$/)) {
     event.respondWith(
       caches.match(event.request).then(function(cached) {
@@ -87,28 +124,35 @@ self.addEventListener('fetch', function(event) {
           if (response.ok) {
             var clone = response.clone();
             caches.open(CACHE_NAME).then(function(cache) {
-              cache.put(event.request, clone);
-            });
+              try { cache.put(event.request, clone); } catch (_e) { /* opaque, etc. */ }
+            }).catch(function() { /* opening cache failed; ignore */ });
           }
           return response;
+        }).catch(function() {
+          return new Response('', { status: 504, statusText: 'Gateway Timeout (sw)' });
         });
       })
     );
     return;
   }
 
-  // Pages: network-first, fall back to cache
+  // Pages: network-first, fall back to cache, then synthetic 504.
   event.respondWith(
     fetch(event.request).then(function(response) {
       if (response.ok) {
         var clone = response.clone();
         caches.open(CACHE_NAME).then(function(cache) {
-          cache.put(event.request, clone);
-        });
+          try { cache.put(event.request, clone); } catch (_e) { /* ignore */ }
+        }).catch(function() { /* ignore */ });
       }
       return response;
     }).catch(function() {
-      return caches.match(event.request);
+      return caches.match(event.request).then(function(cached) {
+        // ALWAYS return a Response. caches.match resolves to undefined
+        // on a miss; returning that from a fetch handler is what was
+        // throwing "TypeError: Failed to convert value to 'Response'".
+        return cached || new Response('', { status: 504, statusText: 'Gateway Timeout (sw)' });
+      });
     })
   );
 });
