@@ -1,27 +1,31 @@
 'use client'
 
 /**
- * WorldMapBackdrop — V11.17.41
+ * WorldMapBackdrop — V11.17.41 (rev 2)
  *
  * Renders the same MapTiler dataviz-dark map used on located report
- * pages, zoomed to a full world view with no pin / marker / halo, and
- * overlays "Location not specified" centered on top with a brand-
- * purple gradient treatment so the missing-data state reads as
- * deliberate editorial restraint, not as a load failure.
+ * pages, zoomed to a full world view with no pin / marker / halo. The
+ * "Location · Not on record" copy sits inside a backdrop-blurred,
+ * brand-purple-bordered card so the text reads cleanly while the map
+ * behind it remains clearly visible — same chrome as a located report,
+ * with the difference being explicit text rather than the absence of
+ * a real map.
  *
- * V11.17.41 changes (operator iteration after CITD-week QA):
- *   - center moved from [0, 20] → [12, 10]. The old centre put Africa
- *     prominently in the visible band, which read as "this is an
- *     Africa report" at a glance. The new centre balances Africa /
- *     Eurasia / Americas / Pacific so no single continent dominates.
- *   - zoom dropped from 1.2 → 0.8 so the curve of the earth across
- *     hemispheres reads at a glance — more "global", less "regional".
- *   - Brand-purple gradient layer added over the map vignette so the
- *     band reads as Paradocs editorial chrome, not as a generic
- *     fallback. Combined treatment (Lena's recommendation from the #5
- *     panel applied here too — "card style, not absence").
- *   - Typography pushed larger + Changa serif on the headline to match
- *     the editorial register of the rest of the report page chrome.
+ * V11.17.41 rev-2 (operator iteration — "I want to see the map"):
+ *   Rev 1 stacked a heavy black-to-near-opaque vignette (rgba 0.42 →
+ *   0.85) plus a brand-purple radial wash that obscured the underlying
+ *   map entirely. Visually it read as "purple void with text" instead
+ *   of "world map with a deliberate brand overlay". This revision
+ *   keeps the brand register but lets the map breathe:
+ *     - Drops the global vignette; dimming is concentrated only behind
+ *       the text card.
+ *     - Replaces the wide radial wash with a tight purple glow centred
+ *       on the card so the brand accent doesn't cover continents.
+ *     - The "Not on record" copy moves into a backdrop-blurred panel
+ *       with a brand-purple border. That panel takes the contrast
+ *       burden so the surrounding map can stay at full visibility.
+ *     - zoom 0.8 → 1.1 because at 0.8 continent shapes are too
+ *       compressed at the band's display height to read as a globe.
  *
  * Why a real maplibre instance instead of static SVG:
  *   Chase 2026-05-27 — "the map needs to match the map same style we
@@ -32,11 +36,10 @@
  *   (~50KB of vector tiles), and get pixel-identical styling.
  *
  * Map config notes:
- *   - interactive=false + all drag/zoom/touch off — this is a
- *     decorative band, not a navigable map.
- *   - Admin-border overlays added the same way ReportLocationMap
- *     does so country/state edges read consistently.
- *   - Brand-purple gradient + dim vignette over the map for contrast.
+ *   - center=[12, 10] — balanced view, no single continent dominates.
+ *   - interactive=false + all drag/zoom/touch off — decorative band.
+ *   - Admin-border overlays mirror ReportLocationMap so country lines
+ *     match other report pages exactly.
  */
 
 import React, { useEffect, useRef } from 'react'
@@ -78,12 +81,13 @@ export default function WorldMapBackdrop() {
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: MAP_STYLE,
-      // V11.17.41 — balanced global centre. [12, 10] keeps Africa, the
-      // Americas, Eurasia, and the Pacific roughly proportional in the
-      // visible band so the view reads as "global, no specific region"
-      // rather than the old [0, 20] which read as Africa-centric.
+      // V11.17.41 rev-2 — balanced global centre [12, 10] keeps Africa,
+      // the Americas, Eurasia, and the Pacific roughly proportional
+      // (no Africa-centric read). zoom bumped back from 0.8 → 1.1 so
+      // continent shapes are recognisable at this band's display
+      // height (22–35vh).
       center: [12, 10],
-      zoom: 0.8,
+      zoom: 1.1,
       attributionControl: false,
       interactive: false,
       dragPan: false,
@@ -164,28 +168,40 @@ export default function WorldMapBackdrop() {
       {/* Real map — same dataviz-dark style as located reports */}
       <div ref={containerRef} className="absolute inset-0" aria-hidden="true" />
 
-      {/* V11.17.41 — Dim vignette PLUS brand-purple radial wash so the
-          band reads as deliberate editorial chrome (Paradocs colour
-          identity) rather than a load-failure fallback. The two
-          layers stack: the dark vignette establishes contrast for the
-          overlay text, and the purple wash carries brand register. */}
+      {/* V11.17.41 rev-2 — Light global dim ONLY, so the map stays
+          clearly visible. Dimming is gentle enough that continent
+          outlines and the brand-purple admin borders read at a glance.
+          Heavy contrast work moves onto the centred text card below. */}
       <div
         className="absolute inset-0 pointer-events-none"
-        style={{ background: 'linear-gradient(to bottom, rgba(2,6,23,0.42) 0%, rgba(2,6,23,0.72) 60%, rgba(2,6,23,0.85) 100%)' }}
-        aria-hidden="true"
-      />
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse at 50% 55%, rgba(144,0,240,0.22) 0%, rgba(144,0,240,0.10) 35%, transparent 65%)' }}
+        style={{ background: 'rgba(2,6,23,0.28)' }}
         aria-hidden="true"
       />
 
-      {/* Foreground text — sits on top of the map + gradients */}
+      {/* V11.17.41 rev-2 — Tight brand-purple glow centred behind the
+          text card. Carries brand register without covering map. */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: 'radial-gradient(circle at 50% 50%, rgba(144,0,240,0.22) 0%, rgba(144,0,240,0.08) 22%, transparent 38%)' }}
+        aria-hidden="true"
+      />
+
+      {/* Foreground — text lives inside a brand-purple-bordered,
+          backdrop-blurred card. The card takes the contrast burden so
+          the surrounding map can stay at full visibility. */}
       <div className="relative h-full flex items-center justify-center px-6">
-        <div className="text-center max-w-md">
-          <p className="text-[10px] uppercase tracking-[0.22em] text-[#c4b5fd] mb-2 font-medium">Location</p>
-          <p className="font-display text-xl sm:text-2xl font-semibold text-gray-50 tracking-tight" style={{ letterSpacing: '-0.005em' }}>Not on record</p>
-          <p className="text-[11px] sm:text-xs text-gray-300/80 mt-2.5 leading-relaxed max-w-sm mx-auto">
+        <div
+          className="text-center max-w-md px-7 py-5 rounded-2xl border border-purple-500/35 shadow-2xl"
+          style={{
+            background: 'rgba(10, 10, 20, 0.55)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            boxShadow: '0 8px 32px -8px rgba(144, 0, 240, 0.25), inset 0 0 0 1px rgba(196, 181, 253, 0.08)',
+          }}
+        >
+          <p className="text-[10px] uppercase tracking-[0.22em] text-[#c4b5fd] mb-2 font-semibold">Location</p>
+          <p className="font-display text-xl sm:text-2xl font-semibold text-white tracking-tight" style={{ letterSpacing: '-0.005em' }}>Not on record</p>
+          <p className="text-[11px] sm:text-xs text-gray-200/90 mt-2.5 leading-relaxed max-w-sm mx-auto">
             The witness did not record where this took place &mdash; or the geography hasn&apos;t been extracted from the source yet.
           </p>
         </div>
