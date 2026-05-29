@@ -625,16 +625,18 @@ export function PhenomenonCard(props: {
   // where it has room to be properly contextualized.
   var badgeParts: string[] = []
   badgeParts.push(config?.label || item.category)
-  var anchorWhenSentinel = !!item.anchor_when
-    && item.anchor_when.length >= 2
-    && item.anchor_when.substring(0, 2) === '__'
-  var anchorYearMatch = item.anchor_when && !anchorWhenSentinel ? item.anchor_when.match(/\b(1[5-9]\d{2}|20\d{2})\b/) : null
-  var firstReportedYearMatch = item.first_reported_date ? item.first_reported_date.match(/\d{4}/) : null
-  if (anchorYearMatch) {
-    badgeParts.push(anchorYearMatch[0])
-  } else if (firstReportedYearMatch) {
-    badgeParts.push(firstReportedYearMatch[0])
-  }
+  // V11.17.41 — Year removed from the phenomenon spotlight top-line
+  // badge per operator review. The V11.17.38 fix had the badge prefer
+  // anchor_when over first_reported_date, which solved the "header
+  // year vs body year" mismatch on phens with curated anchor cases.
+  // But ~36% of active phens (238/655) still carry a wrong
+  // first_reported_date from the original AI-generated phenomenon
+  // batch (e.g. CE2 first_reported_date=1886, which predates Hynek's
+  // CE classification by 86 years). Rather than try to clean all 238
+  // dates with a Haiku sweep, we just stop surfacing any year on the
+  // top line — the anchor case year is already prominent in the body
+  // text and the WHEN row, where context (month, place) makes the
+  // year self-evident. Top line becomes category · region.
   if (item.primary_regions && item.primary_regions.length > 0) {
     badgeParts.push(item.primary_regions[0])
   }
