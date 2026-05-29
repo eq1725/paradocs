@@ -1,35 +1,77 @@
 'use client'
 
 /**
- * ClusteringCard — Metadata synthesis card for the Discover feed.
+ * ClusteringCard — V11.17.41 redesign (panel: Maya/Jordan/Lena/Sam).
  *
- * Shows aggregated report statistics as compelling editorial cards:
- *   "17 NDE reports this week from the Southeast"
- *   "3 new Bigfoot sightings within 50 miles of the Pacific Crest Trail"
+ * Memo: docs/CLUSTER_CARD_REDESIGN_PANEL.md
  *
- * Purple gradient, TrendingUp icon. Tapping opens a filtered view.
+ * v1 (this rev) ships:
+ *   - Left-aligned editorial composition (matches Phenomenon Spotlight)
+ *   - Corner pill carries the type label ("Geographic cluster" / "Recent
+ *     burst" / "Category trend" / "Milestone")
+ *   - Headline in Changa 600, body in Changa 400, hairline rule before
+ *     meta footer
+ *   - Left-edge accent rail (4px brand-purple, ~20% opacity) replaces
+ *     the prior wash + dotgrid
+ *   - Whole-card tap target; chevron in the meta footer instead of a
+ *     "View Reports" pill
  *
- * SWC compliant: var, function expressions, string concat
+ * v2 (also this rev) adds:
+ *   - body sentence is now the API's `body` field, which the cluster
+ *     route synthesises from a Haiku "finding" generator when there's
+ *     enough signal (linked reports' shared locale, time, etc). Falls
+ *     back to a quiet templated sentence when Haiku is unavailable.
+ *   - Optional `baseline_text` second line ("Twice the usual week",
+ *     etc) when the cluster type supports it and the data is
+ *     defensible. Renders just below the body sentence, italicised
+ *     in muted gray. Skipped on milestones.
+ *
+ * Explicitly NOT in this rev (deferred per panel):
+ *   - Per-type emoji or per-type colour theming
+ *   - "Trending Pattern" badge (the corner pill already self-identifies)
+ *   - Giant numeric hero (count appears once, inside the headline)
+ *   - Pill CTA button (whole-card link + chevron is sufficient)
+ *
+ * SWC compliant: var + function() form.
  */
 
 import React from 'react'
 import Link from 'next/link'
-import { TrendingUp, MapPin, Calendar, ChevronRight } from 'lucide-react'
-import { CATEGORY_CONFIG } from '@/lib/constants'
-import CategoryIcon from '@/components/ui/CategoryIcon'
-import type { PhenomenonCategory } from '@/lib/database.types'
+import { ChevronRight } from 'lucide-react'
 
 export interface ClusterCardData {
   item_type: 'cluster'
   id: string
   cluster_type: 'geographic_cluster' | 'temporal_burst' | 'category_trend' | 'milestone'
+  // V11.17.41 — Eyebrow label per panel memo. Examples:
+  //   "Geographic cluster", "Recent burst", "Category trend", "Milestone"
+  type_label: string
+  // V11.17.41 — Headline is now the templated fact sentence
+  // ("196 UFO reports from California this week."). Number is embedded
+  // in the sentence; no separate numeric hero block.
   headline: string
-  subheadline: string
+  // V11.17.41 — Body is the "finding" sentence. v2 uses Haiku to
+  // synthesise this from the linked reports' shared characteristics
+  // when possible ("Most cluster around the Central Valley and the
+  // coast south of Monterey."). Falls back to a quiet templated line.
+  body: string
+  // V11.17.41 — Optional baseline sentence ("Twice the usual week.")
+  // surfaced only when the cluster type supports it (temporal_burst,
+  // sometimes geographic_cluster) AND we have enough history to make
+  // the claim defensible.
+  baseline_text?: string
+  // V11.17.41 — Human-readable category label ("UFOs & Aliens", not
+  // the slug). Computed server-side so client doesn't need to look up
+  // CATEGORY_CONFIG.
   category: string
+  category_label: string
   report_count: number
   time_range: string
   location_summary?: string
   linked_report_ids: string[]
+  // V8-era field. Kept for the legacy fallback path; not rendered.
+  headline_legacy?: string
+  subheadline_legacy?: string
 }
 
 interface ClusteringCardProps {
@@ -37,101 +79,111 @@ interface ClusteringCardProps {
   isActive: boolean
 }
 
-var CLUSTER_ICONS: Record<string, string> = {
-  geographic_cluster: '\uD83D\uDDFA\uFE0F',
-  temporal_burst: '\u26A1',
-  category_trend: '\uD83D\uDCC8',
-  milestone: '\u2B50',
+// V11.17.41 — fallback labels if the API doesn't emit type_label (e.g.
+// during the brief window between server deploy and the consumer
+// receiving the new shape).
+var TYPE_LABEL_FALLBACK: Record<string, string> = {
+  geographic_cluster: 'Geographic cluster',
+  temporal_burst: 'Recent burst',
+  category_trend: 'Category trend',
+  milestone: 'Milestone',
 }
 
 export function ClusteringCard(props: ClusteringCardProps) {
   var item = props.item
-  var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
-  var categoryLabel = config ? config.label : item.category
-  var categoryKey = item.category as PhenomenonCategory
-  var typeIcon = CLUSTER_ICONS[item.cluster_type] || '\uD83D\uDCC8'
+  var typeLabel = item.type_label || TYPE_LABEL_FALLBACK[item.cluster_type] || 'Cluster'
+  var categoryLabel = item.category_label || item.category
+  var isMilestone = item.cluster_type === 'milestone'
+  var href = '/explore?category=' + encodeURIComponent(item.category)
+
+  // V11.17.41 — Backwards-compat: older API responses may not yet
+  // emit `headline` / `body` in the new shape. Fall back to the
+  // legacy templated fields so the card renders sensibly during a
+  // staggered deploy window.
+  var displayHeadline = item.headline || item.headline_legacy || ''
+  var displayBody = item.body || item.subheadline_legacy || ''
 
   return (
-    <div className="h-full w-full relative overflow-hidden bg-gray-950" role="article" aria-label="Cluster pattern card">
-      {/* Top-corner label pill — panel review fix: special cards must self-identify */}
-      <div className="absolute top-3 left-3 z-20">
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-500/15 border border-purple-400/30 text-[10px] font-sans font-semibold uppercase tracking-wider text-purple-200">
-          <span aria-hidden="true">{'◉'}</span>
-          Cluster pattern
-        </span>
-      </div>
+    <Link
+      href={href}
+      className="block h-full w-full relative overflow-hidden bg-gray-950 group"
+      role="article"
+      aria-label={typeLabel + ': ' + displayHeadline}
+    >
+      {/* Left-edge accent rail — single brand-purple bar, no wash.
+          Replaces the prior gradient + dotgrid surface. */}
+      <div
+        className="absolute top-0 bottom-0 left-0 w-1 pointer-events-none"
+        style={{ background: 'linear-gradient(to right, rgba(144,0,240,0.55), rgba(144,0,240,0))', width: '60px' }}
+        aria-hidden="true"
+      />
+      <div
+        className="absolute top-0 bottom-0 left-0 w-1 pointer-events-none"
+        style={{ background: '#9000F0' }}
+        aria-hidden="true"
+      />
 
-      {/* Purple gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-purple-950/60 via-gray-950 to-indigo-950/40" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_40%,rgba(144,0,240,0.12),transparent_60%)]" />
-
-      {/* Grid pattern overlay for data feel */}
-      <div className="absolute inset-0 opacity-[0.03]" style={{
-        backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
-        backgroundSize: '40px 40px'
-      }} />
-
-      {/* Content — V4 panel feedback: justify-center so content sits in the
-          visible middle of the card area. */}
+      {/* Three-block left-aligned content. Padding mirrors the
+          Phenomenon Spotlight card; mt-auto on the footer pins it to
+          the bottom regardless of headline length. */}
       <div className={
-        'relative z-10 h-full flex flex-col items-center justify-center px-6 sm:px-10 text-center transition-all duration-700 ' +
-        'pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-[calc(80px+env(safe-area-inset-bottom,0px)+24px)] md:pb-8 ' +
+        'relative z-10 h-full flex flex-col px-7 sm:px-10 transition-all duration-700 ' +
+        'pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] pb-[calc(80px+env(safe-area-inset-bottom,0px)+1.25rem)] md:pb-8 ' +
         (props.isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4')
       }>
-        {/* Badge */}
-        <div className="flex items-center gap-2 mb-6">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 border border-purple-500/30 rounded-full">
-            <TrendingUp className="w-3.5 h-3.5 text-purple-400" />
-            <span className="text-xs font-semibold text-purple-300">Trending Pattern</span>
-          </div>
+        {/* Eyebrow row — corner pill self-identifier. Optional small
+            accent dot before milestones, per the panel memo. */}
+        <div className="inline-flex items-center self-start gap-2 mb-7">
+          {isMilestone && (
+            <span
+              className="inline-block w-1.5 h-1.5 rounded-full"
+              style={{ background: '#9000F0' }}
+              aria-hidden="true"
+            />
+          )}
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/25 text-[10px] font-sans font-semibold uppercase tracking-[0.14em] text-purple-200/90">
+            {typeLabel}
+          </span>
         </div>
 
-        {/* Type icon */}
-        <span className="text-5xl mb-4">{typeIcon}</span>
-
-        {/* Headline */}
-        <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3 max-w-md leading-tight">
-          {item.headline}
+        {/* Headline — the templated fact. Number is inside the sentence. */}
+        <h2 className="font-display text-[26px] sm:text-[30px] font-semibold text-white leading-[1.2] tracking-[-0.005em] max-w-[22ch] mb-4">
+          {displayHeadline}
         </h2>
 
-        {/* Subheadline */}
-        <p className="text-gray-300 text-sm sm:text-base mb-6 max-w-sm leading-relaxed">
-          {item.subheadline}
-        </p>
+        {/* Body — the shape sentence ("finding"). Cream-tinted gray. */}
+        {displayBody && (
+          <p className="font-display text-[15px] sm:text-[16px] font-normal text-gray-300/85 leading-[1.55] max-w-[34ch] mb-2">
+            {displayBody}
+          </p>
+        )}
 
-        {/* Stats row */}
-        <div className="flex items-center gap-4 text-xs text-gray-400 mb-8">
-          <div className="flex items-center gap-1.5">
-            <CategoryIcon category={categoryKey} size={14} />
-            <span>{categoryLabel}</span>
-          </div>
-          {item.location_summary && (
-            <div className="flex items-center gap-1">
-              <MapPin className="w-3 h-3" />
-              <span>{item.location_summary}</span>
-            </div>
-          )}
-          <div className="flex items-center gap-1">
-            <Calendar className="w-3 h-3" />
-            <span>{item.time_range}</span>
+        {/* Optional baseline line — italic, dimmer, sits beneath body.
+            Only rendered when the API emitted it (temporal_burst with
+            enough trailing history; sometimes geographic_cluster). */}
+        {item.baseline_text && (
+          <p className="font-display text-[13.5px] sm:text-[14px] font-normal text-gray-400/70 leading-snug italic mb-3 max-w-[34ch]">
+            {item.baseline_text}
+          </p>
+        )}
+
+        {/* Hairline rule + meta footer pinned to the bottom. */}
+        <div className="mt-auto">
+          <div className="border-t border-white/[0.07] pt-4 flex items-center gap-1.5 text-[12px] font-sans font-medium text-gray-400 group-hover:text-gray-200 transition-colors">
+            <span className="truncate">{categoryLabel}</span>
+            {item.location_summary && (
+              <>
+                <span className="text-gray-600">·</span>
+                <span className="truncate">{item.location_summary}</span>
+              </>
+            )}
+            <span className="text-gray-600">·</span>
+            <span className="truncate">{item.time_range}</span>
+            <span className="flex-1" />
+            <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />
           </div>
         </div>
-
-        {/* Report count callout */}
-        <div className="bg-white/5 border border-white/10 rounded-xl px-6 py-4 mb-8">
-          <span className="text-3xl font-bold text-purple-400">{item.report_count}</span>
-          <span className="text-sm text-gray-400 ml-2">reports in this cluster</span>
-        </div>
-
-        {/* CTA */}
-        <Link
-          href={'/explore?category=' + encodeURIComponent(item.category)}
-          className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-full font-medium transition-colors text-sm"
-        >
-          <span>View Reports</span>
-          <ChevronRight className="w-4 h-4" />
-        </Link>
       </div>
-    </div>
+    </Link>
   )
 }
