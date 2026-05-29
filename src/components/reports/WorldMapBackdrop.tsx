@@ -116,6 +116,10 @@ export default function WorldMapBackdrop() {
   // when re-initialising on a new container (hydration recovery).
   const disposeInitResourcesRef = useRef<(() => void) | null>(null)
 
+  // V11.17.41 rev-6 — Diagnostic logging restored to verify the rev-5
+  // container-change fix is firing. Will be removed once confirmed.
+  console.log('[WMB] render — mapRef:', !!mapRef.current, 'containerRef:', !!containerRef.current)
+
   // V11.17.41 rev-5 — Hydration-recovery-resistant init.
   //
   // Diagnostic logs in rev-4 revealed maplibre WAS successfully
@@ -137,13 +141,18 @@ export default function WorldMapBackdrop() {
 
   useEffect(() => {
     const el = containerRef.current
+    console.log('[WMB] effect — el:', !!el, 'mapRef:', !!mapRef.current, 'getContainer===el:', !!(mapRef.current && mapRef.current.getContainer() === el))
     if (!el) return
     if (!MAPTILER_KEY) {
       console.warn('[WorldMapBackdrop] NEXT_PUBLIC_MAPTILER_KEY missing — map will not render')
       return
     }
     // No-op fast path: map already attached to the current container.
-    if (mapRef.current && mapRef.current.getContainer() === el) return
+    if (mapRef.current && mapRef.current.getContainer() === el) {
+      console.log('[WMB] fast-path: map already on current el, no-op')
+      return
+    }
+    console.log('[WMB] container changed or first init — re-attaching map')
     // Container changed (post-hydration-recovery re-render) or first
     // init. Dispose orphaned map + its per-init resources, then init
     // fresh on the new node.
@@ -163,6 +172,7 @@ export default function WorldMapBackdrop() {
     let fallbackTimer: ReturnType<typeof setTimeout> | null = null
 
     const initMap = () => {
+      console.log('[WMB] initMap — disposed:', disposed, 'mapRef:', !!mapRef.current, 'containerRef:', !!containerRef.current)
       if (disposed) return
       if (mapRef.current) return
       if (!containerRef.current) return
@@ -181,6 +191,15 @@ export default function WorldMapBackdrop() {
           touchPitch: false,
         })
         mapRef.current = map
+        console.log('[WMB] Map created. Style URL:', MAP_STYLE.slice(0, 80))
+
+        // Track load + style events for diagnostics
+        map.on('load', () => { console.log('[WMB] map "load" event fired') })
+        map.on('styledata', () => { console.log('[WMB] map "styledata" event fired') })
+        map.on('error', (e: any) => { console.warn('[WMB] map "error" event:', e?.error?.message || e) })
+        map.on('sourcedata', (e: any) => {
+          if (e.isSourceLoaded) console.log('[WMB] sourcedata loaded:', e.sourceId)
+        })
 
         readyDisposer = whenMapReady(map, () => {
           try { map.resize() } catch (_e) { /* ignore */ }
