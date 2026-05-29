@@ -44,6 +44,15 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import { moderateExperience } from '@/lib/services/text-moderation-experience.service'
 import { suggestOnboardingTitle } from '@/lib/services/onboarding-title.service'
+import { generateAndSaveConsolidatedAI, isConsolidatedAIEnabled } from '@/lib/services/consolidated-ai.service'
+import { generateAndSaveParadocsAnalysis } from '@/lib/services/paradocs-analysis.service'
+
+// V11.17.41 — Bumped serverless function timeout. Synchronous AI
+// generation on submit takes 5-15s typically, occasionally up to 30s on
+// retries. Vercel Pro tier supports up to 300s; this is well under.
+export var config = {
+  maxDuration: 60,
+}
 
 interface SubmitPayload {
   description: string                 // required, 30-2000 chars
@@ -364,11 +373,117 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
+  // ──────────────────────────────────────────────────────────────────
+  // V11.17.41 — Synchronous AI generation gate
+  // ──────────────────────────────────────────────────────────────────
+  //
+  // Before V11.17.41 the submit handler returned immediately after the
+  // row inserted, leaving paradocs_narrative / paradocs_assessment /
+  // feed_hook NULL. The report page rendered the "Paradocs is analyzing
+  // this account..." placeholder for the alpha tester indefinitely
+  // because nothing ever filled in those fields — the batch ingestion
+  // engine.ts AI path doesn't run on user_submission rows.
+  //
+  // Fix: call the same AI service the engine uses, await completion,
+  // then apply the same demotion gate the engine applies. Status flips
+  // to 'pending_review' (or 'archived' for high-conf anomaly hits)
+  // when the AI fails or the anomaly self-check rejects the row. Only
+  // a successful AI generation that passes the gate leaves the row
+  // publicly viewable as 'approved'.
+  //
+  // User-experience cost: submit waits ~5-15s instead of returning
+  // instantly. Acceptable trade for the alpha tester seeing a complete
+  // report on first load instead of a perpetual skeleton.
+
+  var newReportId = (inserted as any).id
+  var finalStatus: string = status  // 'approved' or 'pending' from moderation
+  var aiOk = false
+  var demoteReason: string | null = null
+
+  // Only run AI when moderation said 'approved' — pending-moderation rows
+  // stay 'pending' until admin clears them, then the admin-side AI path
+  // (or this handler on resubmit) fills the fields.
+  if (status === 'approved') {
+    try {
+      var useConsolidated = isConsolidatedAIEnabled()
+      if (useConsolidated) {
+        var consolidatedRes = await generateAndSaveConsolidatedAI(newReportId)
+        aiOk = !!consolidatedRes.success
+        if (!aiOk) {
+          // Fallback to multi-call path so we don't end up with NULL fields
+          // because consolidated returned an error.
+          try {
+            aiOk = !!(await generateAndSaveParadocsAnalysis(newReportId))
+          } catch (_e) { aiOk = false }
+        }
+      } else {
+        aiOk = !!(await generateAndSaveParadocsAnalysis(newReportId))
+      }
+    } catch (aiErr: any) {
+      console.error('[OnboardingSubmit] AI generation threw for ' + newReportId + ':', aiErr?.message || aiErr)
+      aiOk = false
+    }
+
+    // Mirror the engine.ts demotion logic: re-read the row, check
+    // narrative + pull_quote + anomaly gate, demote as appropriate.
+    try {
+      var { data: postRow } = await admin
+        .from('reports')
+        .select('paradocs_narrative, paradocs_assessment')
+        .eq('id', newReportId)
+        .single()
+      var assess: any = postRow ? (postRow as any).paradocs_assessment : null
+      var hasNarrative = !!(postRow && (postRow as any).paradocs_narrative && (postRow as any).paradocs_narrative.trim().length > 0)
+      var pullQuote = assess && typeof assess === 'object' ? assess.pull_quote : null
+      var hasPullQuote = !!(pullQuote && typeof pullQuote === 'string' && pullQuote.trim().length > 0)
+      var ac = assess && typeof assess === 'object' ? assess.anomalous_content_check : null
+      var acAnomalous: string | null = null
+      var acConfidence: number = 0
+      var acGenre: string = ''
+      if (ac && typeof ac === 'object') {
+        acAnomalous = typeof ac.anomalous === 'string' ? ac.anomalous : null
+        acConfidence = typeof ac.confidence === 'number' ? ac.confidence : 0
+        acGenre = typeof ac.genre === 'string' ? ac.genre : ''
+      }
+      var anomalyAutoArchive = acAnomalous === 'no' && acConfidence >= 0.9
+      var anomalyPending = acAnomalous === 'no' && acConfidence >= 0.7 && acConfidence < 0.9
+      var demoteTarget: 'pending_review' | 'archived' = 'pending_review'
+      if (!aiOk) demoteReason = 'AI generation failed during submit'
+      else if (!hasNarrative) demoteReason = 'paradocs_narrative empty after generation'
+      else if (!hasPullQuote) demoteReason = 'pull_quote empty after generation'
+      else if (anomalyAutoArchive) {
+        demoteReason = 'Haiku anomaly gate — auto-archived (V11.17.41) — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2)
+        demoteTarget = 'archived'
+      }
+      else if (anomalyPending) {
+        demoteReason = 'Haiku anomaly gate — pending (V11.17.41) — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2)
+        demoteTarget = 'pending_review'
+      }
+      if (demoteReason) {
+        await admin
+          .from('reports')
+          .update({ status: demoteTarget, updated_at: new Date().toISOString() })
+          .eq('id', newReportId)
+        finalStatus = demoteTarget
+        console.log('[OnboardingSubmit] Demoted ' + newReportId + ' to ' + demoteTarget + ' (' + demoteReason + ')')
+      }
+    } catch (gateErr: any) {
+      console.error('[OnboardingSubmit] demotion gate failed (non-fatal) for ' + newReportId + ':', gateErr?.message || gateErr)
+    }
+  }
+
   return res.status(200).json({
     ok: true,
-    report_id: (inserted as any).id,
+    report_id: newReportId,
     slug: (inserted as any).slug,
     decision: mod.decision,
     moderation: mod.decision === 'pending' ? { reason: mod.reason } : undefined,
+    // V11.17.41 — let the frontend know whether the report is publicly
+    // visible. Status='pending_review' or 'archived' means the user
+    // should see a "thanks, we're reviewing this" screen instead of
+    // a link to the report page that will 404 or show empty.
+    status: finalStatus,
+    ai_ready: aiOk && finalStatus === 'approved',
+    demote_reason: demoteReason,
   })
 }
