@@ -148,8 +148,12 @@ export default async function handler(
     // Limit to top 5
     clusters = clusters.slice(0, 5)
 
-    // Cache 1 hour
-    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=7200')
+    // V11.17.41 — cache reduced from 1h → 10min so clusters reflect
+    // recent ingestion within a session rather than appearing static
+    // for an hour at a time. The discover-page consumer picks one
+    // cluster from this list via sessionSeed % length, so even at
+    // the CDN edge each session can see a different card.
+    res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=1800')
 
     return res.status(200).json({ clusters: clusters })
   } catch (error) {

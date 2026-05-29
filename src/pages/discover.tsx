@@ -759,7 +759,16 @@ export default function DiscoverPage() {
           .then(function (res) { return res.ok ? res.json() : null })
           .then(function (data) {
             if (data && data.clusters && data.clusters.length > 0) {
-              var clusterCard: ClusterCardData = Object.assign({}, data.clusters[0], { item_type: 'cluster' as const })
+              // V11.17.41 — pick a cluster from the top-N using the
+              // session seed so each session sees a different one
+              // instead of the same "California UFOs" card every time.
+              // The API returns up to 5 clusters sorted by report_count;
+              // the operator flagged that always taking clusters[0]
+              // made the feed feel static. Sessions with seed=N pick
+              // clusters[N % available.length].
+              var available = data.clusters as ClusterCardData[]
+              var pickIdx = available.length > 1 ? sessionSeed.current % available.length : 0
+              var clusterCard: ClusterCardData = Object.assign({}, available[pickIdx], { item_type: 'cluster' as const })
               pendingSpecialCards.current.push({ card: clusterCard, position: 8 })
             }
           })
