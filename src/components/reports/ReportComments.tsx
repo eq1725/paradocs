@@ -18,6 +18,10 @@ import React, { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Send, Reply, Trash2, AlertCircle, Loader2 } from 'lucide-react'
+// V11.17.42 — Lab subscriber ◇ glyph next to the username. Standing
+// tier name (tier 2+) renders inline as a "· Keeper" suffix after
+// the timestamp, sourced from author.inline_label on the API response.
+import { LabMark } from '@/components/profile/LabMark'
 // V10.6.2 — ResonanceButton dropped from this component. It was
 // hoisted to above-fold on /report/[slug] (rendered by ReportPageV2
 // with variant='prominent'). Keeping it here too would duplicate
@@ -28,6 +32,13 @@ interface Author {
   username: string | null
   display_name: string | null
   avatar_url: string | null
+  // V11.17.42 — Standing system enrichment. Both are optional so
+  // older API responses (before the standing rollout) still render.
+  /** Tier 2+ tier name to show inline after the timestamp ("Keeper").
+   *  Null when the author is at tier 1 in both axes. */
+  inline_label?: string | null
+  /** True when the author is on an active paid subscription. */
+  is_lab?: boolean
 }
 
 interface Comment {
@@ -331,7 +342,19 @@ function CommentRow(props: {
           ) : (
             <span className="text-sm font-medium text-white">{displayName}</span>
           )}
+          {/* V11.17.42 — Lab subscriber diamond glyph sits next to the
+              username (separate lane from Standing). */}
+          <LabMark show={!!c.author.is_lab} className="-ml-1" />
           <span className="text-[11px] text-gray-500">{when}</span>
+          {/* V11.17.42 — Standing inline mark, tier 2+ only. Gray-400,
+              no border, no color, no purple even for Lab subscribers
+              (panel section 4.4). */}
+          {c.author.inline_label && (
+            <>
+              <span className="text-[11px] text-gray-600">·</span>
+              <span className="text-[11px] text-gray-400">{c.author.inline_label}</span>
+            </>
+          )}
           {c.edited_at && <span className="text-[10px] text-gray-600">(edited)</span>}
         </div>
         <p className="text-sm text-gray-200 leading-relaxed mt-1 whitespace-pre-line break-words">{c.body}</p>

@@ -60,7 +60,7 @@ interface Candidate {
   id: string
   title: string | null
   summary: string | null
-  analysis: string | null
+  paradocs_narrative: string | null
   pull_quote: string | null
   feed_hook: string | null
   description: string | null
@@ -91,9 +91,12 @@ async function scanCorpus(sb: any): Promise<Candidate[]> {
   console.log('══════════════════════════════════════════════════════════')
 
   console.log('Loading approved reports...')
+  // Schema notes: AI narrative lives in `paradocs_narrative` (text),
+  // pull_quote is nested inside `paradocs_assessment` (JSONB). Both are
+  // populated by consolidated-ai.service persistConsolidatedResult.
   const rows = await fetchAllRows<any>(
     sb.from('reports')
-      .select('id, title, summary, analysis, pull_quote, feed_hook, description, category, status')
+      .select('id, title, summary, paradocs_narrative, paradocs_assessment, feed_hook, description, category, status')
       .eq('status', 'approved')
   )
   console.log('  loaded ' + rows.length + ' approved reports')
@@ -103,8 +106,14 @@ async function scanCorpus(sb: any): Promise<Candidate[]> {
   let postAiHits = 0
 
   for (const r of rows) {
+    // Extract pull_quote from the JSONB paradocs_assessment if present.
+    const pullQuote: string | null =
+      r.paradocs_assessment && typeof r.paradocs_assessment === 'object'
+        ? (r.paradocs_assessment.pull_quote || null)
+        : null
+
     // POST-AI: look at the AI's own admission phrases first (highest signal)
-    const aiFields = [r.summary, r.analysis, r.pull_quote, r.feed_hook]
+    const aiFields = [r.summary, r.paradocs_narrative, pullQuote, r.feed_hook]
     let postHit: string | null = null
     for (const f of aiFields) {
       if (typeof f === 'string') {
@@ -114,8 +123,8 @@ async function scanCorpus(sb: any): Promise<Candidate[]> {
     }
     if (postHit) {
       candidates.push({
-        id: r.id, title: r.title, summary: r.summary, analysis: r.analysis,
-        pull_quote: r.pull_quote, feed_hook: r.feed_hook, description: r.description,
+        id: r.id, title: r.title, summary: r.summary, paradocs_narrative: r.paradocs_narrative,
+        pull_quote: pullQuote, feed_hook: r.feed_hook, description: r.description,
         category: r.category, matchedFrom: 'post_ai', matchedPhrase: postHit,
       })
       postAiHits++
@@ -127,8 +136,8 @@ async function scanCorpus(sb: any): Promise<Candidate[]> {
     const preHit = findPreAiRejectPattern(raw)
     if (preHit) {
       candidates.push({
-        id: r.id, title: r.title, summary: r.summary, analysis: r.analysis,
-        pull_quote: r.pull_quote, feed_hook: r.feed_hook, description: r.description,
+        id: r.id, title: r.title, summary: r.summary, paradocs_narrative: r.paradocs_narrative,
+        pull_quote: pullQuote, feed_hook: r.feed_hook, description: r.description,
         category: r.category, matchedFrom: 'pre_ai', matchedPhrase: preHit,
       })
       preAiHits++
@@ -201,7 +210,7 @@ async function reviewCandidatesAi(candidates: Candidate[]): Promise<Map<string, 
           'Title: ' + (c.title || '(no title)'),
           'Category: ' + (c.category || '(none)'),
           c.summary ? 'Summary: ' + c.summary.substring(0, 600) : '',
-          c.analysis ? 'Analysis excerpt: ' + c.analysis.substring(0, 600) : '',
+          c.paradocs_narrative ? 'Narrative excerpt: ' + c.paradocs_narrative.substring(0, 600) : '',
           c.pull_quote ? 'Pull quote: ' + c.pull_quote.substring(0, 300) : '',
         ].filter(Boolean).join('\n\n'),
       }],

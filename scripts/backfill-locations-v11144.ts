@@ -125,6 +125,16 @@ async function main() {
       stats.geocode_fail++
       continue
     }
+    // Read current metadata so we can merge location_precision in
+    // without overwriting other keys (score_status, quality_score, ...).
+    var existingMeta: any = {}
+    try {
+      var metaRes = await sb.from('reports').select('metadata').eq('id', row.id).single()
+      existingMeta = (metaRes.data as any)?.metadata || {}
+    } catch (_e) { /* non-fatal */ }
+    var mergedMeta = Object.assign({}, existingMeta, {
+      location_precision: norm.location_precision || existingMeta.location_precision || 'unknown',
+    })
     var updateData: any = {
       location_name: norm.location_name || parsed.locationName || parsed.country,
       country: norm.country,
@@ -134,9 +144,9 @@ async function main() {
       latitude: norm.latitude,
       longitude: norm.longitude,
       coords_synthetic: !!norm.coords_synthetic,
+      metadata: mergedMeta,
       updated_at: new Date().toISOString(),
     }
-    // Also update metadata.location_precision if available
     var { error: updErr } = await sb.from('reports').update(updateData).eq('id', row.id)
     if (updErr) {
       stats.update_fail++

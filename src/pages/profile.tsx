@@ -25,7 +25,6 @@ import {
   Shield,
   Lightbulb,
   GitBranch,
-  Award,
   ChevronRight,
   Lock,
   Telescope,
@@ -40,6 +39,12 @@ import { classNames } from '@/lib/utils'
 import NotificationToggle from '@/components/NotificationToggle'
 // V9.6 T1.1 — shared secondary nav across the account surface.
 import AccountNav from '@/components/account/AccountNav'
+// V11.17.42 — two-axis Standing system per panel memo
+// (docs/BADGE_SYSTEM_PANEL.md). Replaces the placeholder
+// Observer/Investigator/Senior Researcher/Field Agent rank.
+import StandingPills from '@/components/profile/StandingPills'
+import LabMark from '@/components/profile/LabMark'
+import type { StandingDisplay, StandingProgress } from '@/lib/standing/types'
 
 export default function ProfilePage() {
   var router = useRouter()
@@ -57,6 +62,14 @@ export default function ProfilePage() {
     streak_days: 0,
     joined_year: '' as string | number,
   })
+  // V11.17.42 — Standing (two-axis pills + prose progression line).
+  // Loaded from /api/standing/me; null while fetching, defaults to
+  // tier 1 / 1 once loaded if the user has no row yet.
+  var [standingDisplay, setStandingDisplay] = useState<StandingDisplay | null>(null)
+  var [standingProgress, setStandingProgress] = useState<{
+    catalogue: StandingProgress
+    contribution: StandingProgress
+  } | null>(null)
 
   useEffect(function() {
     function loadProfile() {
@@ -108,6 +121,19 @@ export default function ProfilePage() {
             }
           })
           .catch(function() { /* stats API may not exist yet, that's fine */ })
+
+        // V11.17.42 — load Standing in parallel with stats.
+        fetch('/api/standing/me', {
+          headers: { Authorization: 'Bearer ' + session.access_token }
+        })
+          .then(function(res) { return res.ok ? res.json() : null })
+          .then(function(data) {
+            if (data && data.display) {
+              setStandingDisplay(data.display)
+              if (data.progress) setStandingProgress(data.progress)
+            }
+          })
+          .catch(function() { /* standing API may not exist yet — fall back to silent */ })
       })
     }
     loadProfile()
@@ -164,12 +190,6 @@ export default function ProfilePage() {
     )
   }
 
-  // Determine rank based on saves (placeholder logic)
-  var rank = 'Observer'
-  if (stats.saved_count >= 50) rank = 'Investigator'
-  if (stats.saved_count >= 100) rank = 'Senior Researcher'
-  if (stats.report_count >= 10) rank = 'Field Agent'
-
   return (
     <>
       <Head>
@@ -192,16 +212,22 @@ export default function ProfilePage() {
             <div className="flex-1 min-w-0">
               <h1 className="text-xl sm:text-2xl font-bold text-white truncate">
                 {user.display_name || user.username || 'Researcher'}
+                {/* V11.17.42 — Lab subscriber diamond glyph next to
+                    the name (separate lane from Standing pills). */}
+                <LabMark show={!!(standingDisplay && standingDisplay.is_lab)} className="-ml-0.5" />
               </h1>
               {user.username && (
                 <p className="text-sm text-gray-400">@{user.username}</p>
               )}
-              <div className="flex items-center gap-2 mt-2">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary-600/20 text-primary-400 text-xs font-medium">
-                  <Award className="w-3 h-3" />
-                  {rank}
-                </span>
-              </div>
+              {/* V11.17.42 — two-axis Standing pills + prose progression.
+                  Replaces the prior single-rank Award pill. Renders
+                  the floor (Reader / Witness) immediately on load and
+                  hydrates with real values when /api/standing/me
+                  responds. */}
+              <StandingPills
+                display={standingDisplay || { catalogue_tier: 1, contribution_tier: 1, inline_label: null, is_lab: false }}
+                progress={standingProgress}
+              />
               {user.bio && (
                 <p className="text-sm text-gray-300 mt-3 line-clamp-3">{user.bio}</p>
               )}

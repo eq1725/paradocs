@@ -31,6 +31,12 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import { moderateText } from '@/lib/services/text-moderation.service'
+// V11.17.42 — enrich comment authors with Standing (tier 2+ inline
+// mark) and Lab-subscriber state (◇ diamond glyph). Panel memo:
+// docs/BADGE_SYSTEM_PANEL.md. Both are best-effort: failures fall
+// back to no annotation so the comment still renders.
+import { getStandingsForUsers, getLabSubscribersAmong } from '@/lib/services/standing.service'
+import { pickInlineLabel } from '@/lib/standing/types'
 
 var SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 var SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
@@ -77,8 +83,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       prows.forEach(function (p: any) { profilesMap[p.id] = p })
     }
 
+    // V11.17.42 — pull Standing rows + Lab subscriber set in parallel
+    // for every distinct author in this thread. Both are best-effort:
+    // a failure here just means the comment renders without the
+    // inline tier mark / diamond glyph.
+    var standingsMap: Record<string, any> = {}
+    var labSet = new Set<string>()
+    if (userIds.length > 0) {
+      try {
+        var both = await Promise.all([
+          getStandingsForUsers(userIds),
+          getLabSubscribersAmong(userIds),
+        ])
+        standingsMap = both[0] || {}
+        labSet = both[1] || new Set()
+      } catch (e: any) {
+        console.warn('[comments] standing enrichment failed: ' + (e && e.message ? e.message : e))
+      }
+    }
+
     var comments = rows.map(function (r: any) {
       var p = profilesMap[r.user_id] || {}
+      var s = standingsMap[r.user_id]
+      var inlineLabel = s ? pickInlineLabel(s.catalogue_tier, s.contribution_tier) : null
+      var isLab = labSet.has(r.user_id)
       return {
         id: r.id,
         parent_id: r.parent_id,
@@ -90,6 +118,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           username: p.username || null,
           display_name: p.display_name || null,
           avatar_url: p.avatar_url || null,
+          // Tier 2+ only — null otherwise. The client renders a "· Keeper"
+          // suffix when present, nothing when null. Marking the floor
+          // (Reader / Witness) is noise per panel section 4.4.
+          inline_label: inlineLabel,
+          is_lab: isLab,
         },
       }
     })
@@ -163,6 +196,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     var pResult2 = await svc.from('profiles').select('username, display_name, avatar_url').eq('id', user.id).single()
     var prof: any = (pResult2 && pResult2.data) || {}
 
+    // V11.17.42 — enrich the just-posted comment with Standing + Lab
+    // state so the optimistic insertion in ReportComments has the
+    // same inline_label / is_lab fields as the GET response.
+    var ownInline: string | null = null
+    var ownIsLab = false
+    try {
+      var ownBoth = await Promise.all([
+        getStandingsForUsers([user.id]),
+        getLabSubscribersAmong([user.id]),
+      ])
+      var ownStanding = (ownBoth[0] || {})[user.id]
+      if (ownStanding) ownInline = pickInlineLabel(ownStanding.catalogue_tier, ownStanding.contribution_tier)
+      ownIsLab = (ownBoth[1] || new Set()).has(user.id)
+    } catch (e: any) {
+      console.warn('[comments] own standing enrichment failed: ' + (e && e.message ? e.message : e))
+    }
+
     return res.status(201).json({
       comment: {
         id: inserted.id,
@@ -176,6 +226,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           username: prof.username || null,
           display_name: prof.display_name || null,
           avatar_url: prof.avatar_url || null,
+          inline_label: ownInline,
+          is_lab: ownIsLab,
         },
       },
     })
