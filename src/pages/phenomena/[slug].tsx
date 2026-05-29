@@ -108,6 +108,13 @@ export default function PhenomenonPage() {
   const { slug } = router.query
 
   const [phenomenon, setPhenomenon] = useState<Phenomenon | null>(null)
+  // V11.17.41 — Track phenomenon-meta fetch completion separately from
+  // reports fetch. Without this flag the page briefly rendered
+  // "Phenomenon not found" between page transitions: the reports
+  // useEffect would clear `loading` before the phenomenon-meta
+  // useEffect had set the metadata, hitting the `!phenomenon` branch
+  // while the meta fetch was still in flight.
+  const [phenomenonMetaFetched, setPhenomenonMetaFetched] = useState(false)
   const [reports, setReports] = useState<RelatedReport[]>([])
   const [loading, setLoading] = useState(true)
   const [isTagFallback, setIsTagFallback] = useState(false)
@@ -146,6 +153,13 @@ export default function PhenomenonPage() {
   }, [slug, filters.sort, filters.country, filters.decade, filters.search, router.isReady])
 
   async function loadPhenomenonMeta(phenomenonSlug: string) {
+    // V11.17.41 — Reset meta state at the start of every load so that
+    // navigating from /phenomena/A to /phenomena/B shows the spinner
+    // (via the `!phenomenonMetaFetched` gate) instead of A's content
+    // briefly during B's fetch.
+    setPhenomenonMetaFetched(false)
+    setPhenomenon(null)
+    setIsTagFallback(false)
     try {
       const res = await fetch(`/api/phenomena/${phenomenonSlug}?limit=1&offset=0`)
       if (!res.ok) {
@@ -155,6 +169,7 @@ export default function PhenomenonPage() {
       const data = await res.json()
       setPhenomenon(data.phenomenon)
       setIsTagFallback(!!data.is_tag_fallback)
+      setPhenomenonMetaFetched(true)
       // Track view — non-blocking, signed-in only.
       if (data.phenomenon?.id) {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -173,6 +188,10 @@ export default function PhenomenonPage() {
       }
     } catch (error) {
       console.error('Error loading phenomenon meta:', error)
+      // V11.17.41 — Flip metaFetched=true on error too so the spinner
+      // doesn't get stuck. The page will render the "not found" branch
+      // which at least gives the user a navigable next step.
+      setPhenomenonMetaFetched(true)
     }
   }
 
@@ -267,7 +286,14 @@ export default function PhenomenonPage() {
     router.push('/explore?view=categories')
   }
 
-  if (loading) {
+  // V11.17.41 — Show the spinner whenever either fetch is in flight,
+  // not just the reports fetch. Without the phenomenonMetaFetched
+  // guard the page briefly flashed "Phenomenon not found" between
+  // navigations because the reports fetch typically returned BEFORE
+  // the meta fetch, hitting the !phenomenon branch with meta still
+  // pending. We now only render "not found" when meta has actually
+  // resolved AND returned no phenomenon.
+  if (loading || !phenomenonMetaFetched) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
