@@ -112,28 +112,49 @@ function addAdminBorderOverlays(map: maplibregl.Map) {
 export default function WorldMapBackdrop() {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
+  // V11.17.41 rev-5 — Track per-init resources so we can dispose them
+  // when re-initialising on a new container (hydration recovery).
+  const disposeInitResourcesRef = useRef<(() => void) | null>(null)
 
-  // V11.17.41 rev-4 — Diagnostic logging. The operator's prod
-  // DevTools shows zero `[WorldMapBackdrop]` console messages AND
-  // zero MapTiler network requests, meaning either useEffect never
-  // fires or it bails on `containerRef.current === null` silently.
-  // Hydration recovery from React #423 (caused by MetaMask's SES
-  // injection) may be unmounting/remounting the component before
-  // init can run. These logs let us see the lifecycle directly.
-  console.log('[WorldMapBackdrop] component render — MAPTILER_KEY set?', !!MAPTILER_KEY, 'key length:', MAPTILER_KEY.length)
+  // V11.17.41 rev-5 — Hydration-recovery-resistant init.
+  //
+  // Diagnostic logs in rev-4 revealed maplibre WAS successfully
+  // initialising on the first render, but React was then re-rendering
+  // the entire root in response to a hydration mismatch (#418/#423,
+  // caused upstream by MetaMask's SES injection mutating the DOM
+  // before React could hydrate). The re-render wiped the original
+  // <div ref={containerRef}> that maplibre had attached to and
+  // mounted a fresh empty one. The map instance in mapRef became
+  // orphaned on a DOM node no longer in the page; the visible new
+  // div had no canvas.
+  //
+  // useEffect with [] deps only fires once per mount, so it never
+  // ran a second time to recover. Fix: use a deps-less effect (runs
+  // after every render) that detects when the container DOM node
+  // has changed and re-initialises the map onto the new node. The
+  // common case — map already attached to the current container —
+  // is an immediate no-op.
 
   useEffect(() => {
-    console.log('[WorldMapBackdrop] useEffect fired — containerRef.current:', containerRef.current)
     const el = containerRef.current
-    if (!el) {
-      console.warn('[WorldMapBackdrop] containerRef is null at useEffect time — aborting')
-      return
-    }
+    if (!el) return
     if (!MAPTILER_KEY) {
       console.warn('[WorldMapBackdrop] NEXT_PUBLIC_MAPTILER_KEY missing — map will not render')
       return
     }
-    console.log('[WorldMapBackdrop] container dimensions at useEffect:', el.clientWidth, 'x', el.clientHeight)
+    // No-op fast path: map already attached to the current container.
+    if (mapRef.current && mapRef.current.getContainer() === el) return
+    // Container changed (post-hydration-recovery re-render) or first
+    // init. Dispose orphaned map + its per-init resources, then init
+    // fresh on the new node.
+    if (disposeInitResourcesRef.current) {
+      try { disposeInitResourcesRef.current() } catch (_e) { /* ignore */ }
+      disposeInitResourcesRef.current = null
+    }
+    if (mapRef.current) {
+      try { mapRef.current.remove() } catch (_e) { /* ignore */ }
+      mapRef.current = null
+    }
 
     let disposed = false
     let readyDisposer: (() => void) | null = null
@@ -142,12 +163,10 @@ export default function WorldMapBackdrop() {
     let fallbackTimer: ReturnType<typeof setTimeout> | null = null
 
     const initMap = () => {
-      console.log('[WorldMapBackdrop] initMap called — disposed:', disposed, 'mapRef.current:', !!mapRef.current, 'containerRef.current:', !!containerRef.current)
       if (disposed) return
       if (mapRef.current) return
       if (!containerRef.current) return
       try {
-        console.log('[WorldMapBackdrop] creating maplibregl.Map')
         const map = new maplibregl.Map({
           container: containerRef.current,
           style: MAP_STYLE,
@@ -162,7 +181,6 @@ export default function WorldMapBackdrop() {
           touchPitch: false,
         })
         mapRef.current = map
-        console.log('[WorldMapBackdrop] maplibregl.Map created successfully')
 
         readyDisposer = whenMapReady(map, () => {
           try { map.resize() } catch (_e) { /* ignore */ }
@@ -186,10 +204,8 @@ export default function WorldMapBackdrop() {
 
     // If the container already has non-zero dimensions, init immediately.
     if (el.clientWidth > 0 && el.clientHeight > 0) {
-      console.log('[WorldMapBackdrop] container has dimensions — init immediately')
       initMap()
     } else if (typeof ResizeObserver !== 'undefined') {
-      console.log('[WorldMapBackdrop] container has zero dimensions — deferring init via ResizeObserver')
       // Otherwise wait for layout to settle. Init once the container has
       // both width and height — maplibre against a 0×0 canvas never
       // fetches tiles, and a later resize doesn't recover.
@@ -217,12 +233,32 @@ export default function WorldMapBackdrop() {
       fallbackTimer = setTimeout(initMap, 100)
     }
 
-    return () => {
+    // V11.17.41 rev-5 — Store per-init resource disposer in a ref
+    // instead of returning it as the effect's cleanup. We DON'T want
+    // React's automatic cleanup-before-next-effect-run to tear the map
+    // down when this effect re-runs harmlessly (which it now does on
+    // every render to detect container changes). The final unmount
+    // cleanup useEffect below uses this ref to dispose properly.
+    disposeInitResourcesRef.current = () => {
       disposed = true
       if (readyDisposer) { try { readyDisposer() } catch (_e) { /* ignore */ } }
       if (resizeObserverForResizes) { try { resizeObserverForResizes.disconnect() } catch (_e) { /* ignore */ } }
       if (initWatcher) { try { initWatcher.disconnect() } catch (_e) { /* ignore */ } }
       if (fallbackTimer !== null) { clearTimeout(fallbackTimer) }
+    }
+    // No cleanup function returned — see comment above.
+  })  // V11.17.41 rev-5 — No deps array: runs after every render so
+      // the container-change check can detect React's hydration recovery
+      // (which mounts a fresh DOM node for the same component).
+
+  // V11.17.41 rev-5 — Final unmount cleanup. Only runs when the
+  // component is actually being removed, not on every render.
+  useEffect(() => {
+    return () => {
+      if (disposeInitResourcesRef.current) {
+        try { disposeInitResourcesRef.current() } catch (_e) { /* ignore */ }
+        disposeInitResourcesRef.current = null
+      }
       if (mapRef.current) {
         try { mapRef.current.remove() } catch (_e) { /* ignore */ }
         mapRef.current = null
