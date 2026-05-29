@@ -281,8 +281,15 @@ export default function WorldMapBackdrop() {
       // chrome surface rather than a void.
       style={{ background: '#0d1c2e' }}
     >
-      {/* Real map — same dataviz-dark style as located reports */}
-      <div ref={containerRef} className="absolute inset-0" aria-hidden="true" />
+      {/* Real map — same dataviz-dark style as located reports.
+          V11.17.41 rev-8 DIAGNOSTIC: bright red background on the
+          container div. If the operator sees red where the map should
+          be, maplibre's canvas isn't actually being painted into this
+          element (despite the rev-6 logs proving it was loaded). If
+          they see anything OTHER than red (dark blue tiles, etc),
+          the canvas IS painting — the visibility issue is something
+          else. To be removed once root cause is identified. */}
+      <div ref={containerRef} className="absolute inset-0" aria-hidden="true" style={{ background: '#ff0040' }} />
 
       {/* V11.17.41 rev-7 — Global dim removed entirely. dataviz-dark at
           zoom 1.1 is already very dark; layering even a 0.28 alpha black
