@@ -291,9 +291,21 @@ export default function WorldMapBackdrop() {
       // chrome surface rather than a void.
       style={{ background: '#0d1c2e' }}
     >
-      {/* Real map — streets-v2-dark (see MAP_STYLE comment for why
-          this surface uses a different style than located reports). */}
-      <div ref={containerRef} className="absolute inset-0" aria-hidden="true" />
+      {/* Real map — streets-v2-dark. V11.17.41 rev-10: positioning
+          moved from Tailwind className to inline style. When maplibre
+          attaches to this div it adds a `maplibregl-map` class that
+          (from maplibre-gl.css) sets `position: relative`. Tied
+          specificity with Tailwind's `absolute`, so cascade order
+          decides — and we'd been losing, collapsing the container
+          to 0×0 in normal flow. The canvas inside then has nothing
+          to size against; tiles "load" successfully but render to a
+          zero-pixel area, invisible to the user. Inline style wins
+          unambiguously and matches ReportLocationMap's pattern. */}
+      <div
+        ref={containerRef}
+        aria-hidden="true"
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+      />
 
       {/* V11.17.41 rev-7 — Global dim removed entirely. dataviz-dark at
           zoom 1.1 is already very dark; layering even a 0.28 alpha black
