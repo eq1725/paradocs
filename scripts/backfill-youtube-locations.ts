@@ -61,6 +61,11 @@ function parseArgs() {
     // V11.17.52 — source override (default 'youtube' for back-compat).
     // Pass --source any to process across all source types.
     source: flag('--source', 'youtube'),
+    // V11.17.52.2 — bounded concurrency for the 106k-row sweep.
+    // Default 8 (~1k RPM, fits Anthropic Tier 2 with headroom).
+    // Bump to 16-24 on higher tiers. Each worker pulls the next row
+    // from a shared index counter.
+    concurrency: Math.max(1, parseInt(flag('--concurrency', '8'))),
   }
 }
 
@@ -187,32 +192,37 @@ async function main() {
   if (error) { console.error('fetch failed:', error.message); process.exit(1) }
   if (!rows || rows.length === 0) { console.log('No rows to process.'); return }
 
+  console.log('Concurrency:  ' + args.concurrency + ' workers\n')
+
   let extracted = 0
   let unknown = 0
   let geocoded = 0
   let failed = 0
+  let processed = 0
+  const total = rows.length
+  const startedMs = Date.now()
 
-  for (const row of rows as ReportRow[]) {
-    process.stdout.write(row.id.substring(0, 8) + ' | ' + (row.title || '').substring(0, 50).padEnd(52))
-
+  // V11.17.52.2 — worker pool. Each worker pulls the next row from a
+  // shared index until the array is exhausted. Stats are incremented
+  // mutably; JS is single-threaded so no races between awaits.
+  let nextIndex = 0
+  async function processRow(row: ReportRow): Promise<void> {
     if (args.dryRun) {
-      console.log(' [DRY] would call Haiku')
-      continue
+      console.log(row.id.substring(0, 8) + ' [DRY] ' + (row.title || '').substring(0, 60))
+      return
     }
 
     const loc = await extractLocation(anth, row)
     if (!loc || loc.confidence === 'none') {
       unknown++
-      // Mark as processed-but-empty so subsequent runs skip it.
       await supabase.from('reports')
         .update({ location_name: '(location unknown)' })
         .eq('id', row.id)
-      console.log(' → none (' + (loc?.rationale || 'no result').substring(0, 60) + ')')
-      continue
+      console.log(row.id.substring(0, 8) + ' → none')
+      return
     }
     extracted++
 
-    // Build the geocode query from extracted structured fields.
     const query = buildLocationQuery({
       city: loc.city,
       stateProvince: loc.state_province,
@@ -220,14 +230,12 @@ async function main() {
     })
     if (!query) {
       unknown++
-      console.log(' → extracted but no query buildable')
-      continue
+      console.log(row.id.substring(0, 8) + ' → no query')
+      return
     }
 
     const geo = await geocodeLocation(query)
     if (!geo) {
-      // We at least have text — write the structured fields so the
-      // map header shows "Location: <text>" instead of falling through.
       const locationName = [loc.city, loc.state_province, loc.country].filter(Boolean).join(', ')
       await supabase.from('reports').update({
         location_name: locationName,
@@ -236,8 +244,8 @@ async function main() {
         country: loc.country,
       }).eq('id', row.id)
       failed++
-      console.log(' → "' + locationName + '" (no geocode)')
-      continue
+      console.log(row.id.substring(0, 8) + ' → "' + locationName + '" (no geocode)')
+      return
     }
 
     const precision = precisionFromAccuracy(geo.accuracy)
@@ -255,11 +263,36 @@ async function main() {
     }).eq('id', row.id)
 
     geocoded++
-    console.log(' → "' + locationName + '" @ ' + geo.latitude.toFixed(2) + ',' + geo.longitude.toFixed(2) + ' (' + precision + ', ' + loc.confidence + ')')
+    console.log(row.id.substring(0, 8) + ' → "' + locationName + '" @ ' + geo.latitude.toFixed(2) + ',' + geo.longitude.toFixed(2) + ' (' + precision + ')')
   }
 
+  async function worker(workerId: number): Promise<void> {
+    while (true) {
+      const i = nextIndex++
+      if (i >= total) return
+      const row = rows[i] as ReportRow
+      try {
+        await processRow(row)
+      } catch (e: any) {
+        console.warn(row.id.substring(0, 8) + ' ! error: ' + (e?.message || e))
+      }
+      processed++
+      // Lightweight progress every 50 rows.
+      if (processed % 50 === 0) {
+        const el = (Date.now() - startedMs) / 1000
+        const rate = processed / el
+        const eta = (total - processed) / rate
+        console.log('--- progress: ' + processed + '/' + total + ' | rate ' + rate.toFixed(1) + '/s | ETA ' + Math.round(eta / 60) + 'm ---')
+      }
+    }
+  }
+
+  const workers = Array.from({ length: args.concurrency }, (_, i) => worker(i))
+  await Promise.all(workers)
+
+  const elapsed = ((Date.now() - startedMs) / 1000).toFixed(1)
   console.log('\n========== SUMMARY ==========')
-  console.log('Processed:    ' + rows.length)
+  console.log('Processed:    ' + rows.length + ' in ' + elapsed + 's')
   console.log('Extracted:    ' + extracted, '(Haiku found a location)')
   console.log('Geocoded:     ' + geocoded, '(MapTiler resolved to lat/lng)')
   console.log('Text-only:    ' + failed,   '(location text written but no coords)')
