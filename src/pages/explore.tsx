@@ -1341,27 +1341,34 @@ function ExploreBrowseMode() {
                     )}
 
                     <div className="group/section">
-                      <div className="flex items-center justify-between mb-3 sm:mb-4">
+                      {/* V11.17.48 — section header per panel memo
+                          (docs/TOP_PHENOMENA_ROW_REDESIGN_PANEL.md):
+                          subtitle dropped when API omits it; "See all"
+                          renamed to "All phenomena ›" and pointed at
+                          /phenomena (no more dead-end anchor scroll);
+                          hairline bottom rule signals "content section"
+                          using the cluster-card vocabulary. */}
+                      <div className={classNames(
+                        'flex items-center justify-between mb-3 sm:mb-4',
+                        section.id === 'spotlight' ? 'pb-2.5 border-b border-gray-800' : ''
+                      )}>
                         <div className="flex items-center gap-2.5">
                           {getSectionIcon(section.id)}
                           <div>
                             <h2 className="text-base sm:text-lg font-semibold text-white">{section.title}</h2>
-                            <p className="text-xs text-gray-500">{section.subtitle}</p>
+                            {section.subtitle && (
+                              <p className="text-xs text-gray-500">{section.subtitle}</p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
                           {section.id === 'spotlight' && (
-                            <a
-                              href="#browse-categories"
-                              onClick={function(e) {
-                                e.preventDefault()
-                                var el = document.getElementById('browse-categories')
-                                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                              }}
+                            <Link
+                              href="/phenomena"
                               className="text-xs sm:text-sm font-medium text-primary-400 hover:text-primary-300 transition-colors whitespace-nowrap"
                             >
-                              See all <ChevronRightIcon className="w-3 h-3 inline -mt-0.5" />
-                            </a>
+                              All phenomena <ChevronRightIcon className="w-3 h-3 inline -mt-0.5" />
+                            </Link>
                           )}
                           <div className="hidden sm:flex gap-1 opacity-0 group-hover/section:opacity-100 transition-opacity">
                             <button onClick={function() { scrollContainer('feed-' + section.id, 'left') }} className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400"><ChevronLeft className="w-4 h-4" /></button>
@@ -1377,6 +1384,13 @@ function ExploreBrowseMode() {
                             {section.phenomena.map(function(item) {
                               var config2 = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.psychological_experiences
                               var hasImage = item.primary_image_url && item.primary_image_url.indexOf('default-cryptid') === -1
+                              // V11.17.48 — display trending_count_30d when the
+                              // API emits it (post-materialized-view), fall back
+                              // to all-time report_count. Either way, the count
+                              // calibrates the user to the row's ranking.
+                              var displayCount = (item as any).trending_count_30d != null
+                                ? (item as any).trending_count_30d
+                                : item.report_count
                               return (
                                 <Link key={item.id} href={'/phenomena/' + item.slug} className="min-w-[75vw] sm:min-w-[260px] max-w-[80vw] sm:max-w-[280px] flex-shrink-0 snap-start group/card relative overflow-hidden rounded-xl border border-white/10 hover:border-primary-500/30 transition-all">
                                   {hasImage ? (
@@ -1391,9 +1405,16 @@ function ExploreBrowseMode() {
                                     </div>
                                   )}
                                   <div className="absolute bottom-0 left-0 right-0 p-4">
+                                    {/* V11.17.48 — category pill dropped on
+                                        image-bg cards (image already encodes
+                                        category; double-labeling). Kept on
+                                        no-image fallback where the gradient
+                                        alone doesn't carry the category. */}
                                     <div className="flex items-center gap-1.5 mb-1.5">
-                                      <span className={classNames('text-xs px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1', config2.bgColor, config2.color)}><CategoryIcon category={item.category as PhenomenonCategory} size={12} /> {config2.label}</span>
-                                      {item.report_count > 0 && <span className="text-[11px] text-gray-400">{item.report_count} reports</span>}
+                                      {!hasImage && (
+                                        <span className={classNames('text-xs px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1', config2.bgColor, config2.color)}><CategoryIcon category={item.category as PhenomenonCategory} size={12} /> {config2.label}</span>
+                                      )}
+                                      {displayCount > 0 && <span className="text-[11px] text-gray-400 tabular-nums">{displayCount} reports</span>}
                                     </div>
                                     <h3 className="font-semibold text-white text-base sm:text-lg line-clamp-1 group-hover/card:text-primary-300 transition-colors">{item.name}</h3>
                                     {(item.display_blurb || item.ai_summary) && <p className="text-xs text-gray-400 line-clamp-2 mt-1 leading-relaxed">{item.display_blurb || firstSentence(item.ai_summary, 140)}</p>}
@@ -1401,19 +1422,10 @@ function ExploreBrowseMode() {
                                 </Link>
                               )
                             })}
-                            <a
-                              href="#browse-categories"
-                              onClick={function(e) {
-                                e.preventDefault()
-                                var el = document.getElementById('browse-categories')
-                                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                              }}
-                              className="min-w-[50vw] sm:min-w-[180px] flex-shrink-0 snap-start flex flex-col items-center justify-center rounded-xl border border-white/10 hover:border-primary-500/30 bg-white/[0.02] hover:bg-white/[0.04] transition-all gap-3 px-6"
-                            >
-                              <BookOpen className="w-8 h-8 text-primary-400" />
-                              <span className="text-sm font-medium text-primary-400">Browse Encyclopedia</span>
-                              <span className="text-xs text-gray-500">Every phenomenon</span>
-                            </a>
+                            {/* V11.17.48 — terminator "Browse Encyclopedia"
+                                card deleted per panel. The header's
+                                "All phenomena ›" link is the single
+                                canonical exit affordance. */}
                           </div>
                           <div className="absolute right-0 top-0 bottom-2 w-12 bg-gradient-to-l from-[#0a0a1a] to-transparent pointer-events-none" />
                         </div>

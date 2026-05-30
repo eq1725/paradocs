@@ -69,27 +69,70 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     var sections: FeedSection[] = []
 
-    // === SECTION 1: Top Phenomena Right Now (everyone sees this) ===
-    // T1.5 — pivot from ai_summary-driven to data-driven. Surface the
-    // most-tagged phenomena regardless of ai_* content or image presence.
-    // Cards render with category icon when primary_image_url is missing
-    // (the rendering layer in explore.tsx ~line 1163 has the `hasImage`
-    // check that gracefully degrades). The encyclopedia is now a tag
-    // vocabulary, not a content library, so "spotlight" means "what's
-    // being discussed", not "what we've written copy for".
-    var { data: spotlightPhenomena } = await supabase
-      .from('phenomena')
-      .select('id, name, slug, category, icon, ai_summary, ai_quick_facts, primary_image_url, report_count, aliases')
-      .eq('status', 'active')
-      .gt('report_count', 0)
-      .order('report_count', { ascending: false })
-      .limit(8)
+    // === SECTION 1: Most-tagged this month (everyone sees this) ===
+    // V11.17.48 — per panel memo (docs/TOP_PHENOMENA_ROW_REDESIGN_PANEL.md):
+    // sort by trailing-30-day tag count, not all-time report_count.
+    // Backed by the phenomenon_trending_30d materialized view that the
+    // nightly cron refreshes. Graceful fallback to the all-time sort
+    // if the view doesn't exist yet (e.g., before the migration runs)
+    // or returns fewer than 8 rows.
+    //
+    // Display contract for the card: show trending_count when present
+    // (defends the ranking), fall back to all-time report_count when
+    // the view is empty.
+    var spotlightPhenomena: any[] | null = null
+
+    try {
+      // Top 8 phenomenon IDs by 30-day tag count.
+      var trendingRes = await (supabase
+        .from('phenomenon_trending_30d') as any)
+        .select('phenomenon_id, reports_tagged_30d')
+        .order('reports_tagged_30d', { ascending: false })
+        .limit(8)
+      var trendingRows: Array<{ phenomenon_id: string; reports_tagged_30d: number }> =
+        (trendingRes && trendingRes.data) || []
+
+      if (trendingRows.length >= 8) {
+        var trendingIds = trendingRows.map(function (r) { return r.phenomenon_id })
+        var phenRes = await supabase
+          .from('phenomena')
+          .select('id, name, slug, category, icon, ai_summary, ai_quick_facts, primary_image_url, report_count, aliases')
+          .in('id', trendingIds)
+          .eq('status', 'active')
+        var phenById: Record<string, any> = {}
+        for (var p of (phenRes.data || [])) phenById[(p as any).id] = p
+
+        // Preserve the ranking order from the view + attach the trending count.
+        spotlightPhenomena = trendingRows
+          .map(function (r) {
+            var ph = phenById[r.phenomenon_id]
+            if (!ph) return null
+            return { ...ph, trending_count_30d: r.reports_tagged_30d }
+          })
+          .filter(function (x) { return x !== null })
+      }
+    } catch (e: any) {
+      // View doesn't exist yet — fall through to the legacy query.
+      console.warn('[feed/personalized] phenomenon_trending_30d unavailable, using all-time fallback: ' + (e?.message || e))
+    }
+
+    // Fallback path: all-time report_count desc (pre-V11.17.48 behavior).
+    if (!spotlightPhenomena || spotlightPhenomena.length === 0) {
+      var fallbackRes = await supabase
+        .from('phenomena')
+        .select('id, name, slug, category, icon, ai_summary, ai_quick_facts, primary_image_url, report_count, aliases')
+        .eq('status', 'active')
+        .gt('report_count', 0)
+        .order('report_count', { ascending: false })
+        .limit(8)
+      spotlightPhenomena = (fallbackRes && fallbackRes.data) || []
+    }
 
     if (spotlightPhenomena && spotlightPhenomena.length > 0) {
       sections.push({
         id: 'spotlight',
-        title: 'Top Phenomena Right Now',
-        subtitle: 'Most-tagged across recent reports',
+        title: 'Most-tagged this month',
+        // V11.17.48 — subtitle removed per panel; title is self-explanatory.
         type: 'phenomena',
         phenomena: spotlightPhenomena
       })
@@ -156,7 +199,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // === SECTION 4: Category highlights (everyone — rotate through categories) ===
     // Pick 2-3 interesting category sections based on what has the most content
-    var categoryOrder = [
+    interface CategoryOrderEntry { key: string; title: string; subtitle: string }
+    var categoryOrder: CategoryOrderEntry[] = [
       { key: 'cryptids', title: 'Cryptid Encounters', subtitle: 'Bigfoot, Mothman, and creatures beyond explanation' },
       { key: 'ufos_aliens', title: 'UFO & Alien Reports', subtitle: 'Lights in the sky and close encounters' },
       { key: 'ghosts_hauntings', title: 'Ghost Stories & Hauntings', subtitle: 'Spirits, apparitions, and haunted places' },
@@ -167,7 +211,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Use the day of the year to rotate which categories we show (variety for return visitors)
     var dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000)
     var startIdx = dayOfYear % categoryOrder.length
-    var categoriesToShow = []
+    var categoriesToShow: CategoryOrderEntry[] = []
     for (var ci = 0; ci < 2; ci++) {
       categoriesToShow.push(categoryOrder[(startIdx + ci) % categoryOrder.length])
     }
@@ -227,7 +271,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .eq('status', 'approved')
         .in('id', savedReportIds)
 
-      var phenIds = []
+      var phenIds: string[] = []
       var seen: Record<string, boolean> = {}
       if (savedReports) {
         for (var si = 0; si < savedReports.length; si++) {
