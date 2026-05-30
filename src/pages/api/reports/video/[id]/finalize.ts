@@ -326,6 +326,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           reportUpdate.updated_at = new Date().toISOString()
           await (admin.from('reports') as any).update(reportUpdate).eq('id', (video as any).report_id)
         }
+
+        // V11.17.52 — location safety net. The video flow inserts a
+        // placeholder report at upload-url time with no real
+        // title/description; this finalize step is the first moment
+        // we have meaningful text. If the row still has no
+        // location_name, try to extract one from the freshly-synced
+        // title/description.
+        try {
+          var { data: locCheck } = await admin
+            .from('reports')
+            .select('location_name')
+            .eq('id', (video as any).report_id)
+            .maybeSingle()
+          if (locCheck && !(locCheck as any).location_name) {
+            var locSvc = await import('@/lib/services/location-extraction.service')
+            var resolved = await locSvc.extractAndGeocodeLocation({
+              title: reportUpdate.title || currentTitle || null,
+              summary: reportUpdate.summary || null,
+              description: reportUpdate.description || currentDesc || null,
+            })
+            if (resolved) {
+              await (admin.from('reports') as any).update({
+                location_name: resolved.location_name,
+                city: resolved.city,
+                state_province: resolved.state_province,
+                country: resolved.country,
+                latitude: resolved.latitude,
+                longitude: resolved.longitude,
+                location_precision: resolved.location_precision,
+              }).eq('id', (video as any).report_id)
+              console.log('[video/finalize] Backfilled location: "' + resolved.location_name + '" (' + resolved.confidence + ')')
+            }
+          }
+        } catch (locErr: any) {
+          console.warn('[video/finalize] location safety net failed:', locErr?.message || locErr)
+        }
       }
     } catch (e: any) {
       console.warn('[video/finalize] report description sync failed (non-fatal):', e?.message)
