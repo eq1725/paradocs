@@ -337,6 +337,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ ok: false, error: 'Failed to save your experience. Try again.' })
   }
 
+  // V11.17.52 — location safety net. Same hook as ingestion engine:
+  // if the submitter didn't fill in a location but mentioned one in
+  // their description/title, Haiku-extract + geocode and persist.
+  // Best-effort, non-blocking.
+  if (!insert.location_name) {
+    try {
+      var locSvc = await import('@/lib/services/location-extraction.service')
+      var resolved = await locSvc.extractAndGeocodeLocation({
+        title: insert.title || null,
+        summary: insert.summary || null,
+        description: insert.description || null,
+      })
+      if (resolved) {
+        await (admin.from('reports') as any).update({
+          location_name: resolved.location_name,
+          city: resolved.city,
+          state_province: resolved.state_province,
+          country: resolved.country,
+          latitude: resolved.latitude,
+          longitude: resolved.longitude,
+          location_precision: resolved.location_precision,
+        }).eq('id', (inserted as any).id)
+        console.log('[OnboardingSubmit] Backfilled location: "' + resolved.location_name + '" (' + resolved.confidence + ')')
+      }
+    } catch (locErr: any) {
+      console.warn('[OnboardingSubmit] Location safety net failed: ' + (locErr?.message || locErr))
+    }
+  }
+
   // V9.11.1 — when a primary phenomenon_type was picked, also write the
   // join-table row so the report shows up in /phenomena/[slug] feeds and
   // the dashboard counts. /submit does the same; we mirror it.

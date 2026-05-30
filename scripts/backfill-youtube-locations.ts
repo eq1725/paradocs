@@ -52,6 +52,15 @@ function parseArgs() {
   return {
     limit: parseInt(flag('--limit', '0')),
     dryRun: bool('--dry-run'),
+    // V11.17.52 — single-slug override (process one report regardless
+    // of source_type / location_name state). Useful for one-off
+    // operator fixes when a specific report has location in its title
+    // or description but the DB fields are null. Skips the "Total
+    // … rows w/o location" pre-count and the source filter.
+    slug: flag('--slug', ''),
+    // V11.17.52 — source override (default 'youtube' for back-compat).
+    // Pass --source any to process across all source types.
+    source: flag('--source', 'youtube'),
   }
 }
 
@@ -145,23 +154,35 @@ async function main() {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
   const anth = new Anthropic({ apiKey: ANTHROPIC_API_KEY })
 
-  const { count: total } = await supabase
-    .from('reports')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'approved')
-    .eq('source_type', 'youtube')
-    .is('location_name', null)
-  console.log('Total YouTube rows w/o location:', total, '\n')
+  // V11.17.52 — single-slug path bypasses the source / null-location
+  // filters; processes exactly one report by its slug.
+  let q: any
+  if (args.slug) {
+    q = supabase.from('reports')
+      .select('id, title, summary, description')
+      .eq('slug', args.slug)
+      .limit(1)
+    console.log('Single-slug mode: ' + args.slug)
+  } else {
+    const sourceFilter = args.source === 'any' ? null : args.source
+    let countQ = supabase
+      .from('reports')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'approved')
+      .is('location_name', null)
+    if (sourceFilter) countQ = countQ.eq('source_type', sourceFilter)
+    const { count: total } = await countQ
+    console.log('Total rows w/o location' + (sourceFilter ? ' (' + sourceFilter + ')' : ' (all sources)') + ':', total, '\n')
 
-  const cap = args.limit > 0 ? args.limit : (total || 0)
+    q = supabase.from('reports')
+      .select('id, title, summary, description')
+      .eq('status', 'approved')
+      .is('location_name', null)
+      .order('id', { ascending: true })
+    if (sourceFilter) q = q.eq('source_type', sourceFilter)
+    if (args.limit > 0) q = q.limit(args.limit)
+  }
 
-  let q = supabase.from('reports')
-    .select('id, title, summary, description')
-    .eq('status', 'approved')
-    .eq('source_type', 'youtube')
-    .is('location_name', null)
-    .order('id', { ascending: true })
-  if (args.limit > 0) q = q.limit(args.limit) as any
   const { data: rows, error } = await q
   if (error) { console.error('fetch failed:', error.message); process.exit(1) }
   if (!rows || rows.length === 0) { console.log('No rows to process.'); return }

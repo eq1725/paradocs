@@ -17,6 +17,11 @@ import { generateAndSaveParadocsAnalysis } from '../services/paradocs-analysis.s
 import { generateAndSaveAnswerLine } from '../services/answer-line.service';
 import { generateAndSaveWitnessProfile } from '../services/witness-profile.service';
 import { generateCompellingTitle } from '../services/compelling-title.service';
+// V11.17.52 — centralized post-insert location safety net (Manipur
+// incident: Reddit-sourced report with country in the title shipped
+// with NULL location_name because the Reddit adapter doesn't run
+// NLP extraction). Service is best-effort + non-blocking.
+import { extractAndGeocodeLocation } from '../services/location-extraction.service';
 import { generateAndSaveConsolidatedAI, isConsolidatedAIEnabled } from '../services/consolidated-ai.service';
 import { embedReport } from '../services/embedding.service';
 import { enrichReport } from './enrichment/report-enricher';
@@ -1170,6 +1175,36 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
             // improved (set in both the try and catch branches).
             if (originalTitle) {
               console.log(`[Ingestion] Title improved: "${originalTitle.substring(0, 30)}..." -> "${finalTitle.substring(0, 30)}..."`);
+            }
+
+            // V11.17.52 — Centralized post-insert location safety net.
+            // If the adapter didn't populate location_name, Haiku-extract
+            // from title+summary+description and geocode. Catches the
+            // gap where adapters (YouTube, Reddit, others) skip NLP
+            // location passes. Non-blocking: failures leave the row
+            // unchanged (location still null). Cost: ~$0.00006/call.
+            if (!insertData.location_name) {
+              try {
+                const resolved = await extractAndGeocodeLocation({
+                  title: insertData.title || null,
+                  summary: insertData.summary || null,
+                  description: insertData.description || null,
+                });
+                if (resolved) {
+                  await supabase.from('reports').update({
+                    location_name: resolved.location_name,
+                    city: resolved.city,
+                    state_province: resolved.state_province,
+                    country: resolved.country,
+                    latitude: resolved.latitude,
+                    longitude: resolved.longitude,
+                    location_precision: resolved.location_precision,
+                  }).eq('id', insertedReport.id);
+                  console.log('[Ingestion] Backfilled location: "' + resolved.location_name + '" (' + resolved.confidence + ')');
+                }
+              } catch (locErr: any) {
+                console.warn('[Ingestion] Location safety net failed for ' + insertedReport.id + ': ' + (locErr?.message || locErr));
+              }
             }
 
             // Record fuzzy dedup match if one was flagged (now we have both UUIDs)
