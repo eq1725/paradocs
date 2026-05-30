@@ -27,6 +27,9 @@ import {
   ChevronUp, AlertTriangle, Tag, ArrowUp, Loader2, Brain, Calendar, Shield,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+// V11.17.49 — embedded encyclopedia for Browse → Phenomena sub-tab
+// (Option C consolidation). Same component as /phenomena page.
+import { PhenomenaEncyclopedia } from './phenomena'
 import { Report, PhenomenonType, PhenomenonCategory, CredibilityLevel, ContentType } from '@/lib/database.types'
 import { CATEGORY_CONFIG, CONTENT_TYPE_CONFIG, COUNTRIES } from '@/lib/constants'
 import { formatLocationLabel } from '@/lib/format/location-label'
@@ -708,8 +711,12 @@ function ExploreBrowseMode() {
   var [page, setPage] = useState(1)
   var perPage = 12
 
-  // View state: 'categories' (tile grid) or 'reports' (filtered list)
-  var [browseView, setBrowseView] = useState<'categories' | 'reports'>('categories')
+  // View state: 'categories' (tile grid), 'phenomena' (encyclopedia
+  // embed — V11.17.49 Option C consolidation), or 'reports' (filtered
+  // list). Toggle between categories and phenomena via the segmented
+  // control in the Browse header; 'reports' is reached by drilling
+  // into a category.
+  var [browseView, setBrowseView] = useState<'categories' | 'phenomena' | 'reports'>('categories')
 
   // Phenomena browsing state
   var [phenomena, setPhenomena] = useState<PhenomenonEntry[]>([])
@@ -830,6 +837,8 @@ function ExploreBrowseMode() {
     }
     if (q.q && typeof q.q === 'string') setSearchQuery(q.q)
     if (q.view === 'reports') setBrowseView('reports')
+    // V11.17.49 — ?view=phenomena selects the encyclopedia sub-tab.
+    if (q.view === 'phenomena') setBrowseView('phenomena')
 
     // V11.12 — Witness-profile + state-filter param handling. Each
     // param flips the view to 'reports' so the user immediately sees
@@ -1194,8 +1203,63 @@ function ExploreBrowseMode() {
     setPage(1)
   }
 
+  // V11.17.49 — segmented sub-tabs that toggle between the category
+  // grid and the embedded phenomena encyclopedia. Only shown when
+  // we're in one of those two views (not when drilled into a single
+  // category or into reports). Pushes the URL state so /explore?view=
+  // phenomena is a real deep-link and the back button works.
+  function selectBrowseSubTab(next: 'categories' | 'phenomena') {
+    setBrowseView(next)
+    var nextQuery = { ...router.query }
+    if (next === 'categories') {
+      delete nextQuery.view
+    } else {
+      nextQuery.view = 'phenomena'
+    }
+    router.replace({ pathname: router.pathname, query: nextQuery as any }, undefined, { shallow: true })
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+      {/* V11.17.49 — Browse sub-tabs: [Categories | Phenomena].
+          Renders for both categories view and the embedded
+          encyclopedia. Hidden when drilled into a single category or
+          when the user has navigated to filtered reports. */}
+      {(browseView === 'categories' || browseView === 'phenomena') && !selectedCategoryForPhenomena && (
+        <div className="mb-6 flex items-center gap-1 bg-white/[0.03] border border-white/[0.06] rounded-full p-1 w-fit">
+          <button
+            onClick={function() { selectBrowseSubTab('categories') }}
+            className={classNames(
+              'px-4 py-1.5 rounded-full text-sm font-medium transition-colors',
+              browseView === 'categories'
+                ? 'bg-white/10 text-white'
+                : 'text-gray-400 hover:text-white'
+            )}
+          >
+            Categories
+          </button>
+          <button
+            onClick={function() { selectBrowseSubTab('phenomena') }}
+            className={classNames(
+              'px-4 py-1.5 rounded-full text-sm font-medium transition-colors',
+              browseView === 'phenomena'
+                ? 'bg-white/10 text-white'
+                : 'text-gray-400 hover:text-white'
+            )}
+          >
+            Phenomena
+          </button>
+        </div>
+      )}
+
+      {/* V11.17.49 — Embedded encyclopedia (Option C consolidation).
+          Same component as /phenomena page, embedded=true strips its
+          chrome (Head, big header, sticky filter bar, scroll save) so
+          it sits cleanly inside /explore Browse mode. */}
+      {browseView === 'phenomena' && !selectedCategoryForPhenomena && (
+        <PhenomenaEncyclopedia embedded />
+      )}
+
       {/* CATEGORIES VIEW — redesigned: Latest Reports → Categories → Encyclopedia → Map */}
       {browseView === 'categories' && !selectedCategoryForPhenomena && (
         <>
@@ -1364,7 +1428,7 @@ function ExploreBrowseMode() {
                         <div className="flex items-center gap-3">
                           {section.id === 'spotlight' && (
                             <Link
-                              href="/phenomena"
+                              href="/explore?view=phenomena"
                               className="text-xs sm:text-sm font-medium text-primary-400 hover:text-primary-300 transition-colors whitespace-nowrap"
                             >
                               All phenomena <ChevronRightIcon className="w-3 h-3 inline -mt-0.5" />

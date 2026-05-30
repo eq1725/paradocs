@@ -203,7 +203,26 @@ function BackToTopButton() {
   )
 }
 
-export default function PhenomenaPage() {
+/**
+ * V11.17.49 — extracted into a reusable component with an `embedded`
+ * prop so /explore can render the encyclopedia inline as a Browse
+ * sub-view (the Option C consolidation). Two consumers:
+ *   - /pages/phenomena/index.tsx (this file) → renders unembedded
+ *     via the PhenomenaPage default export below. Owns its own
+ *     `<Head>`, URL sync, scroll save/restore.
+ *   - /pages/explore.tsx → renders <PhenomenaEncyclopedia embedded />
+ *     when the user clicks the "Phenomena" sub-tab in Browse mode.
+ *     The embedded mode strips the outer page chrome and disables
+ *     URL syncing (explore owns the URL).
+ */
+export interface PhenomenaEncyclopediaProps {
+  /** When true, suppress <Head>, URL-param sync, scroll save/restore,
+   *  and the outer min-h-screen container so the component can be
+   *  rendered inside another page (e.g. /explore Browse mode). */
+  embedded?: boolean
+}
+
+export function PhenomenaEncyclopedia({ embedded = false }: PhenomenaEncyclopediaProps = {}) {
   const router = useRouter()
   const [phenomena, setPhenomena] = useState<Phenomenon[]>(_phenomenaCache || [])
   const [loading, setLoading] = useState(!_phenomenaCache)
@@ -222,8 +241,11 @@ export default function PhenomenaPage() {
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
 
-  // Save scroll position when navigating away, restore on mount
+  // Save scroll position when navigating away, restore on mount.
+  // V11.17.49 — disabled in embedded mode; /explore manages its own
+  // scroll lifecycle and would conflict with the page-level save.
   useEffect(() => {
+    if (embedded) return
     // Restore scroll position if we have cached data (back-navigation)
     if (_phenomenaCache && _scrollY !== null) {
       const y = _scrollY
@@ -247,10 +269,14 @@ export default function PhenomenaPage() {
     return () => {
       router.events.off('routeChangeStart', handleRouteChangeStart)
     }
-  }, [router])
+  }, [router, embedded])
 
   // --- URL State: Initialize from query params ---
+  // V11.17.49 — embedded mode skips URL param read; the explore page
+  // owns the URL (the /explore ?view=phenomena tells US to mount, the
+  // internal grid/list/letter/sort state is component-local only).
   useEffect(() => {
+    if (embedded) { setInitialized(true); return }
     if (!router.isReady) return
     const q = router.query
     if (q.search && typeof q.search === 'string') setSearchQuery(q.search)
@@ -263,10 +289,14 @@ export default function PhenomenaPage() {
     if (q.letter && typeof q.letter === 'string') setActiveLetter(q.letter)
     if (q.page && typeof q.page === 'string') setCurrentPage(Math.max(1, parseInt(q.page) || 1))
     setInitialized(true)
-  }, [router.isReady])
+  }, [router.isReady, embedded])
 
   // --- URL State: Sync state changes to URL ---
+  // V11.17.49 — embedded mode skips URL writes; explore's URL params
+  // would collide (?view=grid vs ?view=phenomena) and a replaced URL
+  // mid-Browse session would break the back button.
   useEffect(() => {
+    if (embedded) return
     if (!initialized) return
     const params: Record<string, string> = {}
     if (searchQuery) params.search = searchQuery
@@ -278,12 +308,11 @@ export default function PhenomenaPage() {
 
     const queryString = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&')
     const newPath = queryString ? `/phenomena?${queryString}` : '/phenomena'
-    const currentPath = router.asPath.split('?')[0] + (Object.keys(router.query).length ? '?' + Object.entries(router.query).map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join('&') : '')
 
     if (newPath !== router.asPath) {
       router.replace(newPath, undefined, { shallow: true })
     }
-  }, [searchQuery, selectedCategory, viewMode, sortBy, activeLetter, currentPage, initialized])
+  }, [searchQuery, selectedCategory, viewMode, sortBy, activeLetter, currentPage, initialized, embedded])
 
   // Reset pagination and letter filter on category/search change (skip initial mount)
   const isFirstRender = useRef(true)
@@ -499,28 +528,41 @@ export default function PhenomenaPage() {
 
   return (
     <>
-      <Head>
-        <title>Phenomena Encyclopedia - Paradocs</title>
-        <meta name="description" content="Explore our comprehensive encyclopedia of paranormal phenomena, cryptids, UFOs, and unexplained events." />
-      </Head>
+      {/* V11.17.49 — <Head> only when rendered as the page (embedded
+          mode lets the parent page own the title/meta). */}
+      {!embedded && (
+        <Head>
+          <title>Phenomena Encyclopedia - Paradocs</title>
+          <meta name="description" content="Explore our comprehensive encyclopedia of paranormal phenomena, cryptids, UFOs, and unexplained events." />
+        </Head>
+      )}
 
-      <div className="min-h-screen bg-gray-950">
-        {/* Header */}
-        <div className="bg-gradient-to-b from-gray-900 to-gray-950 border-b border-gray-800">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-            <h1 className="text-4xl font-bold text-white mb-4">
-              Phenomena Encyclopedia
-            </h1>
-            <p className="text-lg text-gray-400 max-w-3xl">
-              Explore our comprehensive database of paranormal phenomena, from cryptids like Bigfoot and Mothman
-              to UFO classifications and haunting types. Each entry includes detailed descriptions,
-              historical context, and links to related reports.
-            </p>
+      <div className={embedded ? '' : 'min-h-screen bg-gray-950'}>
+        {/* Header — skipped in embedded mode; the parent /explore
+            surface already shows the section title via its toggle. */}
+        {!embedded && (
+          <div className="bg-gradient-to-b from-gray-900 to-gray-950 border-b border-gray-800">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+              <h1 className="text-4xl font-bold text-white mb-4">
+                Phenomena Encyclopedia
+              </h1>
+              <p className="text-lg text-gray-400 max-w-3xl">
+                Explore our comprehensive database of paranormal phenomena, from cryptids like Bigfoot and Mothman
+                to UFO classifications and haunting types. Each entry includes detailed descriptions,
+                historical context, and links to related reports.
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Filters */}
-        <div className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-sm border-b border-gray-800">
+        <div className={classNames(
+          'bg-gray-900/95 backdrop-blur-sm border-b border-gray-800',
+          // Sticky only when standalone; inside /explore, the page
+          // already has its own sticky header and double-stickying
+          // creates a layering bug.
+          embedded ? '' : 'sticky top-0 z-10'
+        )}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
               {/* Search */}
@@ -895,11 +937,22 @@ export default function PhenomenaPage() {
           )}
         </div>
 
-        {/* Back to Top button */}
-        <BackToTopButton />
+        {/* Back to Top button — only when standalone (embedded mode
+            uses the parent page's own back-to-top affordance). */}
+        {!embedded && <BackToTopButton />}
       </div>
     </>
   )
+}
+
+/**
+ * V11.17.49 — Default export for the /phenomena route. Renders the
+ * encyclopedia unembedded (with its own Head, URL sync, scroll
+ * save/restore). The same component is reused inside /explore with
+ * embedded=true for the Browse-mode Phenomena sub-tab.
+ */
+export default function PhenomenaPage() {
+  return <PhenomenaEncyclopedia />
 }
 
 /**

@@ -53,21 +53,22 @@ const nextConfig = {
     // aren't meaningful for the native shell.
     if (IS_CAPACITOR_BUILD) return []
     return [
-      // T1.2: /phenomena index is deprecated as a standalone surface.
-      // Encyclopedia browsing now happens via /explore "Browse by Category"
-      // drill-down. The /phenomena/[slug] deep-dive routes still exist
-      // (T1.3 simplifies them to thin "Reports tagged X" pages) — only the
-      // index page is killed.
+      // V11.17.49 — Option C consolidation: /phenomena and
+      // /encyclopedia both redirect to /explore?view=phenomena so
+      // there's a single canonical browse surface. The encyclopedia
+      // UI is unchanged — the same PhenomenaEncyclopedia component
+      // renders inside /explore Browse > Phenomena sub-tab. The
+      // standalone /phenomena page chrome (big header) is retired
+      // in favor of the embedded view with toggle between Categories
+      // and Phenomena. /phenomena/[slug] deep-dive routes unaffected.
       {
         source: '/phenomena',
-        destination: '/explore?view=categories',
+        destination: '/explore?view=phenomena',
         permanent: true,
       },
-      // /encyclopedia is a friendly alias — also routes to /explore now.
-      // Slug-level encyclopedia URLs preserved (route to thin reports page).
       {
         source: '/encyclopedia',
-        destination: '/explore?view=categories',
+        destination: '/explore?view=phenomena',
         permanent: true,
       },
       {
@@ -148,10 +149,6 @@ const nextConfig = {
         destination: '/explore?mode=search',
         permanent: true,
       },
-      // /phenomena is the Encyclopedia directory (src/pages/phenomena/index.tsx).
-      // Previously 301'd to /explore in Session A2 Explore Consolidation, but
-      // restored in B1.5 so users can scan every encyclopedia entry. The
-      // Encyclopedia Spotlight card on /explore links to /phenomena.
       {
         source: '/analytics',
         destination: '/explore',

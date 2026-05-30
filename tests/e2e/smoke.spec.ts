@@ -76,10 +76,13 @@ test.describe('public pages render without runtime errors', () => {
     await expect(page.getByLabel(/email/i).first()).toBeVisible()
   })
 
-  test('/phenomena legacy URL redirects to /explore', async ({ page }) => {
-    // T1.2 redirect verification.
+  test('/phenomena redirects to consolidated /explore?view=phenomena', async ({ page }) => {
+    // V11.17.49 — Option C consolidation. /phenomena is now a 301
+    // alias for /explore?view=phenomena (the embedded encyclopedia
+    // inside Browse mode). Same component renders either way.
     await page.goto('/phenomena')
-    await expect(page).toHaveURL(/\/explore\?view=categories/)
+    await page.waitForLoadState('domcontentloaded')
+    await expect(page).toHaveURL(/\/explore\?view=phenomena/)
   })
 
   test('/phenomena/[slug] thin page renders for a known phenomenon', async ({ page }) => {
