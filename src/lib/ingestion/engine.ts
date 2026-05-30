@@ -22,6 +22,13 @@ import { generateCompellingTitle } from '../services/compelling-title.service';
 // with NULL location_name because the Reddit adapter doesn't run
 // NLP extraction). Service is best-effort + non-blocking.
 import { extractAndGeocodeLocation } from '../services/location-extraction.service';
+// V11.17.54 — post-classifier tag verification gate. The regex
+// classifier proposes report_phenomena links based on keyword
+// matching against the phen name + aliases; this service verifies
+// each proposed link with Haiku before persisting. Stops the worst
+// mistags (woodworking-tool reports tagged as Adze, etc.) at the
+// source. Conservative: 'uncertain' verdicts still get persisted.
+import { verifyTag } from '../services/tag-verification.service';
 import { generateAndSaveConsolidatedAI, isConsolidatedAIEnabled } from '../services/consolidated-ai.service';
 import { embedReport } from '../services/embedding.service';
 import { enrichReport } from './enrichment/report-enricher';
@@ -44,7 +51,11 @@ import { escalateDateWithHaiku } from './utils/escalate-date-haiku';
 interface PhenomenonPattern {
   id: string;
   name: string;
+  slug: string;
   category: string;
+  // V11.17.54 — ai_summary used as ground-truth context by the
+  // post-match Haiku verification gate (tag-verification.service).
+  ai_summary: string | null;
   patterns: string[];
 }
 
@@ -75,13 +86,15 @@ async function getPhenomenaPatterns(supabase: SupabaseClient): Promise<Phenomeno
 
   const { data: phenomena } = await supabase
     .from('phenomena')
-    .select('id, name, aliases, category')
+    .select('id, name, slug, aliases, category, ai_summary')
     .eq('status', 'active');
 
   cachedPhenomena = (phenomena || []).map(p => ({
     id: p.id,
     name: p.name,
+    slug: (p as any).slug || '',
     category: p.category,
+    ai_summary: (p as any).ai_summary || null,
     patterns: [
       p.name.toLowerCase(),
       ...(p.aliases || []).map((a: string) => a.toLowerCase())
@@ -301,7 +314,10 @@ async function identifyPhenomenaForReport(
   if (phenomena.length === 0) return 0;
 
   const searchText = [title || '', summary || '', description || ''].join(' ').toLowerCase();
-  const matches: { phenomenonId: string; confidence: number }[] = [];
+  // V11.17.54 — carry the full phenomenon record on each match so the
+  // post-classifier verification gate (below) has the metadata it
+  // needs (name, slug, ai_summary).
+  const matches: { phenomenon: PhenomenonPattern; confidence: number }[] = [];
 
   for (const phenomenon of phenomena) {
     for (const pattern of phenomenon.patterns) {
@@ -327,20 +343,60 @@ async function identifyPhenomenaForReport(
           confidence = Math.min(confidence + 0.1, 0.95);
         }
 
-        matches.push({ phenomenonId: phenomenon.id, confidence });
+        matches.push({ phenomenon, confidence });
         break;
       }
     }
   }
 
+  // V11.17.54 — Post-classifier Haiku verification gate. The regex
+  // matcher is generous (matches phen name / aliases anywhere in the
+  // text); without verification, niche entries with generic English-
+  // word names (woodworking "adze", Spanish "lechuza" = owl, etc.)
+  // accumulate large pools of mistags. For each proposed match we
+  // ask Haiku: does this report actually fit this phenomenon? Only
+  // 'no' verdicts block the insert — 'yes' and 'uncertain' both
+  // persist. Cost ~$0.0005 per call × ~N matches per report.
+  // Best-effort: any verification failure is treated as 'uncertain'
+  // and the tag is kept (never let the gate accidentally block
+  // legitimate tags).
+  const verifiedMatches: typeof matches = [];
+  for (const match of matches) {
+    try {
+      const result = await withTimeout(
+        verifyTag(
+          {
+            name: match.phenomenon.name,
+            slug: match.phenomenon.slug,
+            category: match.phenomenon.category,
+            ai_summary: match.phenomenon.ai_summary,
+          },
+          { title, summary, description },
+        ),
+        12000,
+        'verifyTag(' + match.phenomenon.slug + ')',
+      );
+      if (result.match === 'no') {
+        console.log('[Ingestion] Tag gate REJECTED ' + match.phenomenon.slug + ' for report ' + reportId.substring(0, 8) + ': ' + result.reasoning.slice(0, 100));
+        continue;
+      }
+      verifiedMatches.push(match);
+    } catch (e: any) {
+      // Verification failure → keep the tag (don't let the gate
+      // block legitimate matches just because Haiku timed out).
+      console.warn('[Ingestion] Tag gate failed for ' + match.phenomenon.slug + ', keeping tag: ' + (e?.message || e));
+      verifiedMatches.push(match);
+    }
+  }
+
   // Insert links (ignore duplicates)
   let linked = 0;
-  for (const match of matches) {
+  for (const match of verifiedMatches) {
     const { error } = await supabase
       .from('report_phenomena')
       .upsert({
         report_id: reportId,
-        phenomenon_id: match.phenomenonId,
+        phenomenon_id: match.phenomenon.id,
         confidence: match.confidence,
         tagged_by: 'auto',
       }, {
@@ -352,7 +408,7 @@ async function identifyPhenomenaForReport(
       linked++;
       // T1.6 — same lazy image search hook as the canonical-slug path.
       // Fire-and-forget; never block ingestion on enrichment.
-      enqueueImageSearchIfNeeded(supabase, match.phenomenonId).catch(function (err) {
+      enqueueImageSearchIfNeeded(supabase, match.phenomenon.id).catch(function (err) {
         console.log('[Ingestion] enqueueImageSearchIfNeeded error (non-fatal):', err);
       });
     }
@@ -361,13 +417,14 @@ async function identifyPhenomenaForReport(
   // Also set phenomenon_type_id on the report via the linked phenomenon's own type.
   // reports.phenomenon_type_id FK -> phenomenon_types table, so we need to resolve
   // the phenomena entry's phenomenon_type_id rather than using the phenomena ID directly.
-  if (matches.length > 0) {
-    const best = matches.reduce((a, b) => a.confidence > b.confidence ? a : b);
+  // V11.17.54 — use verifiedMatches so we don't promote a rejected tag.
+  if (verifiedMatches.length > 0) {
+    const best = verifiedMatches.reduce((a, b) => a.confidence > b.confidence ? a : b);
     if (best.confidence >= 0.6) {
       const { data: phenRecord } = await supabase
         .from('phenomena')
         .select('phenomenon_type_id')
-        .eq('id', best.phenomenonId)
+        .eq('id', best.phenomenon.id)
         .single();
 
       if (phenRecord && phenRecord.phenomenon_type_id) {
