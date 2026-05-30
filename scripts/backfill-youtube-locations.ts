@@ -66,6 +66,10 @@ function parseArgs() {
     // Bump to 16-24 on higher tiers. Each worker pulls the next row
     // from a shared index counter.
     concurrency: Math.max(1, parseInt(flag('--concurrency', '8'))),
+    // V11.17.52.3 — loop batches of --limit until the table is empty
+    // (zero rows fetched). Lets the operator run a single command
+    // for the whole sweep instead of a shell while-loop.
+    untilDone: bool('--until-done'),
   }
 }
 
@@ -149,15 +153,15 @@ function precisionFromAccuracy(accuracy: string): 'exact' | 'region' | 'country'
   return 'country'
 }
 
-async function main() {
-  const args = parseArgs()
-  console.log('Backfill YouTube locations — V11.17.39 (#111)')
-  console.log('args:', JSON.stringify(args))
-
-  if (!ANTHROPIC_API_KEY) { console.error('ANTHROPIC_API_KEY missing'); process.exit(1) }
-
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-  const anth = new Anthropic({ apiKey: ANTHROPIC_API_KEY })
+// V11.17.52.3 — single-batch run loop. Returns true when more rows
+// remain (zero or more processed but the source still has work);
+// false when the fetch came back empty.
+async function runBatch(
+  supabase: any,
+  anth: Anthropic,
+  args: ReturnType<typeof parseArgs>,
+  cumulative: { extracted: number; geocoded: number; failed: number; unknown: number; processed: number }
+): Promise<boolean> {
 
   // V11.17.52 — single-slug path bypasses the source / null-location
   // filters; processes exactly one report by its slug.
@@ -190,10 +194,12 @@ async function main() {
 
   const { data: rows, error } = await q
   if (error) { console.error('fetch failed:', error.message); process.exit(1) }
-  if (!rows || rows.length === 0) { console.log('No rows to process.'); return }
+  if (!rows || rows.length === 0) { console.log('No rows to process.'); return false }
 
   console.log('Concurrency:  ' + args.concurrency + ' workers\n')
 
+  // Per-batch counters; accumulated into `cumulative` for the
+  // --until-done loop summary.
   let extracted = 0
   let unknown = 0
   let geocoded = 0
@@ -291,12 +297,61 @@ async function main() {
   await Promise.all(workers)
 
   const elapsed = ((Date.now() - startedMs) / 1000).toFixed(1)
-  console.log('\n========== SUMMARY ==========')
+  console.log('\n========== BATCH SUMMARY ==========')
   console.log('Processed:    ' + rows.length + ' in ' + elapsed + 's')
   console.log('Extracted:    ' + extracted, '(Haiku found a location)')
   console.log('Geocoded:     ' + geocoded, '(MapTiler resolved to lat/lng)')
   console.log('Text-only:    ' + failed,   '(location text written but no coords)')
   console.log('Unknown:      ' + unknown,  '(no location anywhere in source)')
+
+  cumulative.extracted += extracted
+  cumulative.geocoded += geocoded
+  cumulative.failed += failed
+  cumulative.unknown += unknown
+  cumulative.processed += rows.length
+
+  return true
+}
+
+async function main() {
+  const args = parseArgs()
+  console.log('Backfill YouTube locations — V11.17.52.3')
+  console.log('args:', JSON.stringify(args))
+
+  if (!ANTHROPIC_API_KEY) { console.error('ANTHROPIC_API_KEY missing'); process.exit(1) }
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+  const anth = new Anthropic({ apiKey: ANTHROPIC_API_KEY })
+
+  const cumulative = { extracted: 0, geocoded: 0, failed: 0, unknown: 0, processed: 0 }
+  const startedMs = Date.now()
+
+  if (args.untilDone && args.slug) {
+    console.warn('--until-done ignored when --slug is set (single-row mode).')
+  }
+
+  let batchNum = 0
+  while (true) {
+    batchNum++
+    if (args.untilDone && !args.slug) {
+      console.log('\n========== BATCH ' + batchNum + ' ==========')
+    }
+    const more = await runBatch(supabase, anth, args, cumulative)
+    if (!args.untilDone || args.slug) break
+    if (!more) break
+  }
+
+  if (args.untilDone && !args.slug) {
+    const totalMin = ((Date.now() - startedMs) / 1000 / 60).toFixed(1)
+    console.log('\n========== ALL DONE ==========')
+    console.log('Batches:     ' + batchNum)
+    console.log('Total time:  ' + totalMin + ' min')
+    console.log('Processed:   ' + cumulative.processed)
+    console.log('Extracted:   ' + cumulative.extracted)
+    console.log('Geocoded:    ' + cumulative.geocoded)
+    console.log('Text-only:   ' + cumulative.failed)
+    console.log('Unknown:     ' + cumulative.unknown)
+  }
 }
 
 main().catch(e => { console.error('Fatal:', e?.stack || e?.message || e); process.exit(1) })
