@@ -4,7 +4,9 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { Search, Grid3X3, List, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, AlertTriangle, MapPin, Tag, ArrowUp, X } from 'lucide-react'
+// V11.17.50 — AlertTriangle import dropped along with the danger
+// pills on phenomenon cards.
+import { Search, Grid3X3, List, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, MapPin, Tag, ArrowUp, X } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import PhenomenonIcon from '@/components/ui/PhenomenonIcon'
@@ -53,27 +55,20 @@ const CATEGORY_GRADIENTS: Record<string, string> = {
   esoteric_practices: 'from-fuchsia-950 via-gray-900 to-gray-950',
 }
 
-const DANGER_COLORS: Record<string, { bg: string; text: string }> = {
-  'Low': { bg: 'bg-green-900/60', text: 'text-green-400' },
-  'Moderate': { bg: 'bg-yellow-900/60', text: 'text-yellow-400' },
-  'High': { bg: 'bg-orange-900/60', text: 'text-orange-400' },
-  'Extreme': { bg: 'bg-red-900/60', text: 'text-red-400' },
-  'Unknown': { bg: 'bg-gray-800/60', text: 'text-gray-400' },
-  'Varies': { bg: 'bg-purple-900/60', text: 'text-purple-400' },
-}
-
-const DANGER_SORT_ORDER: Record<string, number> = {
-  'Extreme': 0, 'High': 1, 'Moderate': 2, 'Low': 3, 'Varies': 4, 'Unknown': 5
-}
+// V11.17.50 — DANGER_COLORS / DANGER_SORT_ORDER removed. The
+// danger-level pill on phenomenon cards ("Low" / "High" / "Extreme")
+// was off-brand for the documentary voice; it framed each phenomenon
+// as a threat assessment rather than a catalogue entry. The underlying
+// ai_quick_facts.danger_level field still exists in DB (unused) and
+// can be regenerated or repurposed later.
 
 type ViewMode = 'grid' | 'list'
-type SortBy = 'name_asc' | 'name_desc' | 'reports' | 'danger'
+type SortBy = 'name_asc' | 'name_desc' | 'reports'
 
 const SORT_OPTIONS: { value: SortBy; label: string }[] = [
   { value: 'name_asc', label: 'Name (A–Z)' },
   { value: 'name_desc', label: 'Name (Z–A)' },
   { value: 'reports', label: 'Most Reports' },
-  { value: 'danger', label: 'Danger Level' },
 ]
 
 const ITEMS_PER_PAGE = 24
@@ -107,15 +102,6 @@ function sortPhenomena(items: Phenomenon[], sortBy: SortBy): Phenomenon[] {
       return sorted.sort((a, b) => b.name.localeCompare(a.name))
     case 'reports':
       return sorted.sort((a, b) => b.report_count - a.report_count || a.name.localeCompare(b.name))
-    case 'danger': {
-      return sorted.sort((a, b) => {
-        const aKey = a.ai_quick_facts?.danger_level?.split(' ')?.[0] || 'Unknown'
-        const bKey = b.ai_quick_facts?.danger_level?.split(' ')?.[0] || 'Unknown'
-        const aOrder = DANGER_SORT_ORDER[aKey] ?? 5
-        const bOrder = DANGER_SORT_ORDER[bKey] ?? 5
-        return aOrder - bOrder || a.name.localeCompare(b.name)
-      })
-    }
     default:
       return sorted
   }
@@ -283,7 +269,7 @@ export function PhenomenaEncyclopedia({ embedded = false }: PhenomenaEncyclopedi
     if (q.category && typeof q.category === 'string') setSelectedCategory(q.category)
     if (q.view && (q.view === 'grid' || q.view === 'list')) setViewMode(q.view as ViewMode)
     if (q.sort && typeof q.sort === 'string') {
-      const valid: SortBy[] = ['name_asc', 'name_desc', 'reports', 'danger']
+      const valid: SortBy[] = ['name_asc', 'name_desc', 'reports']
       if (valid.includes(q.sort as SortBy)) setSortBy(q.sort as SortBy)
     }
     if (q.letter && typeof q.letter === 'string') setActiveLetter(q.letter)
@@ -996,9 +982,7 @@ function PhenomenonCard({ phenomenon }: { phenomenon: Phenomenon }) {
   const cardBlurb = phenomenon.display_blurb
     || (phenomenon.ai_summary ? firstSentence(phenomenon.ai_summary, 180) : '')
 
-  // Normalize danger level for color lookup
-  const dangerKey = qf?.danger_level?.split(' ')?.[0] || ''
-  const dangerStyle = DANGER_COLORS[dangerKey] || null
+  // V11.17.50 — danger pill removed; no key/style lookup needed.
 
   return (
     <Link href={`/phenomena/${phenomenon.slug}`}>
@@ -1028,24 +1012,15 @@ function PhenomenonCard({ phenomenon }: { phenomenon: Phenomenon }) {
             </div>
           )}
 
-          {/* Quick fact pills overlaid on image */}
-          {qf && (
+          {/* V11.17.50 — danger pill removed (off-brand threat-assessment
+              framing). Classification pill kept — it's neutral metadata
+              (e.g. "Bipedal hominid", "Spirit communication"). */}
+          {qf && qf.classification && (
             <div className="absolute bottom-2 left-2 flex flex-wrap gap-1.5">
-              {dangerStyle && qf.danger_level && (
-                <span className={classNames(
-                  'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold backdrop-blur-sm',
-                  dangerStyle.bg, dangerStyle.text
-                )}>
-                  <AlertTriangle className="w-2.5 h-2.5" />
-                  {qf.danger_level.split(' ')[0]}
-                </span>
-              )}
-              {qf.classification && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-900/70 text-gray-300 backdrop-blur-sm">
-                  <Tag className="w-2.5 h-2.5" />
-                  {qf.classification.length > 20 ? qf.classification.substring(0, 18) + '...' : qf.classification}
-                </span>
-              )}
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-900/70 text-gray-300 backdrop-blur-sm">
+                <Tag className="w-2.5 h-2.5" />
+                {qf.classification.length > 20 ? qf.classification.substring(0, 18) + '...' : qf.classification}
+              </span>
             </div>
           )}
         </div>

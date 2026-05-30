@@ -722,7 +722,9 @@ function ExploreBrowseMode() {
   var [phenomena, setPhenomena] = useState<PhenomenonEntry[]>([])
   var [phenomenaLoading, setPhenomenaLoading] = useState(false)
   var [selectedCategoryForPhenomena, setSelectedCategoryForPhenomena] = useState<string | null>(null)
-  var [phenomenaSort, setPhenomenaSort] = useState<'alpha' | 'reports' | 'danger'>('alpha')
+  // V11.17.50 — 'danger' option removed; the sort UI only ever
+  // exposed 'alpha' and 'reports' anyway. Type narrowed to match.
+  var [phenomenaSort, setPhenomenaSort] = useState<'alpha' | 'reports'>('alpha')
   var [phenomenaFilter, setPhenomenaFilter] = useState('')
 
   // Feed sections for category discover
@@ -1573,8 +1575,8 @@ function ExploreBrowseMode() {
 
       {/* PHENOMENA VIEW — subcategory drill-down */}
       {browseView === 'categories' && selectedCategoryForPhenomena && (function() {
-        // Sort & filter phenomena client-side
-        var DANGER_ORDER: Record<string, number> = { 'Extreme': 0, 'High': 1, 'Moderate': 2, 'Low': 3, 'Varies': 4, 'Unknown': 5 }
+        // Sort & filter phenomena client-side.
+        // V11.17.50 — DANGER_ORDER + 'danger' sort branch removed.
         var filtered = phenomena.filter(function(p) {
           if (!phenomenaFilter) return true
           var q = phenomenaFilter.toLowerCase()
@@ -1585,11 +1587,6 @@ function ExploreBrowseMode() {
         var sorted = filtered.slice().sort(function(a, b) {
           if (phenomenaSort === 'alpha') return a.name.localeCompare(b.name)
           if (phenomenaSort === 'reports') return (b.report_count || 0) - (a.report_count || 0) || a.name.localeCompare(b.name)
-          if (phenomenaSort === 'danger') {
-            var aD = a.ai_quick_facts?.danger_level?.split(' ')[0] || 'Unknown'
-            var bD = b.ai_quick_facts?.danger_level?.split(' ')[0] || 'Unknown'
-            return (DANGER_ORDER[aD] ?? 5) - (DANGER_ORDER[bD] ?? 5) || a.name.localeCompare(b.name)
-          }
           return 0
         })
 
