@@ -4,9 +4,10 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-// V11.17.50 — AlertTriangle import dropped along with the danger
-// pills on phenomenon cards.
-import { Search, Grid3X3, List, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, MapPin, Tag, ArrowUp, X } from 'lucide-react'
+// V11.17.51 — Tag import also dropped along with the classification
+// pill overlay; only the MapPin icon (used in the card's meta row
+// for origin) remains from that family.
+import { Search, Grid3X3, List, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, MapPin, ArrowUp, X } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import PhenomenonIcon from '@/components/ui/PhenomenonIcon'
@@ -1012,17 +1013,11 @@ function PhenomenonCard({ phenomenon }: { phenomenon: Phenomenon }) {
             </div>
           )}
 
-          {/* V11.17.50 — danger pill removed (off-brand threat-assessment
-              framing). Classification pill kept — it's neutral metadata
-              (e.g. "Bipedal hominid", "Spirit communication"). */}
-          {qf && qf.classification && (
-            <div className="absolute bottom-2 left-2 flex flex-wrap gap-1.5">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-900/70 text-gray-300 backdrop-blur-sm">
-                <Tag className="w-2.5 h-2.5" />
-                {qf.classification.length > 20 ? qf.classification.substring(0, 18) + '...' : qf.classification}
-              </span>
-            </div>
-          )}
+          {/* V11.17.51 — classification pill removed too. The card
+              already shows the phenomenon name + summary right below
+              the image; truncated overlay labels ("Vampiric shapeshif…",
+              "Small bipedal homi…") added visual noise without earning
+              the pixels. */}
         </div>
 
         {/* Content */}
