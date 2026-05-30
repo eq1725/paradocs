@@ -103,7 +103,10 @@ const LIMIT = LIMIT_STR ? parseInt(LIMIT_STR, 10) || 0 : 0
 // sidecar JSON omits a field. Tuned for Envato Elements commercial
 // subscription. Override per-image via {slug}.json sidecar.
 const ENVATO_DEFAULT_LICENSE = 'envato_elements'
-const ENVATO_DEFAULT_ATTRIBUTION = 'Image: Envato Elements (Paradocs editorial license).'
+// V11.17.47 — vendor-neutral attribution. Envato Elements doesn't
+// require credit, so we use a short editorial line that doesn't
+// reveal the sourcing channel. Sidecar JSON can override per-image.
+const ENVATO_DEFAULT_ATTRIBUTION = 'Paradocs editorial.'
 
 if (!MODE_ALL && !CATEGORY && !SLUG && !MODE_REVIEW && !MODE_BATCH) {
   console.error('Specify --all, --category <name>, --slug <slug>, --re-review, or --batch')

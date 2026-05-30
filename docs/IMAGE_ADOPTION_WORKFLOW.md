@@ -33,7 +33,7 @@ the human-readable name.
 When you drop a file with no sidecar, the batch script writes:
 
 - `image_license`: `envato_elements`
-- `image_attribution`: `Image: Envato Elements (Paradocs editorial license).`
+- `image_attribution`: `Paradocs editorial.`
 - `image_alt_text`: `<phenomenon name> — image`
 - `image_source`: `manual`
 - `image_review_score`: `100` (operator-curated)
