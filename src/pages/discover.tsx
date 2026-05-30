@@ -39,7 +39,10 @@ import React, { useEffect, useState, useRef, useCallback } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { createClient } from '@supabase/supabase-js'
+// V11.17.44 — swapped from local createClient (which ran at module
+// load and crashed CI builds when env vars were absent) to the lazy
+// proxy in @/lib/supabase. Same anon-key client; deferred init.
+import { supabase } from '@/lib/supabase'
 import {
   PhenomenonCard,
   TextReportCard,
@@ -90,11 +93,6 @@ import type { PhenomenonCategory } from '@/lib/database.types'
 
 // Extended feed item type that includes new card types
 type ExtendedFeedItem = FeedItemV2 | ClusterCardData | OnThisDateData | PromoCardData
-
-var supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 // Category color hex map (duplicated from cards for inline use)
 var CATEGORY_COLORS: Record<string, string> = {
