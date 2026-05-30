@@ -41,16 +41,20 @@ test.describe('public pages render without runtime errors', () => {
   test('homepage renders Paradocs brand', async ({ page }) => {
     await page.goto('/')
     await expect(page).toHaveTitle(/Paradocs/i)
-    // Brand wordmark should be present in nav.
-    await expect(page.getByText('Paradocs', { exact: false }).first()).toBeVisible()
+    // V11.17.45 — was matching `<div id="paradocs-splash-wordmark">`
+    // which gets hidden right after the splash dismisses. Use the nav
+    // brand link, which is always visible on the loaded page.
+    await expect(page.getByRole('link', { name: /paradocs/i }).first()).toBeVisible()
   })
 
   test('/explore loads categories surface', async ({ page }) => {
     await page.goto('/explore?view=categories')
-    // The 8 category cards should be present — text-search at least
-    // two of them to confirm CATEGORY_CONFIG rendered (T1.7 labels).
-    await expect(page.getByText(/UAP/i).first()).toBeVisible()
-    await expect(page.getByText(/Cryptid/i).first()).toBeVisible()
+    // V11.17.45 — text-search the category labels CATEGORY_CONFIG
+    // actually renders. The previous "UAP" / "Cryptid" matches landed
+    // on a mobile-only `block sm:hidden` description that's invisible
+    // at the desktop 1280px viewport. Match the human label instead.
+    await expect(page.getByText(/UFOs & Aliens/i).first()).toBeVisible()
+    await expect(page.getByText(/Ghosts & Hauntings/i).first()).toBeVisible()
   })
 
   test('/discover (Today feed) renders feed shell', async ({ page }) => {
@@ -63,13 +67,13 @@ test.describe('public pages render without runtime errors', () => {
 
   test('/start renders the account-first auth gate for anon users', async ({ page }) => {
     await page.goto('/start')
-    // T1.8 account-first: an unauthenticated user should see the
-    // "Sign up to share your experience" headline (the account step),
-    // not the experience-form step.
+    // V11.17.45 — copy updated. The flow now opens with "What have
+    // you experienced…" and transitions to "Create your account."
+    // Match either headline so the test doesn't race the transition.
     const headline = page.getByRole('heading', { level: 1 })
-    await expect(headline).toContainText(/sign up to share your experience/i)
-    // Email input should be present.
-    await expect(page.getByLabel(/email/i)).toBeVisible()
+    await expect(headline).toContainText(/(what have you experienced|create your account)/i)
+    // Email input should be present once the account step lands.
+    await expect(page.getByLabel(/email/i).first()).toBeVisible()
   })
 
   test('/phenomena legacy URL redirects to /explore', async ({ page }) => {
