@@ -36,10 +36,20 @@
  *   tsx scripts/adopt-phenomena-images.ts --category cryptids
  *   tsx scripts/adopt-phenomena-images.ts --all
  *   tsx scripts/adopt-phenomena-images.ts --re-review --category cryptids
+ *
+ *   # V11.17.43 — Manual adoption from a local file (operator-curated):
+ *   tsx scripts/adopt-phenomena-images.ts \
+ *     --slug triggered-haunting \
+ *     --file ./source-images/triggered-haunting.jpg \
+ *     --attribution 'Photo: <a href="…">Source</a> (CC BY 4.0)' \
+ *     --license cc_by \
+ *     --alt 'Engraving of a haunted parlor with overturned furniture'
  */
 
 import { createClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
+import { readFile, readdir, stat } from 'node:fs/promises'
+import { resolve as pathResolve, isAbsolute as pathIsAbsolute, join as pathJoin, basename, extname } from 'node:path'
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
 if (!ANTHROPIC_API_KEY) {
@@ -72,21 +82,43 @@ function arg(name: string): string | null {
 const MODE_ALL = flag('--all')
 const MODE_REVIEW = flag('--re-review')
 const MODE_DRY = flag('--dry-run')
+// V11.17.43 — batch mode walks source-images/<category>/<slug>.{jpg,...}
+// and adopts every file it finds. Default license = envato_elements
+// because the operator's primary procurement channel is an Envato
+// Elements commercial subscription. Per-file overrides via sidecar
+// JSON (<slug>.json next to the image).
+const MODE_BATCH = flag('--batch')
 const CATEGORY = arg('--category')
 const SLUG = arg('--slug')
 const MANUAL_URL = arg('--url')
+const MANUAL_FILE = arg('--file')
 const MANUAL_ATTR = arg('--attribution')
 const MANUAL_LICENSE = arg('--license')
 const MANUAL_ALT = arg('--alt')
+const SOURCE_DIR = arg('--dir') || 'source-images'
 const LIMIT_STR = arg('--limit')
 const LIMIT = LIMIT_STR ? parseInt(LIMIT_STR, 10) || 0 : 0
 
-if (!MODE_ALL && !CATEGORY && !SLUG && !MODE_REVIEW) {
-  console.error('Specify --all, --category <name>, --slug <slug>, or --re-review')
+// V11.17.43 — defaults applied to every batch-mode adoption when the
+// sidecar JSON omits a field. Tuned for Envato Elements commercial
+// subscription. Override per-image via {slug}.json sidecar.
+const ENVATO_DEFAULT_LICENSE = 'envato_elements'
+const ENVATO_DEFAULT_ATTRIBUTION = 'Image: Envato Elements (Paradocs editorial license).'
+
+if (!MODE_ALL && !CATEGORY && !SLUG && !MODE_REVIEW && !MODE_BATCH) {
+  console.error('Specify --all, --category <name>, --slug <slug>, --re-review, or --batch')
   process.exit(1)
 }
 if (MANUAL_URL && !SLUG) {
   console.error('--url requires --slug (manual override is per-phenomenon)')
+  process.exit(1)
+}
+if (MANUAL_FILE && !SLUG) {
+  console.error('--file requires --slug (manual override is per-phenomenon)')
+  process.exit(1)
+}
+if (MANUAL_URL && MANUAL_FILE) {
+  console.error('--url and --file are mutually exclusive; pick one')
   process.exit(1)
 }
 
@@ -967,17 +999,34 @@ async function processPhenomenon(sb: any, p: Phenomenon): Promise<ProcessResult>
   // somewhere specific), they can pass --url and skip the Wikipedia /
   // Commons search entirely. Haiku is NOT consulted on manual picks —
   // the user has already verified the image is correct.
-  if (MANUAL_URL) {
+  //
+  // V11.17.43 — Added --file as a sibling path so operators can drop
+  // procured images into source-images/ and adopt them without needing
+  // to host them anywhere first. Same provenance fields, same encode
+  // pipeline, same DB write — only the buffer-load step differs.
+  if (MANUAL_URL || MANUAL_FILE) {
+    const manualSourceLabel = MANUAL_FILE ? ('file:' + MANUAL_FILE) : (MANUAL_URL as string)
     const manualCandidate: Candidate = {
       title: 'Manual: ' + (MANUAL_ATTR || p.name),
-      url: MANUAL_URL,
+      url: manualSourceLabel,
       description: MANUAL_ALT || p.name,
       license: MANUAL_LICENSE || 'fair_use_educational',
       attribution: MANUAL_ATTR || ('Manually curated image for ' + p.name),
       source: 'wikimedia_commons', // not literally true but we don't track 'manual' as a source enum yet
     }
     if (MODE_DRY) return { status: 'dry_run', picked: manualCandidate, haiku: { pickIndex: 0, confidence: 100, altText: MANUAL_ALT || p.name, reason: 'manual override' } }
-    const buf = await fetchImageBuffer(MANUAL_URL)
+    let buf: Buffer | null = null
+    if (MANUAL_FILE) {
+      const absPath = pathIsAbsolute(MANUAL_FILE) ? MANUAL_FILE : pathResolve(process.cwd(), MANUAL_FILE)
+      try {
+        buf = await readFile(absPath)
+      } catch (e: any) {
+        console.warn('  file read error for ' + absPath + ': ' + (e?.message || e))
+        return { status: 'fetch_failed', picked: manualCandidate }
+      }
+    } else {
+      buf = await fetchImageBuffer(MANUAL_URL as string)
+    }
     if (!buf) return { status: 'fetch_failed', picked: manualCandidate }
     const heroUrl = await encodeAndUpload(sb, p.slug, buf)
     if (!heroUrl) return { status: 'upload_failed', picked: manualCandidate }
@@ -1150,11 +1199,195 @@ async function fetchAllRows<T = any>(query: any, pageSize = 1000): Promise<T[]> 
   return all
 }
 
+// V11.17.43 — batch mode helpers ─────────────────────────────────────
+
+interface BatchItem {
+  category: string         // folder name under SOURCE_DIR
+  slug: string             // file basename sans extension
+  filePath: string         // absolute path to the image
+  sidecar: BatchSidecar    // metadata from <slug>.json (or defaults)
+}
+
+interface BatchSidecar {
+  attribution: string
+  license: string
+  alt: string | null       // null → use phen name as fallback
+}
+
+const BATCH_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif'])
+
+async function loadSidecar(imagePath: string, defaultAttr: string, defaultLicense: string): Promise<BatchSidecar> {
+  // Look for {slug}.json next to {slug}.{jpg|png|...}.
+  const sidecarPath = imagePath.replace(/\.[^.]+$/, '.json')
+  let alt: string | null = null
+  let attribution = defaultAttr
+  let license = defaultLicense
+  try {
+    const raw = await readFile(sidecarPath, 'utf8')
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object') {
+      if (typeof parsed.attribution === 'string') attribution = parsed.attribution
+      if (typeof parsed.license === 'string') license = parsed.license
+      if (typeof parsed.alt === 'string') alt = parsed.alt
+      // Convenience: if sidecar has {author, item_url}, synthesize a
+      // standard attribution line for Envato-style provenance.
+      if (!parsed.attribution && (parsed.author || parsed.item_url)) {
+        const parts: string[] = []
+        if (parsed.author) parts.push('by ' + parsed.author)
+        if (parsed.item_url) parts.push('<a href="' + parsed.item_url + '" rel="noopener" target="_blank">source</a>')
+        if (parts.length > 0) attribution = 'Image ' + parts.join(' · ') + ' (Envato Elements license).'
+      }
+    }
+  } catch (_e) {
+    // No sidecar — that's fine, defaults are used.
+  }
+  return { attribution, license, alt }
+}
+
+async function discoverBatchItems(rootDir: string): Promise<BatchItem[]> {
+  const absRoot = pathIsAbsolute(rootDir) ? rootDir : pathResolve(process.cwd(), rootDir)
+  const items: BatchItem[] = []
+  let categoryDirs: string[] = []
+  try {
+    const top = await readdir(absRoot)
+    for (const name of top) {
+      const full = pathJoin(absRoot, name)
+      const st = await stat(full).catch(() => null)
+      if (st && st.isDirectory()) categoryDirs.push(name)
+    }
+  } catch (e: any) {
+    throw new Error('Source directory not found: ' + absRoot)
+  }
+  for (const cat of categoryDirs) {
+    const catDir = pathJoin(absRoot, cat)
+    const files = await readdir(catDir)
+    for (const fname of files) {
+      const ext = extname(fname).toLowerCase()
+      if (!BATCH_IMAGE_EXTS.has(ext)) continue
+      const slug = basename(fname, extname(fname))
+      const filePath = pathJoin(catDir, fname)
+      const sidecar = await loadSidecar(filePath, ENVATO_DEFAULT_ATTRIBUTION, ENVATO_DEFAULT_LICENSE)
+      items.push({ category: cat, slug, filePath, sidecar })
+    }
+  }
+  // Stable order: category, then slug.
+  items.sort((a, b) => a.category.localeCompare(b.category) || a.slug.localeCompare(b.slug))
+  return items
+}
+
+async function runBatchMode(sb: any) {
+  console.log('=== V11.17.43 — Batch adoption from ' + SOURCE_DIR + ' ===')
+  console.log('Default license: ' + ENVATO_DEFAULT_LICENSE)
+  console.log('Dry run: ' + MODE_DRY)
+
+  const items = await discoverBatchItems(SOURCE_DIR)
+  let scoped = items
+  if (CATEGORY) scoped = scoped.filter(it => it.category === CATEGORY)
+  if (SLUG) scoped = scoped.filter(it => it.slug === SLUG)
+  if (LIMIT > 0) scoped = scoped.slice(0, LIMIT)
+  console.log('Files discovered: ' + items.length + (scoped.length !== items.length ? ' (scoped to ' + scoped.length + ')' : ''))
+  if (scoped.length === 0) { console.log('Nothing to do.'); return }
+
+  // Bulk-load every phenomenon referenced so we resolve once + validate
+  // category alignment without N round-trips.
+  const wantSlugs = Array.from(new Set(scoped.map(s => s.slug)))
+  const phenRes = await sb.from('phenomena')
+    .select('id, slug, name, category, primary_image_url, image_adopted_at')
+    .in('slug', wantSlugs)
+  if (phenRes.error) throw new Error('Phen lookup failed: ' + phenRes.error.message)
+  const phenBySlug: Record<string, any> = {}
+  for (const p of (phenRes.data || [])) phenBySlug[p.slug] = p
+
+  const stats = { adopted: 0, dry_run: 0, missing_slug: 0, category_mismatch: 0, upload_failed: 0, file_failed: 0, already_adopted_skipped: 0 }
+  const t0 = Date.now()
+
+  for (let i = 0; i < scoped.length; i++) {
+    const it = scoped[i]
+    const label = it.category + '/' + it.slug
+    process.stdout.write('[' + (i + 1) + '/' + scoped.length + '] ' + label.padEnd(48) + ' ')
+
+    const p = phenBySlug[it.slug]
+    if (!p) {
+      stats.missing_slug++
+      process.stdout.write('✗ no phenomenon with slug "' + it.slug + '" — check spelling\n')
+      continue
+    }
+    if (p.category !== it.category) {
+      // Soft-warn: folder placement disagrees with DB category. Skip
+      // by default so a typo in the folder name doesn't silently move
+      // images into the wrong logical bucket. The DB write would still
+      // work — slug is the canonical key — but the operator probably
+      // meant to fix one or the other first.
+      stats.category_mismatch++
+      process.stdout.write('✗ folder=' + it.category + ' but DB says category=' + p.category + ' (skipped)\n')
+      continue
+    }
+
+    if (MODE_DRY) {
+      stats.dry_run++
+      process.stdout.write('[dry] would adopt — ' + (it.sidecar.attribution || '').substring(0, 60) + '\n')
+      continue
+    }
+
+    let buf: Buffer
+    try {
+      buf = await readFile(it.filePath)
+    } catch (e: any) {
+      stats.file_failed++
+      process.stdout.write('! file read error: ' + (e?.message || e).substring(0, 60) + '\n')
+      continue
+    }
+
+    const heroUrl = await encodeAndUpload(sb, p.slug, buf)
+    if (!heroUrl) {
+      stats.upload_failed++
+      process.stdout.write('! upload failed\n')
+      continue
+    }
+
+    const updateRes = await sb.from('phenomena').update({
+      primary_image_url: heroUrl,
+      image_source: 'manual',
+      image_license: it.sidecar.license,
+      image_attribution: it.sidecar.attribution,
+      image_alt_text: it.sidecar.alt || (p.name + ' — image'),
+      image_adopted_at: new Date().toISOString(),
+      image_review_score: 100, // operator-curated
+    }).eq('id', p.id)
+    if (updateRes.error) {
+      stats.upload_failed++
+      process.stdout.write('! db update error: ' + updateRes.error.message + '\n')
+      continue
+    }
+
+    stats.adopted++
+    process.stdout.write('✓ adopted — ' + heroUrl.substring(heroUrl.lastIndexOf('/') + 1) + '\n')
+
+    // Polite pause between uploads.
+    await new Promise(r => setTimeout(r, 150))
+  }
+
+  const el = Math.round((Date.now() - t0) / 1000)
+  console.log('\n══════════════════════════════════════════════════════════')
+  console.log('Batch done in ' + el + 's')
+  console.log('  Adopted:            ' + stats.adopted)
+  console.log('  Missing slug (typo): ' + stats.missing_slug)
+  console.log('  Category mismatch:   ' + stats.category_mismatch)
+  console.log('  Upload failed:       ' + stats.upload_failed)
+  console.log('  File read failed:    ' + stats.file_failed)
+  if (MODE_DRY) console.log('  Dry-run would-adopt: ' + stats.dry_run)
+}
+
 async function main() {
   const sb = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
+
+  if (MODE_BATCH) {
+    await runBatchMode(sb)
+    return
+  }
 
   console.log('=== V11.16 — Phenomena image adoption ===')
   console.log('Mode: ' +

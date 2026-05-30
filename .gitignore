@@ -38,6 +38,21 @@ data/reddit/*.ndjson
 data/reddit/*.zst
 *.zst
 
+# Operator-curated phenomenon images staged for adoption.
+# Files in this directory are picked up by:
+#   tsx scripts/adopt-phenomena-images.ts --batch
+# They get re-encoded into hero/card/thumb webp and uploaded to the
+# phenomena-images Supabase bucket — the originals don't need to ship
+# in the repo. BUT we keep the empty category-folder scaffolding so
+# /source-images/<category>/ exists in fresh clones; only image and
+# sidecar files are ignored.
+/source-images/**/*.jpg
+/source-images/**/*.jpeg
+/source-images/**/*.png
+/source-images/**/*.webp
+/source-images/**/*.avif
+/source-images/**/*.json
+
 # Working files - do not commit
 *.sql
 *.patch
