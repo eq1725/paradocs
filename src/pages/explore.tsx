@@ -838,6 +838,8 @@ function ExploreBrowseMode() {
     if (q.q && typeof q.q === 'string') setSearchQuery(q.q)
     if (q.view === 'reports') setBrowseView('reports')
     // V11.17.49 — ?view=phenomena selects the encyclopedia sub-tab.
+    // (Also handled by the dedicated effect below so shallow-routing
+    // updates to ?view= from in-page links re-sync the sub-tab.)
     if (q.view === 'phenomena') setBrowseView('phenomena')
 
     // V11.12 — Witness-profile + state-filter param handling. Each
@@ -886,6 +888,27 @@ function ExploreBrowseMode() {
       }
     }
   }, [router.isReady])
+
+  // V11.17.49.1 — sync browseView when ?view= changes via shallow
+  // routing (e.g. the in-page "All phenomena ›" link from the
+  // Most-tagged row, which navigates to /explore?view=phenomena while
+  // already on /explore). The mount-time effect above only fires once
+  // on router.isReady, so without this hook in-page nav was a no-op.
+  useEffect(function() {
+    if (!router.isReady) return
+    var v = router.query.view
+    if (v === 'phenomena') {
+      setBrowseView('phenomena')
+    } else if (v === 'categories' || v === undefined) {
+      // Leave 'reports' alone — that view is reached by drilling into
+      // a category and doesn't have a corresponding ?view value.
+      setBrowseView(function(prev) {
+        return prev === 'phenomena' ? 'categories' : prev
+      })
+    } else if (v === 'reports') {
+      setBrowseView('reports')
+    }
+  }, [router.isReady, router.query.view])
 
   // Auth state
   var [user, setUser] = useState<any>(null)
