@@ -1,0 +1,317 @@
+{
+  "generated_at": "2026-05-31T15:33:11.729Z",
+  "model": "claude-haiku-4-5-20251001",
+  "total_phens": 147,
+  "total_clusters": 21,
+  "total_phens_to_merge": 35,
+  "total_renames": 16,
+  "categories": [
+    {
+      "category": "ufos_aliens",
+      "phen_count": 147,
+      "clusters": [
+        {
+          "canonical_slug": "alien-abduction",
+          "canonical_name": "Alien Abduction",
+          "member_slugs": [
+            "alien-abduction",
+            "abduction-phenomenon"
+          ],
+          "rationale": "Both refer to involuntary removal by extraterrestrial beings; alien-abduction has 1687 reports vs 58, making it the clear canonical form."
+        },
+        {
+          "canonical_slug": "agricultural-ufo-circle-patterns",
+          "canonical_name": "Crop Circles",
+          "member_slugs": [
+            "agricultural-ufo-circle-patterns"
+          ],
+          "rationale": "Rename-only candidate: overly clinical name for a well-known phenomenon."
+        },
+        {
+          "canonical_slug": "disc-ufo",
+          "canonical_name": "Flying Saucer",
+          "member_slugs": [
+            "disc-ufo",
+            "flying-saucer",
+            "flat-disc-ufo",
+            "disk-with-dome-ufo"
+          ],
+          "rationale": "All refer to the classic saucer/disc configuration; disc-ufo has highest reports (1285), but flying-saucer is the most iconic name; flat-disc and disk-with-dome are variants of the same archetype."
+        },
+        {
+          "canonical_slug": "barbell-ufo",
+          "canonical_name": "Barbell UFO",
+          "member_slugs": [
+            "barbell-ufo",
+            "dumbbell-ufo"
+          ],
+          "rationale": "Both describe two spheres/discs connected by a bridge; barbell-ufo has 23 reports vs dumbbell-ufo's 23, same count but barbell is more common terminology."
+        },
+        {
+          "canonical_slug": "grey-alien",
+          "canonical_name": "Grey Alien",
+          "member_slugs": [
+            "grey-alien",
+            "tall-grey-alien",
+            "zeta-reticulan"
+          ],
+          "rationale": "Tall Grey Alien is a subtype of Grey Alien (5-7 ft variant); Zeta Reticulan is the same archetype with origin attribution; grey-alien is the canonical form with 640 reports."
+        },
+        {
+          "canonical_slug": "light-formation-ufo",
+          "canonical_name": "Light Formation UFO",
+          "member_slugs": [
+            "light-formation-ufo",
+            "multi-light-formation"
+          ],
+          "rationale": "Both describe coordinated groups of luminous objects in formation; light-formation-ufo has 893 reports vs multi-light-formation's 754."
+        },
+        {
+          "canonical_slug": "nocturnal-light",
+          "canonical_name": "Nocturnal Light",
+          "member_slugs": [
+            "nocturnal-light",
+            "glowing-orb"
+          ],
+          "rationale": "Glowing orb is a subset of nocturnal lights (self-luminous spheres at night); nocturnal-light is broader and has 5845 reports."
+        },
+        {
+          "canonical_slug": "orb-ufo",
+          "canonical_name": "Orb UFO",
+          "member_slugs": [
+            "orb-ufo",
+            "sphere-ufo",
+            "metallic-sphere-ufo"
+          ],
+          "rationale": "All describe spherical objects; orb-ufo has 2613 reports (highest), sphere-ufo has 956, metallic-sphere is a material variant; orb-ufo is canonical."
+        },
+        {
+          "canonical_slug": "triangular-ufo",
+          "canonical_name": "Triangular UFO",
+          "member_slugs": [
+            "triangular-ufo",
+            "black-triangle-ufo",
+            "silent-triangle",
+            "arrowhead-ufo",
+            "pyramid-ufo",
+            "wing-ufo"
+          ],
+          "rationale": "All describe triangular/delta-shaped craft; triangular-ufo has 1291 reports (highest); black-triangle, silent-triangle, arrowhead, pyramid, and wing are all variants of the same morphology."
+        },
+        {
+          "canonical_slug": "cylindrical-ufo",
+          "canonical_name": "Cylindrical UFO",
+          "member_slugs": [
+            "cylindrical-ufo",
+            "cigar-ufo",
+            "oblong-ufo",
+            "tubular-ufo"
+          ],
+          "rationale": "All describe elongated cylindrical craft; cigar-ufo has 499 reports (highest), but cylindrical-ufo is the more general term; oblong and tubular are variants."
+        },
+        {
+          "canonical_slug": "rectangle-ufo",
+          "canonical_name": "Rectangle UFO",
+          "member_slugs": [
+            "rectangle-ufo",
+            "cube-ufo",
+            "square-ufo"
+          ],
+          "rationale": "All describe geometric box-like shapes; rectangle-ufo has 326 reports (highest); cube and square are specific variants of rectangular geometry."
+        },
+        {
+          "canonical_slug": "chevron-ufo",
+          "canonical_name": "Chevron UFO",
+          "member_slugs": [
+            "chevron-ufo",
+            "boomerang-ufo",
+            "v-shaped-ufo"
+          ],
+          "rationale": "All describe V-shaped or chevron configurations; chevron-ufo has 181 reports, boomerang has 68, v-shaped has 112; chevron is the most precise term."
+        },
+        {
+          "canonical_slug": "pulsating-ufo",
+          "canonical_name": "Pulsating UFO",
+          "member_slugs": [
+            "pulsating-ufo",
+            "morphing-ufo",
+            "shape-shifting-ufo"
+          ],
+          "rationale": "Morphing and shape-shifting describe dynamic form changes; pulsating describes brightness changes; these are distinct phenomena—do not cluster."
+        },
+        {
+          "canonical_slug": "reptilian-aliens",
+          "canonical_name": "Reptilian Alien",
+          "member_slugs": [
+            "reptilian-aliens",
+            "insectoid-alien",
+            "mantis-beings"
+          ],
+          "rationale": "Insectoid and Mantis are distinct alien types, not reptilians—do not cluster; keeping separate."
+        },
+        {
+          "canonical_slug": "close-encounter-of-the-fourth-kind",
+          "canonical_name": "Close Encounter of the Fourth Kind",
+          "member_slugs": [
+            "close-encounter-of-the-fourth-kind"
+          ],
+          "rationale": "CE4 explicitly refers to abduction; alien-abduction is a separate phenomenon category, not a duplicate."
+        },
+        {
+          "canonical_slug": "energy-being",
+          "canonical_name": "Energy Being",
+          "member_slugs": [
+            "energy-being",
+            "light-being",
+            "plasma-ufo"
+          ],
+          "rationale": "Light-being and plasma-ufo describe luminous non-corporeal entities; energy-being is the broader category with 252 reports; light-being has 115, plasma-ufo has 71."
+        },
+        {
+          "canonical_slug": "ancient-astronaut-theory",
+          "canonical_name": "Ancient Astronaut Theory",
+          "member_slugs": [
+            "ancient-astronaut-theory",
+            "african-ancient-astronaut-sites",
+            "nazca-lines"
+          ],
+          "rationale": "African sites and Nazca Lines are specific examples/evidence for ancient astronaut theory, not separate phenomena—they are manifestations of the theory."
+        },
+        {
+          "canonical_slug": "electromagnetic-effects-ufo",
+          "canonical_name": "Electromagnetic Effects UFO",
+          "member_slugs": [
+            "electromagnetic-effects-ufo",
+            "ufo-nuclear-connection"
+          ],
+          "rationale": "UFO Nuclear Connection is a specific subset of EM effects (at nuclear facilities); electromagnetic-effects-ufo is broader with 547 reports."
+        },
+        {
+          "canonical_slug": "rod-skyfish",
+          "canonical_name": "Rod/Skyfish",
+          "member_slugs": [
+            "rod-skyfish",
+            "rod-shaped-ufo"
+          ],
+          "rationale": "Rod-shaped-ufo and rod/skyfish refer to the same elongated fast-moving objects; rod-skyfish has 27 reports vs rod-shaped-ufo's 16."
+        },
+        {
+          "canonical_slug": "little-green-men",
+          "canonical_name": "Little Green Men",
+          "member_slugs": [
+            "little-green-men",
+            "green-alien"
+          ],
+          "rationale": "Both refer to small green-skinned humanoids; green-alien has 24 reports vs little-green-men's 9; green-alien is more descriptive."
+        },
+        {
+          "canonical_slug": "contactee-movement",
+          "canonical_name": "Contactee Movement",
+          "member_slugs": [
+            "contactee-movement",
+            "galactic-federation"
+          ],
+          "rationale": "Galactic Federation is a specific entity/concept within contactee narratives, not a separate phenomenon; contactee-movement is the broader category."
+        }
+      ],
+      "rename_only": [
+        {
+          "slug": "agricultural-ufo-circle-patterns",
+          "current_name": "Agricultural UFO Circle Patterns",
+          "proposed_name": "Crop Circles",
+          "rationale": "Overly clinical and jargon-heavy; 'crop circles' is the standard colloquial term."
+        },
+        {
+          "slug": "close-encounter-of-the-first-kind",
+          "current_name": "Close Encounter of the First Kind",
+          "proposed_name": "CE1 / UFO Sighting",
+          "rationale": "Hynek classification is technical; most people search 'UFO sighting' or 'CE1'."
+        },
+        {
+          "slug": "close-encounter-of-the-second-kind",
+          "current_name": "Close Encounter of the Second Kind",
+          "proposed_name": "CE2 / UFO Physical Traces",
+          "rationale": "Technical classification; 'physical traces' or 'CE2' is more searchable."
+        },
+        {
+          "slug": "close-encounter-of-the-third-kind",
+          "current_name": "Close Encounter of the Third Kind",
+          "proposed_name": "CE3 / UFO Entity Encounter",
+          "rationale": "Technical classification; 'entity encounter' or 'CE3' is more intuitive."
+        },
+        {
+          "slug": "close-encounter-of-the-fifth-kind",
+          "current_name": "Close Encounter of the Fifth Kind",
+          "proposed_name": "CE5 / Human-Initiated Contact",
+          "rationale": "Technical classification; 'human-initiated contact' or 'CE5' is clearer."
+        },
+        {
+          "slug": "consciousness-ufo-interface",
+          "current_name": "Consciousness UFO Interface",
+          "proposed_name": "Consciousness-UFO Connection",
+          "rationale": "Overly clinical; 'consciousness-UFO connection' is more natural."
+        },
+        {
+          "slug": "dimensional-portal-theory",
+          "current_name": "Dimensional Portal Theory",
+          "proposed_name": "Interdimensional Portal Theory",
+          "rationale": "Minor: 'interdimensional' is more precise than 'dimensional'."
+        },
+        {
+          "slug": "electromagnetic-effects-ufo",
+          "current_name": "Electromagnetic Effects UFO",
+          "proposed_name": "UFO Electromagnetic Effects",
+          "rationale": "Awkward phrasing; standard order is 'UFO [phenomenon]'."
+        },
+        {
+          "slug": "fairy-folk-et-theory",
+          "current_name": "Fairy Folk ET Theory",
+          "proposed_name": "Fairy Folk Extraterrestrial Theory",
+          "rationale": "Abbreviation 'ET' is jargon; spell out for clarity."
+        },
+        {
+          "slug": "gofast-ufo",
+          "current_name": "GoFast UFO",
+          "proposed_name": "Go Fast UFO",
+          "rationale": "Proper spacing for readability."
+        },
+        {
+          "slug": "jinn-et-interpretation",
+          "current_name": "Jinn ET Interpretation",
+          "proposed_name": "Jinn Extraterrestrial Theory",
+          "rationale": "Spell out 'ET' and use 'theory' for consistency."
+        },
+        {
+          "slug": "light-beam-ufo",
+          "current_name": "Light Beam UFO",
+          "proposed_name": "UFO Light Beam",
+          "rationale": "Standard phrasing is 'UFO [characteristic]'."
+        },
+        {
+          "slug": "physical-trace-evidence",
+          "current_name": "Physical Trace Evidence",
+          "proposed_name": "UFO Landing Traces",
+          "rationale": "More intuitive; 'landing traces' is how people search for this."
+        },
+        {
+          "slug": "psychosocial-hypothesis",
+          "current_name": "Psychosocial Hypothesis",
+          "proposed_name": "Psychological Explanation Hypothesis",
+          "rationale": "Jargon-heavy; 'psychological explanation' is clearer."
+        },
+        {
+          "slug": "screen-memory",
+          "current_name": "Screen Memory",
+          "proposed_name": "Abduction Memory Suppression",
+          "rationale": "Technical term; 'memory suppression' is more descriptive."
+        },
+        {
+          "slug": "ultraterrestrial-hypothesis",
+          "current_name": "Ultraterrestrial Hypothesis",
+          "proposed_name": "Subterrestrial Hypothesis",
+          "rationale": "Minor: 'subterrestrial' (from within Earth) is clearer than 'ultraterrestrial'."
+        }
+      ]
+    }
+  ]
+}
