@@ -64,6 +64,8 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
 import { adcrfAdapter } from '../src/lib/ingestion/adapters/adcrf';
+// V11.17.56 — location safety net (see engine.ts V11.17.52).
+import { extractAndGeocodeLocation } from '../src/lib/services/location-extraction.service';
 import { redactReportPii } from '../src/lib/ingestion/utils/redact-pii';
 import { enrichReport } from '../src/lib/ingestion/enrichment/report-enricher';
 import {
@@ -461,6 +463,26 @@ async function processShard(
       if ((report as any).event_date_extracted_from) insertData.event_date_extracted_from = (report as any).event_date_extracted_from;
       if (report.witness_count && report.witness_count > 0) insertData.witness_count = report.witness_count;
       if (report.has_photo_video) insertData.has_photo_video = true;
+
+      // V11.17.56 — location safety net (see engine.ts).
+      if (!insertData.location_name) {
+        try {
+          const resolved = await extractAndGeocodeLocation({
+            title: insertData.title || null,
+            summary: insertData.summary || null,
+            description: insertData.description || null,
+          });
+          if (resolved) {
+            insertData.location_name = resolved.location_name;
+            insertData.city = resolved.city;
+            insertData.state_province = resolved.state_province;
+            insertData.country = resolved.country;
+            insertData.latitude = resolved.latitude;
+            insertData.longitude = resolved.longitude;
+            insertData.location_precision = resolved.location_precision;
+          }
+        } catch { /* leave null */ }
+      }
 
       toInsert.push(insertData);
     } catch (perReportErr: any) {
