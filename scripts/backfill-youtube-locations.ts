@@ -236,6 +236,14 @@ async function runBatch(
     })
     if (!query) {
       unknown++
+      // V11.17.52.4 — mark the row so the next --until-done batch
+      // doesn't re-pull it. Previous version printed "→ no query"
+      // but left location_name NULL, causing an infinite loop on
+      // rows where Haiku returned confidence != 'none' but no
+      // specific city/state/country fields.
+      await supabase.from('reports')
+        .update({ location_name: '(location unknown)' })
+        .eq('id', row.id)
       console.log(row.id.substring(0, 8) + ' → no query')
       return
     }
