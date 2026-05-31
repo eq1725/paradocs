@@ -2,9 +2,9 @@
   "generated_at": "2026-05-31T15:35:03.545Z",
   "model": "claude-haiku-4-5-20251001",
   "total_phens": 646,
-  "total_clusters": 84,
-  "total_phens_to_merge": 117,
-  "total_renames": 74,
+  "total_clusters": 76,
+  "total_phens_to_merge": 109,
+  "total_renames": 41,
   "categories": [
     {
       "category": "consciousness_practices",
@@ -89,12 +89,6 @@
       ],
       "rename_only": [
         {
-          "slug": "frequency-following-response",
-          "current_name": "Frequency Following Response",
-          "proposed_name": "Frequency Following Response",
-          "rationale": "This is a technical neuroscience term; however, it is being clustered as a duplicate of binaural-beats, so no rename needed."
-        },
-        {
           "slug": "non-dual-awareness-practice",
           "current_name": "Non-Dual Awareness Practice",
           "proposed_name": "Non-Dual Meditation",
@@ -105,12 +99,6 @@
           "current_name": "Remote Viewing Training",
           "proposed_name": "Remote Viewing",
           "rationale": "The word 'training' is redundant; the phenomenon itself is remote viewing, and training is implicit in the practice."
-        },
-        {
-          "slug": "somatic-experiencing",
-          "current_name": "Somatic Experiencing",
-          "proposed_name": "Somatic Experiencing",
-          "rationale": "This is a proper therapeutic method name (Peter Levine's trademarked approach); retain as-is despite clinical tone, as it is the standard reference."
         }
       ]
     },
@@ -222,76 +210,12 @@
           "rationale": "Lake Worth Monster and Pope Lick Monster are both goat-man hybrids; regional variants of the same cryptid type."
         }
       ],
-      "rename_only": [
-        {
-          "slug": "fresno-nightcrawler",
-          "current_name": "Fresno Nightcrawler",
-          "proposed_name": "Fresno Nightcrawler",
-          "rationale": "Name is already colloquial and appropriate; no rename needed."
-        },
-        {
-          "slug": "enfield-horror",
-          "current_name": "Enfield Horror",
-          "proposed_name": "Enfield Horror",
-          "rationale": "Name is already established and colloquial; no rename needed."
-        },
-        {
-          "slug": "dover-demon",
-          "current_name": "Dover Demon",
-          "proposed_name": "Dover Demon",
-          "rationale": "Name is already established and colloquial; no rename needed."
-        },
-        {
-          "slug": "flatwoods-monster",
-          "current_name": "Flatwoods Monster",
-          "proposed_name": "Flatwoods Monster",
-          "rationale": "Name is already established and colloquial; no rename needed."
-        },
-        {
-          "slug": "indrid-cold",
-          "current_name": "Indrid Cold",
-          "proposed_name": "Indrid Cold",
-          "rationale": "Name is already established; no rename needed."
-        },
-        {
-          "slug": "spring-heeled-jack",
-          "current_name": "Spring Heeled Jack",
-          "proposed_name": "Spring Heeled Jack",
-          "rationale": "Name is already established historical folklore; no rename needed."
-        }
-      ]
+      "rename_only": []
     },
     {
       "category": "esoteric_practices",
       "phen_count": 72,
       "clusters": [
-        {
-          "canonical_slug": "candle-magic",
-          "canonical_name": "Candle Magic",
-          "member_slugs": [
-            "candle-magic",
-            "sympathetic-magic"
-          ],
-          "rationale": "Candle magic is a specific application of sympathetic magic principles; candle magic has 722 reports vs sympathetic magic's 1084, but sympathetic magic is the broader foundational concept that encompasses candle magic and many other practices."
-        },
-        {
-          "canonical_slug": "sympathetic-magic",
-          "canonical_name": "Sympathetic Magic",
-          "member_slugs": [
-            "sympathetic-magic",
-            "candle-magic"
-          ],
-          "rationale": "Sympathetic magic is the foundational principle underlying candle magic and voodoo dolls; it should be the canonical entry as the broader category with highest report count (1084)."
-        },
-        {
-          "canonical_slug": "voodoo-dolls",
-          "canonical_name": "Voodoo Dolls",
-          "member_slugs": [
-            "voodoo-dolls",
-            "sympathetic-magic"
-          ],
-          "rationale": "Voodoo dolls are a specific application of sympathetic magic principles; sympathetic magic is the broader foundational concept."
-        },
         {
           "canonical_slug": "dowsing",
           "canonical_name": "Dowsing",
@@ -409,21 +333,19 @@
             "wiccan-sabbat-celebration"
           ],
           "rationale": "Wiccan Sabbat celebration is the Wiccan observance of the Wheel of the Year; they refer to the same eight seasonal festivals."
+        },
+        {
+          "canonical_slug": "sympathetic-magic",
+          "canonical_name": "Sympathetic Magic",
+          "member_slugs": [
+            "sympathetic-magic",
+            "candle-magic",
+            "voodoo-dolls"
+          ],
+          "rationale": "Operator review: sympathetic-magic is the foundational principle; candle-magic and voodoo-dolls are both specific applications. Single merged cluster supersedes Haikus three overlapping clusters."
         }
       ],
       "rename_only": [
-        {
-          "slug": "crystal-dowsing",
-          "current_name": "Crystal Dowsing",
-          "proposed_name": "Crystal Dowsing",
-          "rationale": "Name is acceptable; no rename needed (will be merged into dowsing cluster)."
-        },
-        {
-          "slug": "high-magic",
-          "current_name": "High Magic",
-          "proposed_name": "High Magic",
-          "rationale": "Name is acceptable; no rename needed (will be merged into ritual-magic cluster)."
-        },
         {
           "slug": "spirit-possession-for-divination",
           "current_name": "Spirit Possession for Divination",
@@ -447,12 +369,6 @@
           "current_name": "Shamanic Extraction",
           "proposed_name": "Extraction",
           "rationale": "Overly descriptive; 'Extraction' is the standard term in shamanic healing."
-        },
-        {
-          "slug": "shamanic-journey",
-          "current_name": "Shamanic Journey",
-          "proposed_name": "Shamanic Journey",
-          "rationale": "Name is acceptable; standard terminology."
         },
         {
           "slug": "umbanda-spirit-guide-work",
@@ -503,12 +419,6 @@
           "rationale": "Overly clinical; 'Pule' is the Hawaiian term and should be foregrounded."
         },
         {
-          "slug": "ozark-folk-magic",
-          "current_name": "Ozark Folk Magic",
-          "proposed_name": "Ozark Folk Magic",
-          "rationale": "Name is acceptable; standard regional designation."
-        },
-        {
           "slug": "bruja-work",
           "current_name": "Bruja Work",
           "proposed_name": "Bruja",
@@ -519,24 +429,6 @@
           "current_name": "Obeah Healing",
           "proposed_name": "Obeah",
           "rationale": "Overly narrow; Obeah encompasses more than just healing practices."
-        },
-        {
-          "slug": "sacred-geometry",
-          "current_name": "Sacred Geometry",
-          "proposed_name": "Sacred Geometry",
-          "rationale": "Name is acceptable; standard esoteric term."
-        },
-        {
-          "slug": "enochian-magic",
-          "current_name": "Enochian Magic",
-          "proposed_name": "Enochian Magic",
-          "rationale": "Name is acceptable; standard ceremonial magic tradition."
-        },
-        {
-          "slug": "solomonic-magic",
-          "current_name": "Solomonic Magic",
-          "proposed_name": "Solomonic Magic",
-          "rationale": "Name is acceptable; standard grimoire tradition."
         },
         {
           "slug": "grimoire-tradition",
@@ -723,15 +615,6 @@
           "rationale": "Both describe deceased individuals appearing to living relatives; visitor-spirit is broader with much higher report count (11000 vs 1346)."
         },
         {
-          "canonical_slug": "bound-spirit",
-          "canonical_name": "Bound Spirit",
-          "member_slugs": [
-            "bound-spirit",
-            "trapped-spirit"
-          ],
-          "rationale": "Both describe spirits unable to move on from locations/objects; bound-spirit and trapped-spirit are synonymous; bound-spirit has slightly higher report count (156 vs 666, but trapped-spirit is more common; using trapped-spirit instead)."
-        },
-        {
           "canonical_slug": "trapped-spirit",
           "canonical_name": "Trapped Spirit",
           "member_slugs": [
@@ -757,15 +640,6 @@
             "radiant-boy"
           ],
           "rationale": "Both describe luminescent apparitions; glowing-entity is the broader category with much higher report count (856 vs 16)."
-        },
-        {
-          "canonical_slug": "phantom-armies",
-          "canonical_name": "Phantom Armies",
-          "member_slugs": [
-            "phantom-armies",
-            "phantom-soldier"
-          ],
-          "rationale": "Both describe spectral military manifestations; phantom-armies is the broader category with higher report count (12 vs 31, but phantom-soldier is more specific; keeping separate based on conservative bias)."
         },
         {
           "canonical_slug": "smoky-manifestation",
@@ -804,22 +678,22 @@
           "rationale": "Both describe malevolent entity manifestations; demonic-haunting is the broader category with higher report count (2805 vs 1563)."
         },
         {
-          "canonical_slug": "full-body-apparition",
-          "canonical_name": "Full Body Apparition",
+          "canonical_slug": "trapped-spirit",
+          "canonical_name": "Trapped Spirit",
           "member_slugs": [
-            "full-body-apparition",
-            "apparition"
+            "trapped-spirit",
+            "bound-spirit"
           ],
-          "rationale": "Full-body-apparition is a specific subset of apparition; apparition is the broader, more established term with much higher report count (2812 vs 705)."
+          "rationale": "Operator review: trapped-spirit has higher report count (666 vs 156). Replaces Haikus reciprocal pair confusion."
         },
         {
-          "canonical_slug": "noppera-bo",
-          "canonical_name": "Noppera-bo",
+          "canonical_slug": "apparition",
+          "canonical_name": "Apparition",
           "member_slugs": [
-            "noppera-bo",
-            "dalgyal-gwishin"
+            "apparition",
+            "full-body-apparition"
           ],
-          "rationale": "Both describe featureless-faced spirits from East Asian folklore; they are distinct cultural entities (Japanese vs Korean) and should remain separate per conservative bias."
+          "rationale": "Operator review: apparition is the broader more established term (2812 reports vs 705). Inverted from Haikus original which had full-body-apparition canonical."
         }
       ],
       "rename_only": [
@@ -1007,12 +881,6 @@
       ],
       "rename_only": [
         {
-          "slug": "cold-reading",
-          "current_name": "Cold Reading",
-          "proposed_name": "Cold Reading",
-          "rationale": "No rename needed; this is a well-established psychological technique with standard terminology."
-        },
-        {
           "slug": "electronic-voice-phenomena",
           "current_name": "Electronic Voice Phenomena",
           "proposed_name": "EVP",
@@ -1037,52 +905,10 @@
           "rationale": "Minor: 'phenomena' is clinical; 'experiences' aligns with how witnesses describe these events."
         },
         {
-          "slug": "intuitive-diagnosis",
-          "current_name": "Intuitive Diagnosis",
-          "proposed_name": "Intuitive Diagnosis",
-          "rationale": "No rename needed; this is standard terminology in alternative medicine."
-        },
-        {
-          "slug": "micro-pk",
-          "current_name": "Micro-PK",
-          "proposed_name": "Micro-PK",
-          "rationale": "No rename needed; established parapsychological abbreviation."
-        },
-        {
-          "slug": "morphic-resonance",
-          "current_name": "Morphic Resonance",
-          "proposed_name": "Morphic Resonance",
-          "rationale": "No rename needed; this is Sheldrake's established theoretical term."
-        },
-        {
-          "slug": "non-local-consciousness",
-          "current_name": "Non-Local Consciousness",
-          "proposed_name": "Non-Local Consciousness",
-          "rationale": "No rename needed; established theoretical framework in parapsychology."
-        },
-        {
           "slug": "orb-phenomenon",
           "current_name": "Orb Phenomenon",
           "proposed_name": "Orbs",
           "rationale": "Simpler, more natural; how people actually search for and discuss these objects."
-        },
-        {
-          "slug": "past-life-memory",
-          "current_name": "Past Life Memory",
-          "proposed_name": "Past Life Memory",
-          "rationale": "No rename needed; standard terminology in reincarnation research."
-        },
-        {
-          "slug": "pre-birth-memory",
-          "current_name": "Pre-Birth Memory",
-          "proposed_name": "Pre-Birth Memory",
-          "rationale": "No rename needed; clear and standard terminology."
-        },
-        {
-          "slug": "presentiment",
-          "current_name": "Presentiment",
-          "proposed_name": "Presentiment",
-          "rationale": "No rename needed; established parapsychological term."
         },
         {
           "slug": "psychic-cold-spots",
@@ -1097,76 +923,16 @@
           "rationale": "Simpler; 'psychic' is redundant in paranormal context."
         },
         {
-          "slug": "psychic-impression",
-          "current_name": "Psychic Impression",
-          "proposed_name": "Psychic Impression",
-          "rationale": "No rename needed; standard terminology."
-        },
-        {
-          "slug": "psychic-vampirism",
-          "current_name": "Psychic Vampirism",
-          "proposed_name": "Psychic Vampirism",
-          "rationale": "No rename needed; established term in paranormal literature."
-        },
-        {
-          "slug": "psychokinetic-effects",
-          "current_name": "Psychokinetic Effects",
-          "proposed_name": "Psychokinetic Effects",
-          "rationale": "No rename needed; appropriate research terminology."
-        },
-        {
-          "slug": "remote-viewing",
-          "current_name": "Remote Viewing",
-          "proposed_name": "Remote Viewing",
-          "rationale": "No rename needed; established parapsychological term."
-        },
-        {
-          "slug": "retrocognition",
-          "current_name": "Retrocognition",
-          "proposed_name": "Retrocognition",
-          "rationale": "No rename needed; established parapsychological term."
-        },
-        {
-          "slug": "rspk",
-          "current_name": "RSPK",
-          "proposed_name": "RSPK",
-          "rationale": "No rename needed; established parapsychological abbreviation."
-        },
-        {
           "slug": "shamanic-consciousness",
           "current_name": "Shamanic Consciousness",
           "proposed_name": "Shamanic States",
           "rationale": "More natural phrasing; 'states' better captures the transitional nature of these experiences."
         },
         {
-          "slug": "tarot-reading",
-          "current_name": "Tarot Reading",
-          "proposed_name": "Tarot Reading",
-          "rationale": "No rename needed; standard terminology."
-        },
-        {
-          "slug": "telepathic-resonance",
-          "current_name": "Telepathic Resonance",
-          "proposed_name": "Telepathic Resonance",
-          "rationale": "No rename needed; appropriate theoretical terminology."
-        },
-        {
-          "slug": "third-eye",
-          "current_name": "Third Eye",
-          "proposed_name": "Third Eye",
-          "rationale": "No rename needed; established spiritual/paranormal term."
-        },
-        {
           "slug": "thoughtform-projection",
           "current_name": "Thoughtform Projection",
           "proposed_name": "Tulpa Creation",
           "rationale": "Tulpa is the more recognizable term in paranormal communities; thoughtform is overly clinical."
-        },
-        {
-          "slug": "veridical-dream",
-          "current_name": "Veridical Dream",
-          "proposed_name": "Veridical Dream",
-          "rationale": "No rename needed; established parapsychological terminology."
         }
       ]
     },
@@ -1192,15 +958,6 @@
             "cosmic-experience"
           ],
           "rationale": "All three describe transcendent states of expanded consciousness and unity; cosmic-consciousness is the established psychological term with clearest definition."
-        },
-        {
-          "canonical_slug": "near-death-experience",
-          "canonical_name": "Near-Death Experience",
-          "member_slugs": [
-            "near-death-experience",
-            "nde-like-experience"
-          ],
-          "rationale": "NDE-like-experience is explicitly defined as phenomenologically indistinguishable from NDEs but occurring outside death contexts; they are distinct phenomena and should not cluster."
         },
         {
           "canonical_slug": "out-of-body-experience",
@@ -1230,25 +987,6 @@
             "mandela-effect"
           ],
           "rationale": "Mandela Effect is a specific collective manifestation of false memory syndrome; both involve false shared memories but Mandela Effect is a distinct phenomenon (collective vs individual)."
-        },
-        {
-          "canonical_slug": "spiritual-awakening",
-          "canonical_name": "Spiritual Awakening",
-          "member_slugs": [
-            "spiritual-awakening",
-            "spiritual-emergency",
-            "spiritual-crisis"
-          ],
-          "rationale": "Spiritual emergency and crisis are distinct acute distress states; spiritual awakening is transformative but positive—these are separate phenomena and should not cluster."
-        },
-        {
-          "canonical_slug": "depersonalization-derealization",
-          "canonical_name": "Depersonalization/Derealization",
-          "member_slugs": [
-            "depersonalization-derealization",
-            "ego-death"
-          ],
-          "rationale": "Ego death is a distinct phenomenon of identity dissolution in altered states; DPDR is a dissociative disorder—related but not the same underlying experience."
         }
       ],
       "rename_only": [
@@ -1281,17 +1019,7 @@
     {
       "category": "religion_mythology",
       "phen_count": 4,
-      "clusters": [
-        {
-          "canonical_slug": "demonic-possession",
-          "canonical_name": "Demonic Possession",
-          "member_slugs": [
-            "demonic-possession",
-            "exorcism"
-          ],
-          "rationale": "Exorcism is the ritual response to demonic possession; they describe the same underlying phenomenon from different angles (the possession itself vs. the treatment), making exorcism a dependent sub-practice rather than a distinct phenomenon."
-        }
-      ],
+      "clusters": [],
       "rename_only": []
     },
     {
@@ -1300,5 +1028,11 @@
       "clusters": [],
       "rename_only": []
     }
-  ]
+  ],
+  "cleaned_at": "2026-05-31T15:41:06.253Z",
+  "cleanup_notes": {
+    "clusters_dropped": 11,
+    "clusters_added": 3,
+    "renames_dropped": 33
+  }
 }
