@@ -126,31 +126,52 @@ async function applyCluster(sb: any, cluster: Cluster, dryRun: boolean, stats: S
       }
       repointed++
     }
-    // b. Delete member's report_phenomena rows. Chunk by id to avoid
-    //    Supabase's ~30s statement timeout — phens with thousands
-    //    of links (the broad ones like attachment-entity = 10k+
-    //    rows) timed out on the single-statement delete. Chunks of
-    //    500 by primary key keep each delete well under the limit.
-    //    Idempotent: leftover rows after upsert are dupes since the
-    //    canonical now has the canonical (report_id, canonical_id)
-    //    rows, so deleting the member rows is safe.
+    // b. Delete member's report_phenomena rows. Small chunks +
+    //    adaptive retry — the first apply run timed out at 500
+    //    rows/chunk despite indexes, suggesting a trigger on
+    //    report_phenomena does slow per-row work (probably
+    //    phenomena.report_count update). Drop to 50/chunk; on
+    //    timeout, halve and retry until a chunk succeeds or we
+    //    bottom out. Idempotent — the script can re-run cleanly
+    //    to finish whatever a partial run left behind.
     if (!dryRun && memberRows.length > 0) {
-      const CHUNK = 500
+      let initialChunkSize = 50
       let deletedTotal = 0
+      let i = 0
       let chunkError = false
-      for (let i = 0; i < memberRows.length; i += CHUNK) {
-        const chunk = memberRows.slice(i, i + CHUNK).map((r: any) => r.id)
-        const del = await sb.from('report_phenomena').delete().in('id', chunk)
-        if (del.error) {
-          console.warn('      ! delete chunk error for ' + member.slug + ' (chunk ' + (i / CHUNK + 1) + '): ' + del.error.message)
+      while (i < memberRows.length) {
+        let chunkSize = initialChunkSize
+        let succeeded = false
+        while (chunkSize >= 5 && !succeeded) {
+          const slice = memberRows.slice(i, i + chunkSize).map((r: any) => r.id)
+          const del = await sb.from('report_phenomena').delete().in('id', slice)
+          if (del.error) {
+            const isTimeout = (del.error.message || '').toLowerCase().includes('timeout')
+            if (isTimeout) {
+              chunkSize = Math.floor(chunkSize / 2)
+              continue
+            }
+            // Non-timeout error: log + give up on this member.
+            console.warn('      ! delete chunk error for ' + member.slug + ' at offset ' + i + ': ' + del.error.message)
+            stats.errors++
+            chunkError = true
+            break
+          }
+          succeeded = true
+          deletedTotal += slice.length
+          i += slice.length
+          // Adaptive: bump chunkSize back up after success so we
+          // don't crawl forever after one slow chunk.
+          if (chunkSize < initialChunkSize) initialChunkSize = Math.min(initialChunkSize, chunkSize * 2)
+        }
+        if (chunkError) break
+        if (!succeeded) {
+          console.warn('      ! delete kept timing out for ' + member.slug + ' at offset ' + i + ' (chunk size bottomed out)')
           stats.errors++
-          chunkError = true
           break
         }
-        deletedTotal += chunk.length
       }
       deleted = deletedTotal
-      if (chunkError) deleted = deletedTotal // partial; the next apply run will catch the rest
     } else {
       deleted = memberRows.length
     }
