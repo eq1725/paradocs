@@ -99,6 +99,64 @@ function buildPrompt(phen: PhenContext, report: ReportContext): string {
 }
 
 /**
+ * V11.17.55 — Mass-ingest helper: verify then upsert into report_phenomena.
+ *
+ * Wraps the verifyTag → conditional upsert sequence used by every
+ * mass-ingest script (nuforc/adcrf/oberf/nderf/classify-batch/
+ * reclassify-priority-categories). Centralizes the gate so all
+ * write paths get the same protection as engine.ts.
+ *
+ * Returns { persisted: boolean; verdict; reason? } so callers can
+ * count + log skipped tags.
+ *
+ * Skipping logic: only 'no' verdicts skip. 'yes' and 'uncertain'
+ * both persist (uncertain is kept to avoid false negatives).
+ *
+ * Cost: one Haiku call per attempted tag (~$0.0005). At 5 tags/report
+ * × 100k reports = ~$250 per bulk run. Worth the safety.
+ */
+export interface VerifyAndUpsertArgs {
+  reportId: string
+  phenomenonId: string
+  confidence: number
+  taggedBy?: string
+  /** Phenomenon metadata used to build the verification prompt.
+   *  Caller must supply — helper does not fetch from DB to avoid a
+   *  round-trip per call. */
+  phen: PhenContext
+  /** Report metadata used to build the verification prompt. */
+  report: ReportContext
+}
+
+export interface VerifyAndUpsertResult {
+  persisted: boolean
+  verdict: MatchVerdict
+  reason: string
+}
+
+export async function verifyAndUpsertTag(
+  supabase: any,
+  args: VerifyAndUpsertArgs,
+  anth?: Anthropic,
+): Promise<VerifyAndUpsertResult> {
+  var verdict = await verifyTag(args.phen, args.report, anth)
+  if (verdict.match === 'no') {
+    return { persisted: false, verdict: 'no', reason: verdict.reasoning }
+  }
+  // 'yes' or 'uncertain' → upsert.
+  var upsertRes = await supabase.from('report_phenomena').upsert({
+    report_id: args.reportId,
+    phenomenon_id: args.phenomenonId,
+    confidence: args.confidence,
+    tagged_by: args.taggedBy || 'auto',
+  }, { onConflict: 'report_id,phenomenon_id', ignoreDuplicates: true })
+  if (upsertRes.error) {
+    return { persisted: false, verdict: verdict.match, reason: 'upsert error: ' + upsertRes.error.message }
+  }
+  return { persisted: true, verdict: verdict.match, reason: verdict.reasoning }
+}
+
+/**
  * Verify a report-phenomenon match. Returns 'uncertain' on any
  * failure so callers default to keeping the tag (prefer false
  * positives over false negatives).
