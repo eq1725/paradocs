@@ -146,18 +146,23 @@ const SOURCE_PRESETS: Record<string, SourcePreset> = {
  * Parse <slug>__<source>.<ext> → { slug, source }. If no __<source>
  * marker, returns the full basename as slug and source=null (Envato
  * default). Source codes are case-insensitive.
+ *
+ * V11.17.58.1 — slug is lowercased before return. Phenomenon slugs in
+ * the DB are always lowercase kebab-case; lowercasing here means
+ * Anomalous-Experience.jpg, ANOMALOUS-EXPERIENCE.JPG, and
+ * anomalous-experience.jpg all resolve to the same phen.
  */
 function parseSourceSuffix(filename: string): { slug: string; source: string | null } {
   const noExt = filename.replace(/\.[^.]+$/, '')
   const idx = noExt.lastIndexOf('__')
-  if (idx < 0) return { slug: noExt, source: null }
-  const slug = noExt.slice(0, idx)
+  if (idx < 0) return { slug: noExt.toLowerCase(), source: null }
+  const slug = noExt.slice(0, idx).toLowerCase()
   const source = noExt.slice(idx + 2).toLowerCase()
   if (!SOURCE_PRESETS[source]) {
     // Unknown source code — log + fall back to envato default. Returns
     // the original basename as slug so the file still processes.
     console.warn('  ⚠ unknown source suffix "__' + source + '" on ' + filename + ' — treating as Envato default')
-    return { slug: noExt, source: null }
+    return { slug: noExt.toLowerCase(), source: null }
   }
   return { slug, source }
 }
@@ -1036,7 +1041,15 @@ async function encodeAndUpload(
     }
     if (size.name === 'hero') {
       const { data } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(objectPath)
-      heroUrl = data?.publicUrl || null
+      const base = data?.publicUrl || null
+      // V11.17.59 — cache-bust on re-adopt. The Storage URL stays the
+      // same path (hero/{slug}.webp) across replacements, so without
+      // a version query string browsers + CDN keep serving the old
+      // bytes for the 7-day cacheControl TTL. Stamping ?v={epoch_ms}
+      // changes the URL string only — the underlying file is still
+      // upserted to the same path. New visitors fetch the new bytes;
+      // existing tabs see the new URL on next render.
+      heroUrl = base ? base + '?v=' + Date.now() : null
     }
   }
   return heroUrl
