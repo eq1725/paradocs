@@ -126,16 +126,31 @@ async function applyCluster(sb: any, cluster: Cluster, dryRun: boolean, stats: S
       }
       repointed++
     }
-    // b. Delete member's report_phenomena rows in bulk (idempotent;
-    //    leftover rows after upsert are dupes since canonical now has them).
+    // b. Delete member's report_phenomena rows. Chunk by id to avoid
+    //    Supabase's ~30s statement timeout — phens with thousands
+    //    of links (the broad ones like attachment-entity = 10k+
+    //    rows) timed out on the single-statement delete. Chunks of
+    //    500 by primary key keep each delete well under the limit.
+    //    Idempotent: leftover rows after upsert are dupes since the
+    //    canonical now has the canonical (report_id, canonical_id)
+    //    rows, so deleting the member rows is safe.
     if (!dryRun && memberRows.length > 0) {
-      const del = await sb.from('report_phenomena').delete().eq('phenomenon_id', member.id)
-      if (del.error) {
-        console.warn('      ! delete error for ' + member.slug + ': ' + del.error.message)
-        stats.errors++
-      } else {
-        deleted = memberRows.length
+      const CHUNK = 500
+      let deletedTotal = 0
+      let chunkError = false
+      for (let i = 0; i < memberRows.length; i += CHUNK) {
+        const chunk = memberRows.slice(i, i + CHUNK).map((r: any) => r.id)
+        const del = await sb.from('report_phenomena').delete().in('id', chunk)
+        if (del.error) {
+          console.warn('      ! delete chunk error for ' + member.slug + ' (chunk ' + (i / CHUNK + 1) + '): ' + del.error.message)
+          stats.errors++
+          chunkError = true
+          break
+        }
+        deletedTotal += chunk.length
       }
+      deleted = deletedTotal
+      if (chunkError) deleted = deletedTotal // partial; the next apply run will catch the rest
     } else {
       deleted = memberRows.length
     }
