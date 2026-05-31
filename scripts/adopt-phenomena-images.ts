@@ -108,6 +108,60 @@ const ENVATO_DEFAULT_LICENSE = 'envato_elements'
 // reveal the sourcing channel. Sidecar JSON can override per-image.
 const ENVATO_DEFAULT_ATTRIBUTION = 'Paradocs editorial.'
 
+// V11.17.58 — filename suffix presets. Files named <slug>__<source>.ext
+// pick up that source's default license + attribution template instead
+// of the Envato default. Sidecar JSON still overrides if present.
+// Supported sources:
+//   (none)      → Envato (default; ENVATO_DEFAULT_* above)
+//   wiki        → Wikimedia Commons (CC BY-SA 4.0 default — needs sidecar for full attribution per license terms)
+//   commons     → alias for wiki
+//   loc         → Library of Congress (most pre-1929 holdings are PD)
+//   wellcome    → Wellcome Collection (CC BY 4.0 default)
+//   ia          → Internet Archive (license varies; "see source")
+//   pd          → generic public domain
+//   cc0         → generic CC0
+//   cc-by       → generic CC BY 4.0 (needs sidecar for author)
+//   cc-by-sa    → generic CC BY-SA 4.0 (needs sidecar for author)
+interface SourcePreset {
+  license: string
+  attribution: string
+  /** When true, this license REQUIRES specific author/URL credit per its
+   *  terms; the script will warn if no sidecar is present so the operator
+   *  knows the attribution is generic-fallback and not legally complete. */
+  needs_sidecar_for_attribution: boolean
+}
+const SOURCE_PRESETS: Record<string, SourcePreset> = {
+  wiki:     { license: 'cc_by_sa', attribution: 'Image: Wikimedia Commons (CC BY-SA 4.0).', needs_sidecar_for_attribution: true },
+  commons:  { license: 'cc_by_sa', attribution: 'Image: Wikimedia Commons (CC BY-SA 4.0).', needs_sidecar_for_attribution: true },
+  loc:      { license: 'pd_age',   attribution: 'Image: Library of Congress (public domain).', needs_sidecar_for_attribution: false },
+  wellcome: { license: 'cc_by',    attribution: 'Image: Wellcome Collection (CC BY 4.0).', needs_sidecar_for_attribution: true },
+  ia:       { license: 'unknown',  attribution: 'Image: Internet Archive (see source).', needs_sidecar_for_attribution: true },
+  pd:       { license: 'pd_age',   attribution: 'Image: Public domain.', needs_sidecar_for_attribution: false },
+  cc0:      { license: 'cc0',      attribution: 'Image: CC0 / Public domain.', needs_sidecar_for_attribution: false },
+  'cc-by':  { license: 'cc_by',    attribution: 'Image: CC BY 4.0.', needs_sidecar_for_attribution: true },
+  'cc-by-sa': { license: 'cc_by_sa', attribution: 'Image: CC BY-SA 4.0.', needs_sidecar_for_attribution: true },
+}
+
+/**
+ * Parse <slug>__<source>.<ext> → { slug, source }. If no __<source>
+ * marker, returns the full basename as slug and source=null (Envato
+ * default). Source codes are case-insensitive.
+ */
+function parseSourceSuffix(filename: string): { slug: string; source: string | null } {
+  const noExt = filename.replace(/\.[^.]+$/, '')
+  const idx = noExt.lastIndexOf('__')
+  if (idx < 0) return { slug: noExt, source: null }
+  const slug = noExt.slice(0, idx)
+  const source = noExt.slice(idx + 2).toLowerCase()
+  if (!SOURCE_PRESETS[source]) {
+    // Unknown source code — log + fall back to envato default. Returns
+    // the original basename as slug so the file still processes.
+    console.warn('  ⚠ unknown source suffix "__' + source + '" on ' + filename + ' — treating as Envato default')
+    return { slug: noExt, source: null }
+  }
+  return { slug, source }
+}
+
 if (!MODE_ALL && !CATEGORY && !SLUG && !MODE_REVIEW && !MODE_BATCH) {
   console.error('Specify --all, --category <name>, --slug <slug>, --re-review, or --batch')
   process.exit(1)
@@ -1267,9 +1321,18 @@ async function discoverBatchItems(rootDir: string): Promise<BatchItem[]> {
     for (const fname of files) {
       const ext = extname(fname).toLowerCase()
       if (!BATCH_IMAGE_EXTS.has(ext)) continue
-      const slug = basename(fname, extname(fname))
+      // V11.17.58 — parse <slug>__<source>.ext convention. Bare
+      // filenames stay Envato (preserves prior behavior); recognized
+      // suffixes pick up that source's default license + attribution.
+      const { slug, source } = parseSourceSuffix(fname)
       const filePath = pathJoin(catDir, fname)
-      const sidecar = await loadSidecar(filePath, ENVATO_DEFAULT_ATTRIBUTION, ENVATO_DEFAULT_LICENSE)
+      const preset = source ? SOURCE_PRESETS[source] : null
+      const defAttr = preset ? preset.attribution : ENVATO_DEFAULT_ATTRIBUTION
+      const defLicense = preset ? preset.license : ENVATO_DEFAULT_LICENSE
+      const sidecar = await loadSidecar(filePath, defAttr, defLicense)
+      if (preset && preset.needs_sidecar_for_attribution && sidecar.attribution === preset.attribution) {
+        console.warn('  ⚠ ' + fname + ' uses __' + source + ' but no sidecar — generic attribution only. License requires specific author+URL credit; add ' + basename(fname, ext) + '.json with {author, item_url} or {attribution} for full compliance.')
+      }
       items.push({ category: cat, slug, filePath, sidecar })
     }
   }

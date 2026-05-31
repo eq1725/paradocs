@@ -39,6 +39,43 @@ When you drop a file with no sidecar, the batch script writes:
 - `image_review_score`: `100` (operator-curated)
 - `image_adopted_at`: now
 
+## Non-Envato sources — filename suffix
+
+For images sourced from other places (Wikipedia, Library of Congress,
+Wellcome Collection, Internet Archive, etc.), use a filename suffix
+to pick up source-specific license + attribution defaults:
+
+| Filename | Source | License default | Attribution default |
+|---|---|---|---|
+| `mothman.jpg` | Envato | `envato_elements` | "Paradocs editorial." |
+| `mothman__wiki.jpg` | Wikimedia Commons | `cc_by_sa` | "Image: Wikimedia Commons (CC BY-SA 4.0)." |
+| `mothman__commons.jpg` | (alias for wiki) | same | same |
+| `mothman__loc.jpg` | Library of Congress | `pd_age` | "Image: Library of Congress (public domain)." |
+| `mothman__wellcome.jpg` | Wellcome Collection | `cc_by` | "Image: Wellcome Collection (CC BY 4.0)." |
+| `mothman__ia.jpg` | Internet Archive | `unknown` | "Image: Internet Archive (see source)." |
+| `mothman__pd.jpg` | Generic public domain | `pd_age` | "Image: Public domain." |
+| `mothman__cc0.jpg` | Generic CC0 | `cc0` | "Image: CC0 / Public domain." |
+| `mothman__cc-by.jpg` | Generic CC BY 4.0 | `cc_by` | "Image: CC BY 4.0." |
+| `mothman__cc-by-sa.jpg` | Generic CC BY-SA 4.0 | `cc_by_sa` | "Image: CC BY-SA 4.0." |
+
+**Important — CC BY and CC BY-SA require specific credit.** The generic
+fallback ("Image: Wikimedia Commons (CC BY-SA 4.0).") names the source
+but not the author, which doesn't satisfy the license's attribution
+clause. The script will warn you when you use one of those suffixes
+without a sidecar JSON. For full compliance, drop a sidecar:
+
+`source-images/cryptids/mothman__wiki.json`:
+```json
+{
+  "author": "Frank Frazetta",
+  "item_url": "https://commons.wikimedia.org/wiki/File:Mothman_sketch.jpg",
+  "alt": "1966 newspaper sketch of a winged humanoid figure with glowing red eyes, attributed to John Keel's reporting."
+}
+```
+
+The script synthesizes a clean attribution: `Image by Frank Frazetta ·
+<source link> (CC BY-SA 4.0).`
+
 ## Optional per-image overrides (sidecar JSON)
 
 Drop a `.json` file with the same basename next to the image when you
