@@ -42,6 +42,19 @@ const REJECTED_CLUSTERS = [
   { canonical_slug: 'spiritual-awakening', drop_reason: 'Haiku itself said do not cluster (awakening vs crisis are distinct)' },
   { canonical_slug: 'depersonalization-derealization', drop_reason: 'Haiku itself said related but not the same' },
   { canonical_slug: 'demonic-possession', drop_reason: 'possession (phenomenon) ≠ exorcism (ritual response)' },
+  // V11.17.57.4 — ufos_aliens follow-up audit edits
+  { canonical_slug: 'close-encounter-of-the-fourth-kind', drop_reason: 'alien-abduction is the higher-volume colloquial canonical; CE4 is the classification term. Conflict with existing alien-abduction cluster.' },
+  { canonical_slug: 'close-encounter-of-the-first-kind', drop_reason: 'Haiku itself said daylight-disc is not a duplicate' },
+  { canonical_slug: 'rectangle-ufo', drop_reason: 'Haiku itself said rectangle and cube are distinct morphologies' },
+  { canonical_slug: 'egg-ufo', drop_reason: 'single-member "cluster" — really a rename suggestion, not a merge' },
+  { canonical_slug: 'agricultural-ufo-circle-patterns', drop_reason: 'single-member "cluster" — covered by rename_only entry' },
+  { canonical_slug: 'glowing-orb', drop_reason: 'replaced by merged orb-ufo cluster below' },
+  { canonical_slug: 'sphere-ufo', drop_reason: 'replaced by merged orb-ufo cluster below' },
+]
+
+// Renames to drop by slug (bad proposals, not just no-ops).
+const REJECTED_RENAMES = [
+  { slug: 'ultraterrestrial-hypothesis', reason: 'semantically wrong — ultraterrestrial = inter-dimensional / beyond-terrestrial in ufology (Keel, Vallée), not subterranean.' },
 ]
 
 // Clusters to ADD (replacements for the dropped overlapping ones).
@@ -68,6 +81,14 @@ const REPLACEMENT_CLUSTERS = {
       rationale: 'Operator review: apparition is the broader more established term (2812 reports vs 705). Inverted from Haikus original which had full-body-apparition canonical.',
     },
   ],
+  ufos_aliens: [
+    {
+      canonical_slug: 'orb-ufo',
+      canonical_name: 'Orb UFO',
+      member_slugs: ['orb-ufo', 'sphere-ufo', 'glowing-orb', 'metallic-sphere-ufo'],
+      rationale: 'Operator review: orb-ufo has highest count (2613). Collapses Haikus two overlapping clusters (sphere-ufo and glowing-orb both wanted orb-ufo) into one.',
+    },
+  ],
 }
 
 function clusterMatches(c, rejectSpec) {
@@ -78,6 +99,10 @@ function clusterMatches(c, rejectSpec) {
 function isNoopRename(r) {
   if (!r.current_name || !r.proposed_name) return true
   return r.current_name.trim() === r.proposed_name.trim()
+}
+
+function isRejectedRename(r) {
+  return REJECTED_RENAMES.some(rr => rr.slug === r.slug)
 }
 
 function main() {
@@ -109,10 +134,14 @@ function main() {
       addedClusters++
     }
 
-    // Drop noop renames.
+    // Drop noop + rejected renames.
     const beforeRenames = cat.rename_only.length
     cat.rename_only = cat.rename_only.filter(r => {
       if (isNoopRename(r)) {
+        droppedRenames++
+        return false
+      }
+      if (isRejectedRename(r)) {
         droppedRenames++
         return false
       }
