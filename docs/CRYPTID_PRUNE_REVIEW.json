@@ -1,0 +1,623 @@
+{
+  "generated_at": "2026-06-01T03:53:27.838Z",
+  "model": "claude-haiku-4-5-20251001",
+  "cryptid_phens_total": 77,
+  "archived_count": 20,
+  "kept_count": 57,
+  "unreviewed_count": 0,
+  "operator_additions_note": "Operator added 10 more to Haiku's list per V11.17.61 review: agogwe, thylacine, traverspine-gorilla, mapinguari, ebu-gogo, orang-pendek, bamboo-ape, nandi-bear, moehau, basajaun. Pattern matches Haiku's 'Extinct Species' / 'Real-Animal Sighting' buckets that Haiku undershot.",
+  "archive": [
+    {
+      "slug": "agogwe",
+      "name": "Agogwe",
+      "verdict": "archive",
+      "category_guess": "Primate",
+      "rationale": "Operator add: small East African bipedal hominid, plausibly a misidentified bonobo / unclassified small primate. Same class as the orang-pendek borderline."
+    },
+    {
+      "slug": "thylacine",
+      "name": "Thylacine",
+      "verdict": "archive",
+      "category_guess": "Extinct Species",
+      "rationale": "Operator add: real documented extinct species (Tasmanian tiger). 'Cryptid' framing is only 'did it survive extinction?' — same logic as the Megalodon / Sinomegaceros archives Haiku already flagged."
+    },
+    {
+      "slug": "traverspine-gorilla",
+      "name": "Traverspine Gorilla",
+      "verdict": "archive",
+      "category_guess": "Real-Animal Sighting",
+      "rationale": "Operator add: single 1913 Labrador encounter, almost certainly a bear misidentification. No corpus, no paranormal framing."
+    },
+    {
+      "slug": "mapinguari",
+      "name": "Mapinguari",
+      "verdict": "archive",
+      "category_guess": "Extinct Species",
+      "rationale": "Operator add: cryptozoologists explicitly frame as 'surviving giant ground sloth' — same surviving-extinct-species logic as Sinomegaceros + Megalodon already archived."
+    },
+    {
+      "slug": "ebu-gogo",
+      "name": "Ebu Gogo",
+      "verdict": "archive",
+      "category_guess": "Primate",
+      "rationale": "Operator add: Flores small hominid; Homo floresiensis discovery grounds this in real paleoanthropology. Like thylacine, it's 'did a real species survive?' not paranormal."
+    },
+    {
+      "slug": "orang-pendek",
+      "name": "Orang Pendek",
+      "verdict": "archive",
+      "category_guess": "Primate",
+      "rationale": "Operator add: Sumatran small hominid; the most consensus-plausible 'undiscovered real primate' in cryptozoology. Likely a misidentified gibbon or juvenile orangutan."
+    },
+    {
+      "slug": "bamboo-ape",
+      "name": "Bamboo Ape",
+      "verdict": "archive",
+      "category_guess": "Primate",
+      "rationale": "Operator add: Chinese small hominid in the orang-pendek class — plausibly an undiscovered or rare known primate."
+    },
+    {
+      "slug": "nandi-bear",
+      "name": "Nandi Bear",
+      "verdict": "archive",
+      "category_guess": "Real-Animal Sighting",
+      "rationale": "Operator add: East African bear-like cryptid; likely a misidentified known bear, hyena, or aardvark species."
+    },
+    {
+      "slug": "moehau",
+      "name": "Moehau",
+      "verdict": "archive",
+      "category_guess": "Real-Animal Sighting",
+      "rationale": "Operator add: NZ wild-man with rare and inconsistent reports; likely an escaped pet, feral human, or folkloric exaggeration."
+    },
+    {
+      "slug": "basajaun",
+      "name": "Basajaun",
+      "verdict": "archive",
+      "category_guess": "Real-Animal Sighting",
+      "rationale": "Operator add: Basque mountain wild-man; folkloric + plausibly feral human or bear, not a paranormal entity."
+    },
+    {
+      "slug": "alien-big-cat",
+      "name": "Alien Big Cat",
+      "verdict": "archive",
+      "category_guess": "Real-Animal Sighting",
+      "rationale": "Large felines in non-native regions (British Isles, Australia) are most likely escaped/feral big cats or misidentified known species; core example of real-animal drift."
+    },
+    {
+      "slug": "beast-of-exmoor",
+      "name": "Beast of Exmoor",
+      "verdict": "archive",
+      "category_guess": "Real-Animal Sighting",
+      "rationale": "Large black cat-like creature in English moorlands; most likely escaped/feral big cat or misidentified known species; core real-animal drift example."
+    },
+    {
+      "slug": "giant-anaconda",
+      "name": "Giant Anaconda",
+      "verdict": "archive",
+      "category_guess": "Real-Animal Sighting",
+      "rationale": "Oversized specimens of known species (anaconda) with exaggerated size claims; fits real-animal color variant/oversize individual category."
+    },
+    {
+      "slug": "megaconda",
+      "name": "Megaconda",
+      "verdict": "archive",
+      "category_guess": "Real-Animal Sighting",
+      "rationale": "Oversized anaconda-like snakes with exaggerated size claims; fits real-animal color variant/oversize individual category."
+    },
+    {
+      "slug": "megalodon",
+      "name": "Megalodon",
+      "verdict": "archive",
+      "category_guess": "Extinct Species",
+      "rationale": "Scientifically documented extinct shark with extensive fossil record; not a cryptid but a known extinct species."
+    },
+    {
+      "slug": "mimic-tiger",
+      "name": "Mimic Tiger",
+      "verdict": "archive",
+      "category_guess": "Real-Animal Sighting",
+      "rationale": "Striped felid or marsupial from eastern Australia; most likely misidentified known species or color variant."
+    },
+    {
+      "slug": "ningen",
+      "name": "Ningen",
+      "verdict": "archive",
+      "category_guess": "Internet Hoax",
+      "rationale": "Antarctic humanoid marine cryptid from 2007 2channel forum with unverified whale research crew claims; lacks credible documentation."
+    },
+    {
+      "slug": "orang-minyak",
+      "name": "Orang Minyak",
+      "verdict": "archive",
+      "category_guess": "Folkloric Being / Hoax",
+      "rationale": "Malaysian naked oil-covered humanoid with 1960s peak reports; likely folklore-based panic or hoax rather than genuine cryptid."
+    },
+    {
+      "slug": "sinomegaceros",
+      "name": "Sinomegaceros",
+      "verdict": "archive",
+      "category_guess": "Extinct Species",
+      "rationale": "Extinct giant deer genus with genetic research showing survival to 20,000 years ago; not a cryptid but a known extinct species."
+    },
+    {
+      "slug": "wampus-cat",
+      "name": "Wampus Cat",
+      "verdict": "archive",
+      "category_guess": "Real-Animal Sighting",
+      "rationale": "Large panther-like cryptid from Appalachia; most likely escaped/feral big cat or misidentified known species."
+    }
+  ],
+  "keep": [
+    {
+      "slug": "adze",
+      "name": "Adze",
+      "verdict": "keep",
+      "category_guess": "Folkloric Being",
+      "rationale": "Canonical folkloric entity from Ewe West African tradition with paranormal/supernatural framing; fits the 'Folkloric beings' edge case category."
+    },
+    {
+      "slug": "agogwe",
+      "name": "Agogwe",
+      "verdict": "keep",
+      "category_guess": "Hominid Cryptid",
+      "rationale": "Small East African hominid with centuries of indigenous and colonial documentation; fits canonical cryptozoology despite possible real-animal explanation."
+    },
+    {
+      "slug": "agropelter",
+      "name": "Agropelter",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Appalachian apelike creature with mischievous behavior; fits regional Bigfoot variant / wild man tradition despite zero reports."
+    },
+    {
+      "slug": "ahool",
+      "name": "Ahool",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Giant bat-like creature from Java with distinctive vocalization; anomalous enough to warrant cryptid status despite possible oversized bat explanation."
+    },
+    {
+      "slug": "almasti",
+      "name": "Almasti",
+      "verdict": "keep",
+      "category_guess": "Hominid Cryptid",
+      "rationale": "Eurasian Bigfoot equivalent with 19 reports and canonical cryptozoology status; edge case rule explicitly directs to KEEP hominid cryptids."
+    },
+    {
+      "slug": "am-fear-liath-m-r",
+      "name": "Am Fear Liath Mòr",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Scottish mountain humanoid entity with paranormal framing; fits folkloric/regional cryptid tradition despite limited reports."
+    },
+    {
+      "slug": "appalachian-wildman",
+      "name": "Appalachian Wildman",
+      "verdict": "keep",
+      "category_guess": "Hominid Cryptid",
+      "rationale": "Large humanoid with 144 documented sightings across Appalachia; canonical regional Bigfoot variant that should be retained."
+    },
+    {
+      "slug": "aswang",
+      "name": "Aswang",
+      "verdict": "keep",
+      "category_guess": "Folkloric Being",
+      "rationale": "Shape-shifting vampire-like entity from Filipino folklore with paranormal framing; fits 'Folkloric beings' edge case category."
+    },
+    {
+      "slug": "bamboo-ape",
+      "name": "Bamboo Ape",
+      "verdict": "keep",
+      "category_guess": "Hominid Cryptid",
+      "rationale": "Southeast Asian bipedal primate cryptid with indigenous tradition backing; fits hominid cryptid category despite possible real undiscovered primate."
+    },
+    {
+      "slug": "barghest-of-yorkshire",
+      "name": "Barghest of Yorkshire",
+      "verdict": "keep",
+      "category_guess": "Folkloric Being",
+      "rationale": "Legendary large canine from English folklore with centuries of historical accounts; fits folkloric being category with paranormal framing."
+    },
+    {
+      "slug": "basajaun",
+      "name": "Basajaun",
+      "verdict": "keep",
+      "category_guess": "Folkloric Being",
+      "rationale": "Forest guardian from Basque mythology with paranormal/supernatural framing; fits 'Folkloric beings' edge case category."
+    },
+    {
+      "slug": "batsquatch",
+      "name": "Batsquatch",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Hybrid bat-humanoid from Pacific Northwest with 8 reports; anomalous enough to warrant cryptid status despite unusual morphology."
+    },
+    {
+      "slug": "beast-of-busco",
+      "name": "Beast of Busco",
+      "verdict": "keep",
+      "category_guess": "Aquatic Cryptid",
+      "rationale": "Aquatic mystery animal (turtle-like creature); edge case rule directs to KEEP lake/aquatic cryptids even with zero reports."
+    },
+    {
+      "slug": "bigfoot",
+      "name": "Bigfoot",
+      "verdict": "keep",
+      "category_guess": "Genuine Cryptid",
+      "rationale": "Canonical North American cryptid with 877 reports and anomalous paranormal framing; quintessential genuine cryptid."
+    },
+    {
+      "slug": "black-shuck",
+      "name": "Black Shuck",
+      "verdict": "keep",
+      "category_guess": "Folkloric Being",
+      "rationale": "Ghostly black dog from East Anglian folklore with paranormal framing and 27 reports; fits folkloric being category."
+    },
+    {
+      "slug": "bunyip",
+      "name": "Bunyip",
+      "verdict": "keep",
+      "category_guess": "Aquatic Cryptid",
+      "rationale": "Water-dwelling creature from Australian Aboriginal mythology; edge case rule directs to KEEP aquatic mystery animals."
+    },
+    {
+      "slug": "burrunjor",
+      "name": "Burrunjor",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Bipedal reptilian creature from Australian Aboriginal folklore; anomalous enough to warrant cryptid status despite possible dinosaur misidentification."
+    },
+    {
+      "slug": "cadborosaurus",
+      "name": "Cadborosaurus",
+      "verdict": "keep",
+      "category_guess": "Aquatic Cryptid",
+      "rationale": "Sea serpent from Pacific Northwest; edge case rule directs to KEEP lake/aquatic cryptids even if 'could be a sturgeon.'"
+    },
+    {
+      "slug": "champ",
+      "name": "Champ",
+      "verdict": "keep",
+      "category_guess": "Aquatic Cryptid",
+      "rationale": "Lake Champlain serpentine creature; edge case rule directs to KEEP aquatic mystery animals as core cryptozoology."
+    },
+    {
+      "slug": "chupacabra",
+      "name": "Chupacabra",
+      "verdict": "keep",
+      "category_guess": "Genuine Cryptid",
+      "rationale": "Modern cryptid with 11 reports and paranormal framing; canonical cryptozoology despite possible canine misidentification."
+    },
+    {
+      "slug": "dogman",
+      "name": "Dogman",
+      "verdict": "keep",
+      "category_guess": "Genuine Cryptid",
+      "rationale": "Bipedal wolf-like cryptid with 218 reports and anomalous paranormal framing; canonical cryptid distinct from werewolf folklore."
+    },
+    {
+      "slug": "dover-demon",
+      "name": "Dover Demon",
+      "verdict": "keep",
+      "category_guess": "Genuine Cryptid",
+      "rationale": "Well-documented 1977 sighting with three independent witnesses and anomalous morphology; canonical cryptid with strong documentation."
+    },
+    {
+      "slug": "dwayyo",
+      "name": "Dwayyo",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Appalachian reptilian-mammalian hybrid with 10 reports; anomalous enough to warrant cryptid status despite unusual morphology."
+    },
+    {
+      "slug": "ebu-gogo",
+      "name": "Ebu Gogo",
+      "verdict": "keep",
+      "category_guess": "Hominid Cryptid",
+      "rationale": "Small humanoid from Flores Island folklore with indigenous tradition; fits hominid cryptid category despite possible real undiscovered species."
+    },
+    {
+      "slug": "enfield-horror",
+      "name": "Enfield Horror",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Well-documented 1973 Illinois sighting wave with 14 reports and anomalous reptilian-humanoid morphology; canonical cryptid."
+    },
+    {
+      "slug": "flatwoods-monster",
+      "name": "Flatwoods Monster",
+      "verdict": "keep",
+      "category_guess": "Genuine Cryptid",
+      "rationale": "Iconic 1952 West Virginia sighting with multiple witnesses and anomalous morphology; canonical cryptid despite single report."
+    },
+    {
+      "slug": "fresno-nightcrawler",
+      "name": "Fresno Nightcrawler",
+      "verdict": "keep",
+      "category_guess": "Genuine Cryptid",
+      "rationale": "California cryptid with 240 reports and distinctive anomalous morphology (long legs, small upper body); canonical twentieth-century cryptid."
+    },
+    {
+      "slug": "giant-spider",
+      "name": "Giant Spider",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Global cryptid legend with anomalous size (10-100 feet); anomalous enough to warrant cryptid status despite possible arachnid misidentification."
+    },
+    {
+      "slug": "goatman",
+      "name": "Goatman",
+      "verdict": "keep",
+      "category_guess": "Genuine Cryptid",
+      "rationale": "Bipedal human-goat hybrid with 17 reports and paranormal framing; canonical cryptid with anomalous morphology."
+    },
+    {
+      "slug": "grafton-monster",
+      "name": "Grafton Monster",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Large pale humanoid from West Virginia with 9 reports; fits regional Bigfoot variant tradition."
+    },
+    {
+      "slug": "grassman",
+      "name": "Grassman",
+      "verdict": "keep",
+      "category_guess": "Hominid Cryptid",
+      "rationale": "Ohio Bigfoot variant with 43 reports; edge case rule explicitly directs to KEEP regional Bigfoot variants."
+    },
+    {
+      "slug": "great-lakes-sea-monster",
+      "name": "Great Lakes Sea Monster",
+      "verdict": "keep",
+      "category_guess": "Aquatic Cryptid",
+      "rationale": "Lake serpent collection (Bessie, Tahoe Tessie); edge case rule directs to KEEP aquatic mystery animals."
+    },
+    {
+      "slug": "honey-island-swamp-monster",
+      "name": "Honey Island Swamp Monster",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Bipedal swamp creature with 3 reports and distinctive three-toed webbed footprints; anomalous enough to warrant cryptid status."
+    },
+    {
+      "slug": "indrid-cold",
+      "name": "Indrid Cold",
+      "verdict": "keep",
+      "category_guess": "Paranormal Entity",
+      "rationale": "Humanoid entity with telepathic contact and paranormal framing from Point Pleasant wave; anomalous enough to warrant cryptid status."
+    },
+    {
+      "slug": "jersey-devil",
+      "name": "Jersey Devil",
+      "verdict": "keep",
+      "category_guess": "Genuine Cryptid",
+      "rationale": "Winged hooved creature with centuries of tradition and 1909 sighting wave; canonical cryptid with strong cultural status."
+    },
+    {
+      "slug": "kongamato",
+      "name": "Kongamato",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Pterosaur-like flying reptile from Zambia with indigenous documentation; anomalous enough to warrant cryptid status."
+    },
+    {
+      "slug": "lechuza",
+      "name": "Lechuza",
+      "verdict": "keep",
+      "category_guess": "Folkloric Being",
+      "rationale": "Owl-like creature with elderly woman's face from Mexican folklore; fits 'Folkloric beings' edge case category."
+    },
+    {
+      "slug": "lizard-man-of-scape-ore-swamp",
+      "name": "Lizard Man of Scape Ore Swamp",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Reptilian humanoid with 5 reports and well-documented 1988 encounter; canonical cryptid with distinctive morphology."
+    },
+    {
+      "slug": "loch-ness-monster",
+      "name": "Loch Ness Monster",
+      "verdict": "keep",
+      "category_guess": "Aquatic Cryptid",
+      "rationale": "World's most famous lake monster with 12 reports and extensive investigation; edge case rule directs to KEEP aquatic cryptids."
+    },
+    {
+      "slug": "loveland-frog",
+      "name": "Loveland Frog",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Frog-like humanoid with 2 reports including police officer encounters; anomalous enough to warrant cryptid status despite later debunking claim."
+    },
+    {
+      "slug": "lusca",
+      "name": "Lusca",
+      "verdict": "keep",
+      "category_guess": "Aquatic Cryptid",
+      "rationale": "Giant octopus/shark-octopus hybrid from Bahamas; edge case rule directs to KEEP aquatic mystery animals."
+    },
+    {
+      "slug": "mapinguari",
+      "name": "Mapinguari",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Sloth-like creature from Amazon with indigenous tradition and scientific proposal; anomalous enough to warrant cryptid status despite zero reports."
+    },
+    {
+      "slug": "metoh-kangmi",
+      "name": "Metoh-kangmi",
+      "verdict": "keep",
+      "category_guess": "Hominid Cryptid",
+      "rationale": "Himalayan bipedal humanoid with centuries of Sherpa/Tibetan tradition; edge case rule explicitly directs to KEEP hominid cryptids."
+    },
+    {
+      "slug": "moehau",
+      "name": "Moehau",
+      "verdict": "keep",
+      "category_guess": "Hominid Cryptid",
+      "rationale": "New Zealand hominid cryptid with Maori oral tradition; edge case rule explicitly directs to KEEP hominid cryptids."
+    },
+    {
+      "slug": "mokele-mbembe",
+      "name": "Mokele-mbembe",
+      "verdict": "keep",
+      "category_guess": "Aquatic Cryptid",
+      "rationale": "Long-necked semi-aquatic creature from Congo Basin with consistent indigenous accounts; edge case rule directs to KEEP aquatic cryptids."
+    },
+    {
+      "slug": "momo",
+      "name": "Momo",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Missouri Monster with 6 reports and 1972 sighting wave; canonical regional cryptid."
+    },
+    {
+      "slug": "mothman",
+      "name": "Mothman",
+      "verdict": "keep",
+      "category_guess": "Genuine Cryptid",
+      "rationale": "Iconic winged cryptid with 78 reports and thirteen-month sighting wave; quintessential canonical cryptid."
+    },
+    {
+      "slug": "nandi-bear",
+      "name": "Nandi Bear",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Large aggressive cryptid from Kenya with hyena-like morphology; anomalous enough to warrant cryptid status."
+    },
+    {
+      "slug": "ogopogo",
+      "name": "Ogopogo",
+      "verdict": "keep",
+      "category_guess": "Aquatic Cryptid",
+      "rationale": "Okanagan Lake serpent with Syilx tradition and European documentation since 1872; edge case rule directs to KEEP aquatic cryptids."
+    },
+    {
+      "slug": "orang-pendek",
+      "name": "Orang Pendek",
+      "verdict": "keep",
+      "category_guess": "Hominid Cryptid",
+      "rationale": "Small Sumatran bipedal primate with footprint casts and hair samples; edge case rule explicitly directs to KEEP hominid cryptids."
+    },
+    {
+      "slug": "orang-bati",
+      "name": "Orang-bati",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Winged humanoid from Seram Island with missionary documentation; anomalous enough to warrant cryptid status."
+    },
+    {
+      "slug": "ozark-howler",
+      "name": "Ozark Howler",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Horned bear-sized cryptid with 8 reports and distinctive vocalization; canonical regional cryptid."
+    },
+    {
+      "slug": "popobawa",
+      "name": "Popobawa",
+      "verdict": "keep",
+      "category_guess": "Folkloric Being",
+      "rationale": "Shape-shifting nocturnal entity from Zanzibar/Tanzania folklore with paranormal framing; fits 'Folkloric beings' edge case category."
+    },
+    {
+      "slug": "pukwudgie",
+      "name": "Pukwudgie",
+      "verdict": "keep",
+      "category_guess": "Folkloric Being",
+      "rationale": "Small troll-like humanoid from Wampanoag/Lenape folklore with 9,000-year tradition; fits 'Folkloric beings' edge case category."
+    },
+    {
+      "slug": "ropen",
+      "name": "Ropen",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Flying pterosaur-like creature from Papua New Guinea with bioluminescence claims; anomalous enough to warrant cryptid status."
+    },
+    {
+      "slug": "rougarou",
+      "name": "Rougarou",
+      "verdict": "keep",
+      "category_guess": "Folkloric Being",
+      "rationale": "Werewolf-like creature from Louisiana Cajun folklore with paranormal framing; fits 'Folkloric beings' edge case category."
+    },
+    {
+      "slug": "sheepsquatch",
+      "name": "Sheepsquatch",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Large white woolly cryptid from West Virginia with 5 reports and 1990s sighting surge; canonical regional cryptid."
+    },
+    {
+      "slug": "skinwalker",
+      "name": "Skinwalker",
+      "verdict": "keep",
+      "category_guess": "Folkloric Being",
+      "rationale": "Shape-shifting entity from Navajo tradition with 188 reports and government investigation; fits 'Folkloric beings' edge case category."
+    },
+    {
+      "slug": "skunk-ape",
+      "name": "Skunk Ape",
+      "verdict": "keep",
+      "category_guess": "Hominid Cryptid",
+      "rationale": "Florida Everglades bipedal cryptid with 33 reports; edge case rule explicitly directs to KEEP regional Bigfoot variants."
+    },
+    {
+      "slug": "spring-heeled-jack",
+      "name": "Spring Heeled Jack",
+      "verdict": "keep",
+      "category_guess": "Folkloric Being",
+      "rationale": "Leaping entity from Victorian England with paranormal framing and centuries of accounts; fits 'Folkloric beings' edge case category."
+    },
+    {
+      "slug": "thunderbird",
+      "name": "Thunderbird",
+      "verdict": "keep",
+      "category_guess": "Genuine Cryptid",
+      "rationale": "Enormous bird with 45 reports and Native American sacred tradition; canonical cryptid with strong cultural status."
+    },
+    {
+      "slug": "thylacine",
+      "name": "Thylacine",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Officially extinct marsupial with 1,200+ post-extinction sightings and 2023 survival study; anomalous enough to warrant cryptid status."
+    },
+    {
+      "slug": "traverspine-gorilla",
+      "name": "Traverspine Gorilla",
+      "verdict": "keep",
+      "category_guess": "Hominid Cryptid",
+      "rationale": "White-furred bipedal crypto-hominid from Labrador with family documentation; edge case rule explicitly directs to KEEP hominid cryptids."
+    },
+    {
+      "slug": "urayuli",
+      "name": "Urayuli",
+      "verdict": "keep",
+      "category_guess": "Hominid Cryptid",
+      "rationale": "Bigfoot-type cryptid from Alaska with Yup'ik tradition; edge case rule explicitly directs to KEEP regional Bigfoot variants."
+    },
+    {
+      "slug": "white-thang",
+      "name": "White Thang",
+      "verdict": "keep",
+      "category_guess": "Cryptid",
+      "rationale": "Ghostly white-furred cryptid from Alabama with 24 reports; canonical regional cryptid."
+    },
+    {
+      "slug": "yeren",
+      "name": "Yeren",
+      "verdict": "keep",
+      "category_guess": "Hominid Cryptid",
+      "rationale": "Chinese reddish-haired bipedal crypto-hominid with 2,000-year tradition; edge case rule explicitly directs to KEEP hominid cryptids."
+    },
+    {
+      "slug": "yowie",
+      "name": "Yowie",
+      "verdict": "keep",
+      "category_guess": "Hominid Cryptid",
+      "rationale": "Australian bipedal hair-covered hominid with 21 reports and Aboriginal tradition spanning millennia; canonical hominid cryptid."
+    }
+  ],
+  "unreviewed": []
+}
