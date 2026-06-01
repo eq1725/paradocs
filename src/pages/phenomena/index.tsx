@@ -353,17 +353,31 @@ export function PhenomenaEncyclopedia({ embedded = false }: PhenomenaEncyclopedi
     }
   }, [phenomena, selectedCategory, searchQuery, updateNavScrollState])
 
-  // Auto-scroll the active pill into view in the nav bar
+  // Auto-scroll the active pill into view in the nav bar.
+  // V11.17.60 — fixed the scroll-bounce bug on /explore?view=phenomena
+  // by (a) constraining the scroll to the nav element itself instead
+  // of calling scrollIntoView (which scrolls the nearest scrollable
+  // ancestor — sometimes the whole page) and (b) skipping entirely
+  // in embedded mode where the page already has its own scroll
+  // lifecycle and the auto-pill-tracking isn't worth the risk.
   useEffect(function() {
+    if (embedded) return
     if (!activeCategory || !navRef.current) return
-    var buttons = navRef.current.querySelectorAll('button')
+    var nav = navRef.current
+    var buttons = nav.querySelectorAll('button')
     for (var i = 0; i < buttons.length; i++) {
-      if (buttons[i].getAttribute('data-cat') === activeCategory) {
-        buttons[i].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+      var btn = buttons[i] as HTMLElement
+      if (btn.getAttribute('data-cat') === activeCategory) {
+        // Compute the horizontal scroll delta inside the nav element
+        // only — no scrollIntoView, no parent-page scroll side effect.
+        var navRect = nav.getBoundingClientRect()
+        var btnRect = btn.getBoundingClientRect()
+        var targetLeft = nav.scrollLeft + (btnRect.left - navRect.left) - (navRect.width / 2) + (btnRect.width / 2)
+        nav.scrollTo({ left: targetLeft, behavior: 'smooth' })
         break
       }
     }
-  }, [activeCategory])
+  }, [activeCategory, embedded])
 
   // Scroll to a category section, expanding it if collapsed
   const scrollToCategory = useCallback((cat: string) => {
@@ -382,8 +396,13 @@ export function PhenomenaEncyclopedia({ embedded = false }: PhenomenaEncyclopedi
     }, 50)
   }, [])
 
-  // Track which category is currently in view
+  // Track which category is currently in view.
+  // V11.17.60 — disabled in embedded mode. The active-category state
+  // only powers the nav-pill auto-track behavior (also disabled in
+  // embedded), so the observer earns no payoff inside /explore and
+  // its repeated state updates were contributing to scroll instability.
   useEffect(() => {
+    if (embedded) return
     if (selectedCategory !== 'all') return
     const observer = new IntersectionObserver(
       (entries) => {
@@ -400,7 +419,7 @@ export function PhenomenaEncyclopedia({ embedded = false }: PhenomenaEncyclopedi
       if (el) observer.observe(el)
     })
     return () => observer.disconnect()
-  }, [phenomena, selectedCategory, searchQuery])
+  }, [phenomena, selectedCategory, searchQuery, embedded])
 
   function toggleCategory(cat: string) {
     setCollapsedCategories(prev => {
