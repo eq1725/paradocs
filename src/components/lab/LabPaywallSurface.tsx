@@ -71,14 +71,11 @@ export function LabPaywallSurface(props: LabPaywallSurfaceProps) {
   var [checkoutPending, setCheckoutPending] = useState(false)
   var upgradeTo = props.upgradeTo || 'basic'
 
-  // Defensive: paid users at or above the gated tier should never see
-  // this surface. The parent should already gate, but we double-check.
-  // Cast to string so the chain of equality checks doesn't get narrowed
-  // out by TS after the first short-circuit.
+  // V11.17.70 — Rules-of-Hooks compliance.
+  // All hooks (including useCallback below) must be called unconditionally
+  // on every render. Early returns are deferred to AFTER the hook section
+  // so the same hook list runs every time React reconciles this component.
   var currentTier = (tierName as string | null) || ''
-  if (loading) return null
-  if (currentTier === 'pro') return null
-  if (upgradeTo === 'basic' && (currentTier === 'basic' || currentTier === 'pro')) return null
 
   var ctaLabel =
     upgradeTo === 'pro'
@@ -118,6 +115,13 @@ export function LabPaywallSurface(props: LabPaywallSurfaceProps) {
     }
     setCheckoutPending(false)
   }, [router, props.surface, upgradeTo])
+
+  // V11.17.70 — gate checks live HERE, AFTER all hook calls (Rules of Hooks).
+  // Defensive: paid users at or above the gated tier should never see
+  // this surface; the parent should already gate, but we double-check.
+  if (loading) return null
+  if (currentTier === 'pro') return null
+  if (upgradeTo === 'basic' && (currentTier === 'basic' || currentTier === 'pro')) return null
 
   return (
     <div
