@@ -29,6 +29,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { verifyTag } from '../src/lib/services/tag-verification.service'
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
 if (!ANTHROPIC_API_KEY) {
@@ -103,6 +104,7 @@ interface Phenomenon {
   name: string
   aliases: string[] | null
   ai_summary: string | null
+  category: string | null
 }
 
 function buildSystemPrompt(category: string, phenomena: Phenomenon[]): string {
@@ -230,6 +232,9 @@ interface PersistStats {
   primaryPlusSecondaries: number
   nullMatched: number
   hallucinatedSlugs: number
+  // V11.17.54 — count of (report, phen) pairs the verification gate
+  // dropped before junction insert. See verifyTag call below.
+  verifierDropped: number
   cost: number
   junctionWrites: number
   reportsUpdated: number
@@ -246,21 +251,24 @@ async function classifyCategory(
 
   const phenomena = await fetchAllRows<Phenomenon>(
     sb.from('phenomena')
-      .select('id, slug, name, aliases, ai_summary')
+      .select('id, slug, name, aliases, ai_summary, category')
       .eq('status', 'active')
       .eq('category', category)
   )
   console.log('Phenomena in this category: ' + phenomena.length)
   if (phenomena.length === 0) {
-    return { matched: 0, primaryOnly: 0, primaryPlusSecondaries: 0, nullMatched: 0, hallucinatedSlugs: 0, cost: 0, junctionWrites: 0, reportsUpdated: 0 }
+    return { matched: 0, primaryOnly: 0, primaryPlusSecondaries: 0, nullMatched: 0, hallucinatedSlugs: 0, verifierDropped: 0, cost: 0, junctionWrites: 0, reportsUpdated: 0 }
   }
   // Lookup: slug → phenomena.id. The reports.phenomenon_type_id column
   // is FK'd to phenomena.id (constraint reports_phenomenon_type_id_fkey),
   // so we use the encyclopedia entry id directly — NOT the phenomena
   // table's own phenomenon_type_id column, which is almost always null.
-  const slugLookup = new Map<string, { phenomenonId: string }>()
+  // V11.17.54 — slugLookup also carries phen metadata so the
+  // tag-verification gate (see below) can build its Haiku prompt
+  // without a per-call DB round-trip.
+  const slugLookup = new Map<string, { phenomenonId: string; phen: Phenomenon }>()
   for (const p of phenomena) {
-    slugLookup.set(p.slug, { phenomenonId: p.id })
+    slugLookup.set(p.slug, { phenomenonId: p.id, phen: p })
   }
 
   // Load approved reports needing classification — reports that DON'T
@@ -298,8 +306,14 @@ async function classifyCategory(
   const toClassify = reports.filter((r: any) => !existingLinks.has(r.id))
   console.log('  ' + toClassify.length + ' reports to classify (excluding ' + (reports.length - toClassify.length) + ' already-linked)')
   if (toClassify.length === 0) {
-    return { matched: 0, primaryOnly: 0, primaryPlusSecondaries: 0, nullMatched: 0, hallucinatedSlugs: 0, cost: 0, junctionWrites: 0, reportsUpdated: 0 }
+    return { matched: 0, primaryOnly: 0, primaryPlusSecondaries: 0, nullMatched: 0, hallucinatedSlugs: 0, verifierDropped: 0, cost: 0, junctionWrites: 0, reportsUpdated: 0 }
   }
+
+  // V11.17.54 — build a report lookup so the verification gate can
+  // pass the report body (title/summary/description) to verifyTag
+  // when each batch result row comes back.
+  const reportLookup = new Map<string, any>()
+  for (const r of toClassify) reportLookup.set(r.id, r)
 
   const systemPrompt = buildSystemPrompt(category, phenomena)
   const sysTokens = Math.ceil(systemPrompt.length / 4)
@@ -321,7 +335,7 @@ async function classifyCategory(
 
   if (args.dryRun) {
     console.log('DRY RUN — would submit ' + toClassify.length + ' requests')
-    return { matched: 0, primaryOnly: 0, primaryPlusSecondaries: 0, nullMatched: 0, hallucinatedSlugs: 0, cost: estTotal, junctionWrites: 0, reportsUpdated: 0 }
+    return { matched: 0, primaryOnly: 0, primaryPlusSecondaries: 0, nullMatched: 0, hallucinatedSlugs: 0, verifierDropped: 0, cost: estTotal, junctionWrites: 0, reportsUpdated: 0 }
   }
 
   // Build batch requests
@@ -354,7 +368,7 @@ async function classifyCategory(
 
   const stats: PersistStats = {
     matched: 0, primaryOnly: 0, primaryPlusSecondaries: 0, nullMatched: 0,
-    hallucinatedSlugs: 0, cost: 0, junctionWrites: 0, reportsUpdated: 0,
+    hallucinatedSlugs: 0, verifierDropped: 0, cost: 0, junctionWrites: 0, reportsUpdated: 0,
   }
 
   for (let ci = 0; ci < chunks.length; ci++) {
@@ -411,11 +425,14 @@ async function classifyCategory(
           const secondarySlugs: string[] = Array.isArray(parsed.secondary) ? parsed.secondary.slice(0, 2) : []
 
           // Resolve slugs → phenomenon_ids. Drop hallucinated.
-          const links: Array<{ phenomenonId: string; isPrimary: boolean; taggedBy: string }> = []
+          // V11.17.54 — candidate links also carry the phen record so
+          // the verification gate (below) can build its Haiku prompt
+          // without an extra DB round-trip per call.
+          const candidates: Array<{ phenomenonId: string; isPrimary: boolean; taggedBy: string; phen: Phenomenon }> = []
           if (primarySlug) {
             const lookup = slugLookup.get(primarySlug)
             if (lookup) {
-              links.push({ phenomenonId: lookup.phenomenonId, isPrimary: true, taggedBy: 'ai_primary' })
+              candidates.push({ phenomenonId: lookup.phenomenonId, isPrimary: true, taggedBy: 'ai_primary', phen: lookup.phen })
             } else {
               stats.hallucinatedSlugs++
             }
@@ -423,13 +440,67 @@ async function classifyCategory(
           for (const s of secondarySlugs) {
             const lookup = slugLookup.get(s)
             if (lookup) {
-              links.push({ phenomenonId: lookup.phenomenonId, isPrimary: false, taggedBy: 'ai_secondary' })
+              candidates.push({ phenomenonId: lookup.phenomenonId, isPrimary: false, taggedBy: 'ai_secondary', phen: lookup.phen })
             } else {
               stats.hallucinatedSlugs++
             }
           }
 
+          if (candidates.length === 0) {
+            stats.nullMatched++
+            continue
+          }
+
+          // V11.17.54 — Tag-verification gate. Same pattern engine.ts
+          // uses (src/lib/ingestion/engine.ts post-classifier loop):
+          // for each candidate (report, phen) pair, ask Haiku whether
+          // the report actually fits the phen. Only 'no' verdicts
+          // block the insert — 'yes' and 'uncertain' both persist.
+          // Best-effort: any verifier exception is treated as
+          // 'uncertain' and the candidate is kept (never let the gate
+          // accidentally drop legitimate matches because of a
+          // transient Haiku error).
+          //
+          // Wired per-candidate (i.e. ~1-3 Haiku calls per report)
+          // rather than batched, because the Anthropic Batch API
+          // turnaround (~minutes-to-hours) would gate junction inserts
+          // behind a second async batch. The classify-batch script is
+          // already long-running and synchronous Haiku calls here cost
+          // ~$0.0005 each — at 3 calls × 97k reports ≈ $145, modest
+          // next to the ~$50 classification spend.
+          const report = reportLookup.get(row.custom_id)
+          const links: Array<{ phenomenonId: string; isPrimary: boolean; taggedBy: string }> = []
+          for (const cand of candidates) {
+            try {
+              const verdict = await verifyTag(
+                {
+                  name: cand.phen.name,
+                  slug: cand.phen.slug,
+                  category: cand.phen.category,
+                  ai_summary: cand.phen.ai_summary,
+                },
+                {
+                  title: report?.title ?? null,
+                  summary: report?.summary ?? null,
+                  description: report?.description ?? null,
+                },
+              )
+              if (verdict.match === 'no') {
+                stats.verifierDropped++
+                console.log('  Tag gate REJECTED ' + cand.phen.slug + ' for ' + String(row.custom_id).substring(0, 8) + ': ' + (verdict.reasoning || '').slice(0, 100))
+                continue
+              }
+            } catch (e: any) {
+              // Verification failure → keep the candidate (don't let
+              // the gate block legitimate tags on a transient error).
+              console.warn('  Tag gate failed for ' + cand.phen.slug + ', keeping tag: ' + (e?.message || e))
+            }
+            links.push({ phenomenonId: cand.phenomenonId, isPrimary: cand.isPrimary, taggedBy: cand.taggedBy })
+          }
+
           if (links.length === 0) {
+            // All candidates filtered out by the verifier — treat as
+            // null-match for accounting purposes.
             stats.nullMatched++
             continue
           }
@@ -464,6 +535,7 @@ async function classifyCategory(
   console.log('    primary + secondaries:           ' + stats.primaryPlusSecondaries)
   console.log('  No match (Haiku returned null):    ' + stats.nullMatched)
   console.log('  Hallucinated slugs (dropped):      ' + stats.hallucinatedSlugs)
+  console.log('  Verifier-dropped tags:             ' + stats.verifierDropped)
   console.log('  Junction rows written:             ' + stats.junctionWrites)
   console.log('  Reports.phenomenon_type_id updated:' + stats.reportsUpdated)
   console.log('  Actual cost:                       $' + stats.cost.toFixed(4))
@@ -478,14 +550,14 @@ async function main() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  console.log('=== Phenomenon classifier — V11.15.2 (Option B junction) ===')
+  console.log('=== Phenomenon classifier — V11.15.2 + V11.17.54 tag-verification gate ===')
   console.log('Dry run:        ' + args.dryRun)
   console.log('Per-cat limit:  ' + (args.limit > 0 ? args.limit : 'no limit'))
 
   const cats = args.all ? CATEGORIES : [args.category!]
   const grand: PersistStats = {
     matched: 0, primaryOnly: 0, primaryPlusSecondaries: 0, nullMatched: 0,
-    hallucinatedSlugs: 0, cost: 0, junctionWrites: 0, reportsUpdated: 0,
+    hallucinatedSlugs: 0, verifierDropped: 0, cost: 0, junctionWrites: 0, reportsUpdated: 0,
   }
 
   for (const cat of cats) {
@@ -495,6 +567,7 @@ async function main() {
     grand.primaryPlusSecondaries += res.primaryPlusSecondaries
     grand.nullMatched += res.nullMatched
     grand.hallucinatedSlugs += res.hallucinatedSlugs
+    grand.verifierDropped += res.verifierDropped
     grand.cost += res.cost
     grand.junctionWrites += res.junctionWrites
     grand.reportsUpdated += res.reportsUpdated
@@ -508,6 +581,7 @@ async function main() {
   console.log('  primary + secondaries:          ' + grand.primaryPlusSecondaries)
   console.log('No match:                         ' + grand.nullMatched)
   console.log('Hallucinated slugs (dropped):     ' + grand.hallucinatedSlugs)
+  console.log('Verifier-dropped tags:            ' + grand.verifierDropped)
   console.log('Junction rows written:            ' + grand.junctionWrites)
   console.log('Reports.phenomenon_type_id set:   ' + grand.reportsUpdated)
   console.log('Total cost:                       $' + grand.cost.toFixed(4))

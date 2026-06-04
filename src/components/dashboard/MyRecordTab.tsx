@@ -1,17 +1,25 @@
 'use client'
 
-/**
- * LabConstellationTab — Constellation V2 wrapper for the Lab
- *
- * If the user has submitted at least one report, shows the Constellation
- * visualization centered on their most recent submission. If they haven't
- * submitted anything yet, shows the ExperienceOnboarding flow inline.
- *
- * After first submission via onboarding, transitions to the Constellation
- * reveal animation.
- *
- * SWC: Uses var + function(){} for compatibility.
- */
+// V11.17.67 — Tier 1 Lab rename.
+//
+// MyRecordTab (formerly LabConstellationTab) — the user's record surface.
+//
+// If the user has submitted at least one report, shows the record
+// visualization (RADAR-style pattern lens) centered on their most recent
+// submission. If they haven't submitted anything yet, shows the
+// ExperienceOnboarding flow inline. After first submission via
+// onboarding, transitions to the record reveal animation.
+//
+// Component default-export renamed `LabConstellationTab` → `MyRecordTab`;
+// importers updated in lab.tsx, SignatureGrowthCard, RadarVisualization.
+// The deep-link selector `data-section="lab-constellation"` is retained
+// intentionally — that hook lives in analytics dashboards and is not a
+// user-facing string.
+//
+// DB tables (`constellation_*`) untouched per LAB_PANEL_REVIEW_V3 §3
+// (90-day defer window applies to schema renames).
+//
+// SWC: Uses var + function(){} for compatibility.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/router'
@@ -83,7 +91,7 @@ function resolveEventYear(r: any): number | null {
   return null
 }
 
-export default function LabConstellationTab() {
+export default function MyRecordTab() {
   var router = useRouter()
   var [loading, setLoading] = useState(true)
   var [hasSubmission, setHasSubmission] = useState(false)
@@ -1037,7 +1045,7 @@ function PolishedRadarView(props: {
     // V11.17.34 PR-4-a — 'high' caption retained for legacy URL
     // params that pre-date the filter removal; same caption as 'all'.
     if (filter === 'nearby') return 'Nearby: reports within ' + NEARBY_RADIUS_MI + ' miles of your experience location.'
-    return 'Every match in your RADAR, ranked by overall similarity to your experience.'
+    return 'Every related account in the pattern lens, ranked by overall similarity to your experience.'
   })()
 
   // V9.11.5 #31 — YOU dot click handler. Expands the user's own
@@ -1499,7 +1507,7 @@ function PolishedRadarView(props: {
         >
           + Add another experience
         </a>
-        <p className="text-[11px] text-gray-500">Each report sharpens your RADAR.</p>
+        <p className="text-[11px] text-gray-500">Each report sharpens the pattern lens on your record.</p>
       </div>
 
       {notifyToast && (

@@ -67,21 +67,29 @@ const SHAPE_TAGS: Record<string, string[]> = {
 // (no shape) is the most common NUFORC tag and also lands at
 // nocturnal-light. "Unknown"/"Other" deliberately unmapped — let the
 // engine leave phenomenon_type_id null rather than mis-attribute.
-const SHAPE_TO_PHENOMENON_SLUG: Record<string, string> = {
+// V11.17.62 — post-merge canonical slugs only. 4 entries were re-pointed
+// after V11.17.57 phen-dedup merges flipped these slugs to status='merged':
+//   sphere-ufo            → orb-ufo
+//   cylindrical-ufo       → cigar-ufo
+//   multi-light-formation → light-formation-ufo
+//   fireball-ufo          → nocturnal-light  (fireball is the dominant
+//                           nocturnal-light sub-pattern; no dedicated
+//                           fireball phen exists post-merge)
+export const SHAPE_TO_PHENOMENON_SLUG: Record<string, string> = {
   'light': 'nocturnal-light',
   'circle': 'disc-ufo',
   'triangle': 'triangular-ufo',
-  'fireball': 'fireball-ufo',
-  'sphere': 'sphere-ufo',
+  'fireball': 'nocturnal-light',
+  'sphere': 'orb-ufo',
   'oval': 'egg-ufo',
   'disk': 'disc-ufo',
   'cigar': 'cigar-ufo',
   'rectangle': 'rectangle-ufo',
   'chevron': 'chevron-ufo',
-  'formation': 'multi-light-formation',
+  'formation': 'light-formation-ufo',
   'changing': 'shape-shifting-ufo',
   'diamond': 'diamond-ufo',
-  'cylinder': 'cylindrical-ufo',
+  'cylinder': 'cigar-ufo',
   'teardrop': 'teardrop-ufo',
   'cone': 'cone-ufo',
   'orb': 'orb-ufo',
@@ -158,26 +166,100 @@ function cleanText(text: string): string {
     .trim();
 }
 
-// Fetch with browser-like headers
+// V11.17.63 — Cloudflare-resilient fetcher.
+//
+// Replaces the prior flat 1s × 2 retry (which collapsed under sustained
+// Cloudflare 503/403 bursts) with:
+//   1. Exponential backoff with ±25% jitter: 5s → 15s → 45s
+//   2. Honors server-sent Retry-After header (overrides exponential)
+//   3. Module-level circuit-breaker: after 5 consecutive 503/429 across
+//      ALL workers, pause every fetcher for 5 min so Cloudflare's IP-
+//      reputation cache can decay before we resume hitting it
+//   4. User-Agent rotation across 5 plausible browser fingerprints
+//   5. Sec-Fetch-* / Upgrade-Insecure-Requests headers to look like a
+//      real browser navigation, not a scraper
+let cfPauseUntilMs = 0;
+let consecutiveBlocks = 0;
+const CF_BREAKER_THRESHOLD = 5;
+const CF_BREAKER_PAUSE_MS = 5 * 60 * 1000;
+
+var NUFORC_USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2.1 Safari/605.1.15',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+];
+
+function pickUserAgent(): string {
+  return NUFORC_USER_AGENTS[Math.floor(Math.random() * NUFORC_USER_AGENTS.length)];
+}
+
+async function honorCloudflareBreaker(): Promise<void> {
+  const now = Date.now();
+  if (cfPauseUntilMs > now) {
+    const waitMs = cfPauseUntilMs - now;
+    console.log('[NUFORC] Circuit-breaker engaged — pausing ' + Math.round(waitMs / 1000) + 's for Cloudflare to cool down');
+    await new Promise(function(r) { setTimeout(r, waitMs); });
+  }
+}
+
+function computeBackoffMs(attemptIdx: number, retryAfterHeader: string | null): number {
+  if (retryAfterHeader) {
+    const n = parseInt(retryAfterHeader);
+    if (!isNaN(n) && n > 0 && n < 600) return n * 1000;
+  }
+  // Exponential 5s, 15s, 45s with ±25% jitter
+  const base = 5000 * Math.pow(3, attemptIdx);
+  const jitter = base * 0.25 * (Math.random() * 2 - 1);
+  return Math.max(1000, Math.round(base + jitter));
+}
+
 async function fetchWithHeaders(url: string, retries: number = 3): Promise<string | null> {
+  await honorCloudflareBreaker();
   for (let i = 0; i < retries; i++) {
     try {
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'User-Agent': pickUserAgent(),
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'Sec-Fetch-Dest': 'document',
+          'Sec-Fetch-Mode': 'navigate',
+          'Sec-Fetch-Site': 'none',
+          'Sec-Fetch-User': '?1',
+          'Upgrade-Insecure-Requests': '1',
         }
       });
       if (response.ok) {
+        consecutiveBlocks = 0;
         return await response.text();
       }
-      console.log(`[NUFORC] Fetch failed (attempt ${i + 1}): ${url} - Status: ${response.status}`);
-    } catch (e) {
-      console.error(`[NUFORC] Fetch error (attempt ${i + 1}):`, url);
-    }
-    if (i < retries - 1) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const status = response.status;
+      const isBlock = status === 503 || status === 429 || status === 403;
+      if (isBlock) {
+        consecutiveBlocks++;
+        if (consecutiveBlocks >= CF_BREAKER_THRESHOLD) {
+          cfPauseUntilMs = Date.now() + CF_BREAKER_PAUSE_MS;
+          console.log('[NUFORC] ' + consecutiveBlocks + ' consecutive blocks — engaging circuit-breaker, pausing ALL workers for ' + (CF_BREAKER_PAUSE_MS / 1000) + 's');
+          consecutiveBlocks = 0;
+        }
+      }
+      console.log('[NUFORC] Fetch failed (attempt ' + (i + 1) + '): ' + url + ' - Status: ' + status);
+      if (i < retries - 1) {
+        const waitMs = computeBackoffMs(i, response.headers.get('retry-after'));
+        console.log('[NUFORC] Backoff ' + Math.round(waitMs / 1000) + 's before retry');
+        await new Promise(function(r) { setTimeout(r, waitMs); });
+        await honorCloudflareBreaker();
+      }
+    } catch (e: any) {
+      console.error('[NUFORC] Fetch error (attempt ' + (i + 1) + '): ' + url + ' - ' + (e?.message || e));
+      if (i < retries - 1) {
+        await new Promise(function(r) { setTimeout(r, 2000); });
+      }
     }
   }
   return null;

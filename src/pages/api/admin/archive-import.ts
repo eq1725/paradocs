@@ -52,6 +52,7 @@ import {
   geocodeWithFallback,
   makeSupabaseGeocodeCache,
 } from '@/lib/ingestion/utils/normalize-location'
+import { extractAndGeocodeLocation } from '@/lib/services/location-extraction.service'
 
 var supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -368,6 +369,28 @@ async function processBatch(posts: ArcticShiftPost[]): Promise<ImportResult> {
       if ((report as any).source_published_at) insertData.source_published_at = (report as any).source_published_at
       if (report.witness_count && report.witness_count > 0) insertData.witness_count = report.witness_count
       if (report.has_photo_video) insertData.has_photo_video = true
+
+      // V11.17.52 — location safety net. If the adapter + normalize
+      // both produced no location, Haiku-extract from title/summary/
+      // description. Best-effort + non-blocking.
+      if (!insertData.location_name) {
+        try {
+          var resolved = await extractAndGeocodeLocation({
+            title: insertData.title || null,
+            summary: insertData.summary || null,
+            description: insertData.description || null,
+          })
+          if (resolved) {
+            insertData.location_name = resolved.location_name
+            insertData.city = resolved.city
+            insertData.state_province = resolved.state_province
+            insertData.country = resolved.country
+            insertData.latitude = resolved.latitude
+            insertData.longitude = resolved.longitude
+            insertData.metadata.location_precision = resolved.location_precision
+          }
+        } catch { /* leave insertData.location_name null */ }
+      }
 
       toInsert.push(insertData)
     } catch (perPostErr: any) {

@@ -1,7 +1,19 @@
 'use client'
 
 /**
- * LabPromo — V11.17.40 (impression telemetry + paywall click logging)
+ * LabPromo — V11.17.67 Tier 1 Lab rename
+ *
+ * Marketing surface in the Today feed. Tier 1 pass:
+ *   - Wordmark "Lab" → "My Record" (documentary register; matches the
+ *     in-app nav rename per LAB_PANEL_REVIEW_V3 §2/§3).
+ *   - Sub-headline + benefit lines reframed off the "research dashboard"
+ *     vocabulary ("radar", "your story", "library") onto the
+ *     archive/record register the panel locked in.
+ *   - Subscription footer copy refreshed to V3 gating language
+ *     ($5.99/mo confirmed by founder; flagging the Pro tier as a
+ *     separate ticket — see LAB_TIER1_BUILD_NOTES.md).
+ *
+ * Original (V11.17.40 impression telemetry + paywall click logging)
  *
  * V11.17.40 — Backlog #4 frequency cap. On mount, fires a fire-and-
  * forget POST to /api/lab/promo/event { event_type: 'shown' } so the
@@ -63,10 +75,13 @@ interface LabPromoProps {
 }
 
 // V11.17.39 — Round 4 benefit lines locked.
+// V11.17.67 Tier 1 — benefit lines rewritten in the documentary
+// "archive / record" register. Section labels reflect the V3 IA:
+// the user's record, the wider catalogue, the collections they keep.
 var BENEFITS = [
-  { text: 'Every report you save, in one place',       tab: 'Library' },
-  { text: 'Radar — reports that match your details',    tab: 'Your Story' },
-  { text: 'Ask the archive — 100k witnesses, one question', tab: 'Explore' },
+  { text: 'Your experience, set against 200k accounts', tab: 'My Record' },
+  { text: 'Related reports surfaced as the archive grows', tab: 'Connections' },
+  { text: 'Keep collections of accounts that matter to you', tab: 'Collections' },
 ]
 
 interface Footprint {
@@ -76,7 +91,10 @@ interface Footprint {
   viewedCount7d: number
 }
 
-var SUB_HEADLINE = 'The pattern is already there. Lab makes it visible.'
+// V11.17.67 Tier 1 — sub-headline + headline pool rewritten in the
+// documentary register. "Lab makes it visible" was workshop vocabulary;
+// "My Record places it inside the archive" is documentary.
+var SUB_HEADLINE = 'The pattern is already there. My Record places your account inside it.'
 
 function pickHeadline(fp: Footprint | null): string {
   if (!fp || !fp.signedIn) {
@@ -90,9 +108,9 @@ function pickHeadline(fp: Footprint | null): string {
   }
   if (fp.thumbsUpCount7d >= 10 || fp.viewedCount7d >= 30) {
     var n = Math.max(fp.thumbsUpCount7d, fp.viewedCount7d)
-    return 'You\'ve viewed ' + n + ' reports. Lab finds the thread.'
+    return 'You\'ve read ' + n + ' reports. My Record connects them to yours.'
   }
-  return 'You\'ve been reading. Lab connects what you read.'
+  return 'You\'ve been reading. My Record connects what you read.'
 }
 
 /**
@@ -251,9 +269,9 @@ export function LabPromo(props: LabPromoProps) {
         'pt-[calc(env(safe-area-inset-top,0px)+2rem)] pb-[calc(80px+env(safe-area-inset-bottom,0px)+8px)] md:pb-6 ' +
         (props.isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4')
       }>
-        {/* Lab wordmark */}
-        <h2 className="font-brand text-[44px] sm:text-[54px] leading-none text-[#f2ead8] tracking-tight">
-          Lab
+        {/* My Record wordmark (V11.17.67 Tier 1 rename) */}
+        <h2 className="font-brand text-[38px] sm:text-[46px] leading-none text-[#f2ead8] tracking-tight">
+          My Record
         </h2>
 
         {/* Stylized Radar teaser — pure SVG, brand-tuned palette */}

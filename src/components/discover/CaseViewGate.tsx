@@ -33,7 +33,7 @@ export function CaseViewGate(props: CaseViewGateProps) {
 
   var depthMessage = ''
   if (props.sessionDepth >= 5) {
-    depthMessage = 'You\u2019ve explored ' + props.sessionDepth + ' cases this session \u2014 you\u2019re clearly curious. Core gives you unlimited access.'
+    depthMessage = 'You\u2019ve opened ' + props.sessionDepth + ' accounts this session. Basic opens all of them \u2014 and adds your own to the archive.'
   } else if (props.sessionDepth >= 3) {
     depthMessage = 'You\u2019ve been diving deep. Unlock unlimited access to keep exploring.'
   }
@@ -96,7 +96,7 @@ export function CaseViewGate(props: CaseViewGateProps) {
             href="/pricing"
             className="flex items-center justify-center gap-2 w-full py-3.5 bg-purple-600 hover:bg-purple-500 text-white rounded-full font-semibold transition-colors"
           >
-            <span>Start Core \u2014 $5.99/mo</span>
+            <span>Start Basic \u2014 $5.99/mo</span>
             <ArrowRight className="w-4 h-4" />
           </Link>
           <p className="text-xs text-gray-500 text-center">

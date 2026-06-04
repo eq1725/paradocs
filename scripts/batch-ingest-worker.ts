@@ -87,6 +87,7 @@ interface CliArgs {
   maxWaitSec: number
   resumeBatchId: string | null
   noClassify: boolean
+  offset: number  // V11.17.63 — for parallel-drain partitioning
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -99,19 +100,21 @@ function parseArgs(argv: string[]): CliArgs {
     maxWaitSec: 3600,
     resumeBatchId: null,
     noClassify: false,
+    offset: 0,
   }
   for (var i = 2; i < argv.length; i++) {
     var a = argv[i]
     if (a === '--backfill') args.backfill = true
     else if (a === '--status') { args.status = argv[++i] }
     else if (a === '--limit') { args.limit = parseInt(argv[++i], 10) || 100 }
+    else if (a === '--offset') { args.offset = parseInt(argv[++i], 10) || 0 }
     else if (a === '--dry-run') { args.dryRun = true }
     else if (a === '--poll-interval') { args.pollIntervalSec = parseInt(argv[++i], 10) || 30 }
     else if (a === '--max-wait') { args.maxWaitSec = parseInt(argv[++i], 10) || 3600 }
     else if (a === '--resume') { args.resumeBatchId = argv[++i]; args.backfill = false }
     else if (a === '--no-classify') { args.noClassify = true }
     else if (a === '--help' || a === '-h') {
-      console.log('Usage: tsx scripts/batch-ingest-worker.ts [--backfill] [--status <s>] [--limit <n>] [--dry-run] [--poll-interval <s>] [--max-wait <s>] [--resume <batch_id>]')
+      console.log('Usage: tsx scripts/batch-ingest-worker.ts [--backfill] [--status <s>] [--limit <n>] [--offset <n>] [--dry-run] [--poll-interval <s>] [--max-wait <s>] [--resume <batch_id>]')
       process.exit(0)
     }
   }
@@ -312,14 +315,21 @@ async function main() {
     // the report data is fetched per-result during persistence below.
   } else {
     // ── Backfill mode: query reports needing AI ──────────────────
-    console.log('\nQuerying reports with status=\'' + args.status + '\' AND paradocs_narrative IS NULL...')
+    // V11.17.63 — pagination via .range() for parallel-drain partitioning.
+    // Stable ordering (created_at + id) ensures different offset workers
+    // see disjoint row sets without racing.
+    var rangeStart = args.offset
+    var rangeEnd = args.offset + args.limit - 1
+    console.log('\nQuerying reports with status=\'' + args.status + '\' AND paradocs_narrative IS NULL ' +
+                '(offset=' + args.offset + ' limit=' + args.limit + ' range=[' + rangeStart + ',' + rangeEnd + '])...')
     var q = supabase
       .from('reports')
       .select('id, title, summary, description, category, location_name, country, state_province, city, event_date, source_type, source_label, tags')
       .eq('status', args.status)
       .is('paradocs_narrative', null)
       .order('created_at', { ascending: true })
-      .limit(args.limit)
+      .order('id', { ascending: true })
+      .range(rangeStart, rangeEnd)
     var qres = await q
     if (qres.error) {
       console.error('DB query failed: ' + qres.error.message)
@@ -508,6 +518,63 @@ async function main() {
         await logBatchCost(supabase, reportId, msg, inTok, outTok, cWrite, costUsd, 'completed', null)
         stats.succeeded++
 
+        // V11.17.46 — Anomaly content gate (batch path).
+        //
+        // persistConsolidatedResult just wrote
+        // paradocs_assessment.anomalous_content_check from the SAME Haiku
+        // call (see consolidated-ai.service.ts ~L727). Mirror the
+        // two-tier demotion logic that engine.ts applies on the live
+        // ingestion path (engine.ts ~L1513, V11.17.41) so batch-ingested
+        // rows get the same gate as live-ingested rows. Without this
+        // check, anomalous='no' content from Reddit batch jobs auto-
+        // promotes to 'approved' in Path B below.
+        //
+        // Two tiers:
+        //   anomalous='no' AND confidence >= 0.9 → status='archived'
+        //     (Haiku is unambiguous — keep out of admin queue entirely)
+        //   anomalous='no' AND 0.7 <= confidence < 0.9 → leave at
+        //     pending_review (do NOT auto-promote in Path B)
+        //   otherwise → fall through to normal Path A/B/C logic
+        //
+        // Re-fetches paradocs_assessment because persistConsolidatedResult
+        // wrote it to a JSONB column and we don't have an in-memory copy
+        // of the normalized shape here. Best-effort: a failed read leaves
+        // the row to fall through to Path B (matches engine.ts behavior).
+        var anomalyAutoArchive = false
+        var anomalyKeepPending = false
+        try {
+          var assessRes = await (supabase.from('reports') as any)
+            .select('paradocs_assessment')
+            .eq('id', reportId)
+            .single()
+          var acRaw = assessRes.data && assessRes.data.paradocs_assessment
+            ? (assessRes.data.paradocs_assessment as any).anomalous_content_check
+            : null
+          if (acRaw && typeof acRaw === 'object') {
+            var acAnomalous = typeof acRaw.anomalous === 'string' ? acRaw.anomalous : null
+            var acConfidence = typeof acRaw.confidence === 'number' ? acRaw.confidence : 0
+            var acGenre = typeof acRaw.genre === 'string' ? acRaw.genre : ''
+            if (acAnomalous === 'no' && acConfidence >= 0.9) {
+              anomalyAutoArchive = true
+              try {
+                var archiveRes = await (supabase.from('reports') as any)
+                  .update({ status: 'archived', updated_at: new Date().toISOString() })
+                  .eq('id', reportId)
+                if (!archiveRes.error) {
+                  console.log('  ↓ ' + reportId + ' auto-archived (V11.17.46 anomaly gate — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2) + ')')
+                }
+              } catch (archiveErr: any) {
+                console.warn('  ! ' + reportId + ' anomaly auto-archive failed: ' + (archiveErr?.message || archiveErr))
+              }
+            } else if (acAnomalous === 'no' && acConfidence >= 0.7 && acConfidence < 0.9) {
+              anomalyKeepPending = true
+              console.log('  • ' + reportId + ' kept at pending_review (V11.17.46 anomaly gate — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2) + ')')
+            }
+          }
+        } catch (anomalyErr: any) {
+          console.log('  ! ' + reportId + ' anomaly gate check failed (non-fatal): ' + (anomalyErr?.message || anomalyErr))
+        }
+
         // V11.14 — Status transition after AI completes:
         //
         //   A) AI returned INSUFFICIENT (model couldn't make sense of
@@ -540,7 +607,9 @@ async function main() {
           feed_hook: parsed.feed_hook,
         })
 
-        if (aiInsufficient || metaHit) {
+        if (anomalyAutoArchive) {
+          // V11.17.46 — row already archived above; skip A/B/C entirely.
+        } else if (aiInsufficient || metaHit) {
           // Path A — auto-reject
           try {
             var rejectRes = await (supabase.from('reports') as any)
@@ -556,8 +625,10 @@ async function main() {
           } catch (rejectErr: any) {
             console.warn('  ! ' + reportId + ' auto-reject failed (left at pending_review): ' + (rejectErr?.message || rejectErr))
           }
-        } else if (scoreStatus === 'approved' && hasNarrative && hasPullQuote) {
-          // Path B — auto-promote
+        } else if (scoreStatus === 'approved' && hasNarrative && hasPullQuote && !anomalyKeepPending) {
+          // Path B — auto-promote (V11.17.46: blocked when anomaly gate
+          // flagged mid-confidence non-anomalous content; row stays at
+          // pending_review for admin review.)
           try {
             var promoteRes = await (supabase.from('reports') as any)
               .update({ status: 'approved', updated_at: new Date().toISOString() })

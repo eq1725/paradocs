@@ -1,17 +1,23 @@
 'use client'
 
-/**
- * LabCasesTab — Case files surface for the Lab.
- *
- * Two states:
- *   1. Grid of case file cards (default). Each card shows cover color,
- *      title, description, artifact count, and a preview strip of the
- *      first 3 artifact thumbnails. "+ New case file" at the top opens
- *      the create modal.
- *   2. Detail view (when a case file is selected). Shows header + list
- *      of artifacts in the case file (filtered ConstellationListView),
- *      edit / delete actions, case-file-scoped insights.
- */
+// V11.17.67 — Tier 1 Lab rename.
+//
+// LabCollectionsTab (formerly LabCasesTab) — Collections surface.
+//
+// Two states:
+//   1. Grid of collection cards (default). Each card shows cover color,
+//      title, description, artifact count, and a preview strip of the
+//      first 3 attached thumbnails. "+ New collection" at the top opens
+//      the create modal.
+//   2. Detail view (when a collection is selected). Shows header + list
+//      of attached accounts (filtered ConstellationListView), edit /
+//      delete actions, collection-scoped insights.
+//
+// DB tables (`constellation_case_files`) untouched — see
+// LAB_PANEL_REVIEW_V3 §3 (90-day defer for schema renames). Internal
+// variable / type identifiers (`CaseFile`, `caseFile`, `case_files`
+// query strings, etc.) intentionally retained so the data plumbing
+// reads identically; only the surface label flipped.
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import Link from 'next/link'
@@ -40,7 +46,7 @@ const COLOR_PRESETS = [
   '#10b981', '#06b6d4', '#ef4444', '#64748b',
 ]
 
-interface LabCasesTabProps {
+interface LabCollectionsTabProps {
   userMapData: UserMapData | null
   caseFiles: CaseFile[]
   aiConnections: EmergentConnection[]
@@ -48,13 +54,13 @@ interface LabCasesTabProps {
   loading: boolean
 }
 
-export default function LabCasesTab({
+export default function LabCollectionsTab({
   userMapData,
   caseFiles,
   aiConnections,
   onRefresh,
   loading,
-}: LabCasesTabProps) {
+}: LabCollectionsTabProps) {
   const [selectedCaseFileId, setSelectedCaseFileId] = useState<string | null>(null)
   const [selectedEntry, setSelectedEntry] = useState<EntryNode | null>(null)
   const [editingCaseFile, setEditingCaseFile] = useState<CaseFile | null>(null)
@@ -102,14 +108,17 @@ export default function LabCasesTab({
   // GRID view
   return (
     <div className="space-y-4">
-      {/* Header — always shows a "+ New case file" CTA, regardless of whether
-          the user has any case files yet. This is the primary entry point
-          for creating a first case file. */}
+      {/* Header — always shows a "+ New collection" CTA, regardless of whether
+          the user has any collections yet. This is the primary entry point
+          for creating a first collection.
+          V11.17.67 Tier 1 — surface label "Case Files" → "Collections" per
+          LAB_PANEL_REVIEW_V3 §3 vocabulary lock. Internal type names + DB
+          tables (`constellation_case_files`) intentionally untouched. */}
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-lg font-bold text-white">Case Files</h2>
+          <h2 className="text-lg font-bold text-white">Collections</h2>
           <p className="text-xs text-gray-500 hidden sm:block">
-            Organize your research into focused investigations.
+            Group related accounts into focused collections you can return to.
           </p>
         </div>
         <button
@@ -117,7 +126,7 @@ export default function LabCasesTab({
           className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-primary-600 hover:bg-primary-500 transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">New case file</span>
+          <span className="hidden sm:inline">New collection</span>
           <span className="sm:hidden">New</span>
         </button>
       </div>
@@ -155,7 +164,7 @@ export default function LabCasesTab({
                   <div>
                     {shared.length > 0 && (
                       <div className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-2">
-                        My case files ({owned.length})
+                        My collections ({owned.length})
                       </div>
                     )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -258,7 +267,7 @@ function CaseFileCard({
       tabIndex={0}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
       className="group relative bg-gray-950 border border-gray-800 rounded-xl overflow-hidden hover:border-gray-700 hover:bg-gray-900 transition-colors cursor-pointer"
-      aria-label={'Open case file: ' + caseFile.title}
+      aria-label={'Open collection: ' + caseFile.title}
     >
       {/* Cover color strip */}
       <div className="h-2" style={{ backgroundColor: caseFile.cover_color }} />
@@ -297,8 +306,8 @@ function CaseFileCard({
             <button
               onClick={e => { e.stopPropagation(); onEdit() }}
               className="p-1 rounded-md text-gray-500 hover:text-white hover:bg-gray-800 transition-colors flex-shrink-0"
-              title="Edit case file"
-              aria-label="Edit case file"
+              title="Edit collection"
+              aria-label="Edit collection"
             >
               <MoreHorizontal className="w-3.5 h-3.5" />
             </button>
@@ -437,7 +446,7 @@ function CaseFileDetail({
           className="flex items-center gap-1 px-2 py-1.5 text-xs text-gray-400 hover:text-white rounded-md hover:bg-gray-900 transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          All case files
+          All collections
         </button>
       </div>
 
@@ -454,7 +463,7 @@ function CaseFileDetail({
             <button
               onClick={onEdit}
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-300 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors flex-shrink-0"
-              title="Edit case file"
+              title="Edit collection"
             >
               <Edit3 className="w-3 h-3" />
               <span className="hidden sm:inline">Edit</span>
@@ -514,7 +523,7 @@ function CaseFileDetail({
       ) : entries.length === 0 ? (
         <div className="rounded-xl border border-gray-800 bg-gray-950 p-6 text-center">
           <p className="text-sm text-gray-400">
-            No saves match &ldquo;{search}&rdquo; in this case file.
+            No saves match &ldquo;{search}&rdquo; in this collection.
           </p>
         </div>
       ) : (
@@ -565,18 +574,19 @@ function CasesEmptyState({ onCreate }: { onCreate: () => void }) {
         <FolderOpen className="w-6 h-6 text-primary-400" />
       </div>
       <h3 className="text-base font-semibold text-white mb-1">
-        No case files yet
+        No collections yet
       </h3>
       <p className="text-sm text-gray-400 max-w-sm mx-auto mb-5 leading-relaxed">
-        Case files let you group saves into focused investigations — &ldquo;Skinwalker Ranch,&rdquo;
-        &ldquo;Arizona Wave,&rdquo; or whatever thread you&apos;re pulling. Invite collaborators to co-investigate.
+        Collections let you group saved accounts into focused threads &mdash;
+        &ldquo;Skinwalker Ranch,&rdquo; &ldquo;Arizona Wave,&rdquo; or whatever
+        thread you&rsquo;re following. Invite collaborators when it helps.
       </p>
       <button
         onClick={onCreate}
         className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-600 hover:bg-primary-500 transition-colors"
       >
         <Plus className="w-4 h-4" />
-        Create your first case file
+        Create your first collection
       </button>
     </div>
   )
@@ -593,8 +603,8 @@ function CaseFileEmptyState({ caseFile }: { caseFile: CaseFile }) {
         {caseFile.title}
       </div>
       <p className="text-sm text-gray-400 max-w-sm mx-auto leading-relaxed">
-        This case file doesn't have any saves yet.
-        Open any save's detail view and tap <span className="text-gray-300">Add to case file</span> to start building the investigation.
+        This collection is empty.
+        Open any save&rsquo;s detail view and tap <span className="text-gray-300">Add to collection</span> to start building the thread.
       </p>
       <Link
         href="/lab?tab=saves"
@@ -738,7 +748,7 @@ function EditCaseFileModal({
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-          <h2 className="text-sm font-semibold text-white">Edit case file</h2>
+          <h2 className="text-sm font-semibold text-white">Edit collection</h2>
           <button
             onClick={onClose}
             className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-gray-800 text-gray-500 hover:text-white transition-colors"
@@ -832,8 +842,8 @@ function EditCaseFileModal({
                 </div>
                 <p className="text-[10px] text-gray-400 mt-0.5 leading-snug">
                   {isPublic
-                    ? 'Anyone with the link can view this case file, its saves, and your descriptions. Your private notes stay hidden.'
-                    : 'Only you can see this case file. Toggle on to get a shareable link.'}
+                    ? 'Anyone with the link can view this collection, its saves, and your descriptions. Your private notes stay hidden.'
+                    : 'Only you can see this collection. Toggle on to get a shareable link.'}
                 </p>
               </div>
             </button>
@@ -1034,7 +1044,7 @@ function CollaboratorsSection({ caseFileId }: { caseFileId: string }) {
         </div>
       ) : collaborators.length === 0 ? (
         <p className="text-[11px] text-gray-500 italic">
-          No collaborators yet. Invite someone to co-investigate this case file.
+          No collaborators yet. Invite someone to share this collection with.
         </p>
       ) : (
         <ul className="space-y-1">

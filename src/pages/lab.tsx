@@ -55,13 +55,17 @@ import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
 import { capture, getFeatureFlag } from '@/lib/posthog'
 import LabSavesTab from '@/components/dashboard/LabSavesTab'
-import LabCasesTab from '@/components/dashboard/LabCasesTab'
+// V11.17.67 Tier 1 — LabCasesTab renamed to LabCollectionsTab; the
+// LabConstellationTab default export now lives at MyRecordTab.tsx.
+// File paths flipped, exported function names flipped, surface
+// labels are "Collections" / "My Record".
+import LabCollectionsTab from '@/components/dashboard/LabCollectionsTab'
 // V11.17.38 PR-7 item 1 — LabMapTab removed from Library tab (canonical
 // geographic surface is /map). Import kept as comment for git-blame
 // trail in case we want a Library-scoped map later.
 // import LabMapTab from '@/components/dashboard/LabMapTab'
-// LabSubmissionsTab merged into LabCasesTab — submissions show as pinned section
-import LabConstellationTab from '@/components/dashboard/LabConstellationTab'
+// LabSubmissionsTab merged into LabCollectionsTab — submissions show as pinned section
+import MyRecordTab from '@/components/dashboard/MyRecordTab'
 import SignatureGrowthCard from '@/components/dashboard/SignatureGrowthCard'
 // V11.17.65 — Hints rail (data-driven catalogue surface) above SIGNAL
 // on the Story tab. Lives between RADAR and the Your Signal block so
@@ -96,10 +100,13 @@ import { Star } from 'lucide-react'
 var TAB_KEYS = ['story', 'library', 'explore'] as const
 type TabKey = typeof TAB_KEYS[number]
 
+// V11.17.67 Tier 1 — tab labels tightened. "Your Story" → "Story"
+// (cleaner, drops the second-person possessive that read like dashboard
+// chrome). Library / Explore unchanged per panel guidance.
 var TAB_CONFIG: Record<string, { label: string; mobileLabel?: string; icon: typeof Star }> = {
-  story:   { label: 'Your Story', mobileLabel: 'Story', icon: Star },
-  library: { label: 'Library',    icon: Bookmark },
-  explore: { label: 'Explore',    icon: Sparkles },
+  story:   { label: 'Story',   icon: Star },
+  library: { label: 'Library', icon: Bookmark },
+  explore: { label: 'Explore', icon: Sparkles },
 }
 
 // V10.14 → V11.17.37 — legacy → new tab mapping for query-string
@@ -218,8 +225,11 @@ export default function LabPage() {
   return (
     <>
       <Head>
-        <title>Lab | Paradocs</title>
-        <meta name="description" content="Your personal research lab — saves, case files, geographic map, and notes." />
+        {/* V11.17.67 Tier 1 rename — page title + meta reframed from
+            "Lab / personal research" into "My Record" (documentary
+            archive register). URL stays /lab; this is chrome only. */}
+        <title>My Record | Paradocs</title>
+        <meta name="description" content="Your record on Paradocs — the experiences you've shared, the wider archive they sit inside, and the collections you've kept." />
         {activeTab === 'story' && (
           <style>{`footer{background:#0a0a14 !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;}`}</style>
         )}
@@ -235,8 +245,8 @@ export default function LabPage() {
                 <Telescope className="w-5 h-5 sm:w-6 sm:h-6 text-primary-400" />
               </div>
               <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-white">Lab</h1>
-                <p className="text-xs sm:text-sm text-gray-400 hidden sm:block">Your personal research workspace</p>
+                <h1 className="text-xl sm:text-2xl font-bold text-white">My Record</h1>
+                <p className="text-xs sm:text-sm text-gray-400 hidden sm:block">The experiences you&rsquo;ve shared and where they sit in the wider archive</p>
               </div>
             </div>
 
@@ -362,7 +372,7 @@ export default function LabPage() {
                     <SignatureGrowthCard />
                   </div>
                   <div data-section="lab-constellation">
-                    <LabConstellationTab />
+                    <MyRecordTab />
                   </div>
                   {/* V11.17.65 — Hints rail between RADAR and SIGNAL.
                       Surfaces data-driven catalogue observations
@@ -398,7 +408,7 @@ export default function LabPage() {
                   />
                 )}
                 {savesView === 'collections' && (
-                  <LabCasesTab
+                  <LabCollectionsTab
                     loading={lab.loading}
                     userMapData={lab.userMapData}
                     caseFiles={lab.caseFiles}
@@ -489,11 +499,12 @@ function UnauthenticatedPrompt() {
         <Lock className="w-10 h-10 text-primary-400" />
       </div>
       <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">
-        Sign in to access your Lab
+        Sign in to open My Record
       </h2>
       <p className="text-gray-400 max-w-md mb-8 text-sm sm:text-base">
-        Your Lab is your personal research workspace. Save reports, build case files,
-        explore your evidence on a geographic map, and keep investigation notes — all in one place.
+        My Record is the experience you share, set against the wider archive
+        of 200,000+ accounts. Keep collections, follow related reports, and
+        see where your account sits among the rest.
       </p>
       <Link
         href="/login"
@@ -625,11 +636,11 @@ function YourSignalTab() {
         <div className="inline-flex w-12 h-12 rounded-full bg-purple-600/20 border border-purple-500/30 items-center justify-center mb-4">
           <Activity className="w-6 h-6 text-purple-300" />
         </div>
-        <h3 className="text-lg font-semibold text-white mb-2">Your Signal grows with your story</h3>
+        <h3 className="text-lg font-semibold text-white mb-2">Your record starts with one experience</h3>
         <p className="text-sm text-gray-400 leading-relaxed mb-6">
-          Share an experience and we&rsquo;ll surface emergent patterns from across
-          the archive that connect to it &mdash; geographic clusters, temporal
-          rhythms, signatures that recur across thousands of reports.
+          Share an account and we&rsquo;ll set it against the wider archive
+          &mdash; the regional patterns, the time-of-day distribution, the
+          related reports already on file.
         </p>
         <Link
           href="/start"
@@ -699,9 +710,13 @@ function YourSignalTab() {
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
       {/* V10.9 — header (kicker simplified to remove "Personalized
-          patterns…" jargon; that's what the cards already say). */}
+          patterns…" jargon; that's what the cards already say).
+          V11.17.67 Tier 1 — "Your Signal" → "How yours connects".
+          The "Signal" register (intelligence-agency / consumer-fitness)
+          is being purged across the surface; "Connections" carries the
+          relational frame without the dashboard vocabulary. */}
       <div>
-        <h2 className="text-xl font-bold text-white">Your Signal</h2>
+        <h2 className="text-xl font-bold text-white">How yours connects</h2>
       </div>
 
       {/* V10.9 — "Since you last visited" delta line. T1.11 — when
@@ -791,7 +806,7 @@ function YourSignalTab() {
       <NotificationsAndSharingAccordion emailPrefs={data.email_prefs || null} />
 
       <p className="text-[11px] text-gray-500 text-center pt-2 leading-relaxed">
-        Your Signal updates as new reports land in the archive. The thumbs
+        Your record updates as new reports land in the archive. The thumbs
         on each card tune what shows up next time.
       </p>
     </div>
@@ -892,7 +907,7 @@ function SignalAlertsOptInCard() {
         if (result.subscribed) {
           setPermission('granted')
           setSubscribed(true)
-          setMessage('Notifications on — we’ll ping you when 3+ new reports land in your cluster.')
+          setMessage('Notifications on — we’ll let you know when 3+ new reports land near your account.')
           capture('signal_alerts_optin', { outcome: 'subscribed' })
         } else if (result.unsupported) {
           setPermission('unsupported')
@@ -925,7 +940,7 @@ function SignalAlertsOptInCard() {
       mod.unsubscribeFromPush().then(function (ok) {
         if (ok) {
           setSubscribed(false)
-          setMessage('Signal alerts turned off. Your push subscription on this device has been removed.')
+          setMessage('Record alerts turned off. Your push subscription on this device has been removed.')
           capture('signal_alerts_optin', { outcome: 'unsubscribed' })
         } else {
           setMessage('Couldn’t turn off alerts. Try refreshing and trying again.')
@@ -951,7 +966,7 @@ function SignalAlertsOptInCard() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm font-semibold text-white">
-              {showToggleOn ? 'Signal alerts are on' : 'Get a ping when your signal grows'}
+              {showToggleOn ? 'Record alerts are on' : 'Get a quiet note when your record grows'}
             </p>
             {/* V10.12.1 — toggle replaces the old "alerts are on" copy
                 with no off path. Same toggle UX as the email card
@@ -971,10 +986,10 @@ function SignalAlertsOptInCard() {
           </div>
           <p className="text-xs text-gray-300 mt-1 leading-relaxed">
             {showToggleOn
-              ? 'We’ll notify you when 3+ new reports join your cluster, no more than once every 3 days. Toggle off to turn this off on this device.'
+              ? 'We’ll notify you when 3+ new reports join your record, no more than once every 3 days. Toggle off to disable on this device.'
               : showDeniedMessage
                 ? 'Push permission was denied. Re-enable in your browser site permissions.'
-                : 'Get a quiet, low-volume notification when 3+ new cases share your signature. Capped at one alert per 3 days.'}
+                : 'Get a quiet, low-volume notification when 3+ new accounts share your signature. Capped at one alert per 3 days.'}
           </p>
           {message && (
             <p className="text-[11px] text-amber-200 mt-1.5">{message}</p>
@@ -987,7 +1002,7 @@ function SignalAlertsOptInCard() {
               className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-xs font-semibold transition-colors"
             >
               {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-              Enable signal alerts
+              Enable record alerts
             </button>
           )}
         </div>
@@ -1109,8 +1124,8 @@ function SignalEmailDigestCard(props: { initialPrefs: { enabled: boolean; cadenc
           </div>
           <p className="text-xs text-gray-300 mt-1 leading-relaxed">
             {enabled
-              ? 'You\'ll get a Resend digest when new cases land in your cluster — never empty, never daily-by-default.'
-              : 'Turn on to get a quiet email when new cases land in your cluster. Universal (works on any device).'}
+              ? 'You\'ll receive an email when new accounts land near your record — never empty, never daily-by-default.'
+              : 'Turn on to get a quiet email when new accounts land near your record. Universal (works on any device).'}
           </p>
           {enabled && (
             <div className="flex items-center gap-2 mt-2">
@@ -1383,11 +1398,14 @@ function SinceLastVisitLine(props: { sinceLastVisit: any; hasReport: boolean }) 
   if (!props.hasReport || !s) return null
 
   // First visit — frame as a welcome, not a delta.
+  // V11.17.67 Tier 1 — "Welcome to your Signal" → "Welcome to your
+  // record." Documentary register; "Signal" carried the dashboard tilt
+  // the panel asked us to drop.
   if (s.is_first_visit) {
     return (
       <div className="text-sm text-gray-300 bg-purple-950/15 border border-purple-800/40 rounded-lg px-4 py-3 leading-relaxed">
-        <span className="text-purple-300 font-semibold">Welcome to your Signal.</span>{' '}
-        It will grow as new reports land in the archive — check back to see what changes.
+        <span className="text-purple-300 font-semibold">Welcome to your record.</span>{' '}
+        It will grow as new reports land in the archive &mdash; check back to see what changes.
       </div>
     )
   }
@@ -1399,11 +1417,12 @@ function SinceLastVisitLine(props: { sinceLastVisit: any; hasReport: boolean }) 
 
   if (totalNew === 0) {
     // Honest empty state — encourages return without faking activity.
+    // V11.17.67 Tier 1 — "signal" → "record" / "connections" register.
     return (
       <div className="text-sm text-gray-300 bg-gray-900/40 border border-gray-800/60 rounded-lg px-4 py-3 leading-relaxed">
-        <span className="text-gray-100 font-medium">Nothing new in your signal yet</span>
+        <span className="text-gray-100 font-medium">Nothing new for your record yet</span>
         <span className="text-gray-400">
-          {' — the archive grew by ' + (s.new_in_archive || 0) + ' reports since '+ sinceLabel +', but none matched your cluster. Add another experience and your signal will sharpen.'}
+          {' — the archive grew by ' + (s.new_in_archive || 0) + ' reports since ' + sinceLabel + ', but none matched your account. Add another experience and the connections will sharpen.'}
         </span>
       </div>
     )
@@ -1506,7 +1525,7 @@ function YourSignalBands(props: { data: any; reportId: string; feedback: any; ai
       {/* BAND 1: YOUR SIGNATURE — Fingerprint card, full-width, top. */}
       {hasFingerprint && (
         <section>
-          <BandHeader label="Your signature" sublabel="What makes your signal yours" />
+          <BandHeader label="Your signature" sublabel="What makes your account yours" />
           <div className="rounded-xl border bg-gradient-to-br from-cyan-900/25 via-purple-950/25 to-purple-900/30 border-cyan-600/30 p-1">
             <FingerprintCard data={data.fingerprint} reportId={props.reportId} initialRating={fb.fingerprint || null} />
           </div>
@@ -1532,7 +1551,7 @@ function YourSignalBands(props: { data: any; reportId: string; feedback: any; ai
           the framing explicit. */}
       {hasAcrossBand && (
         <section>
-          <BandHeader label="Across the archive" sublabel="How your signal sits in the bigger phenomenon" />
+          <BandHeader label="Across the archive" sublabel="How your account sits in the wider phenomenon" />
           <div className="space-y-3">
             {showContextBand && (
               <div className="rounded-xl border bg-gradient-to-br from-indigo-900/30 via-purple-950/25 to-purple-900/30 border-indigo-500/40 p-1">
@@ -1607,12 +1626,13 @@ function LockedAICard(props: { kind: string }) {
         <Lock className="w-5 h-5 text-purple-300" />
       </div>
       <h3 className="text-sm sm:text-base font-semibold text-white mb-1.5">
-        Full AI Story analysis on every experience
+        Full analysis on every experience
       </h3>
       <p className="text-xs sm:text-[13px] text-gray-300 leading-relaxed max-w-sm mx-auto mb-4">
-        Your first experience got the full Sonnet 4.6 analysis &mdash; surprising patterns,
-        cross-archive context, and 3 Asks tied to it. Get the same on every experience you
-        share with Basic.
+        Your first experience received the full body-of-work paragraph &mdash; the
+        cross-archive context, weekly refresh, and related-account list tied
+        to it. Basic gives you the same on every experience you add to your
+        record.
       </p>
       <Link
         href="/account/subscription"
@@ -2188,22 +2208,24 @@ function SignalCardShell(props: {
 function FingerprintCard(props: { data: any; reportId: string; initialRating: Rating }) {
   var d = props.data || {}
   // Strongest signal is `primary_label` with `primary_count` other reports.
+  // V11.17.67 Tier 1 — "fingerprint" → "signature" in body copy.
+  // Component name kept (file-rename deferred to avoid wide blast).
   if (!d.primary_label || !d.primary_count) {
     return (
-      <SignalCardShell kicker="What your story shares with others" reportId={props.reportId} cardType="fingerprint" initialRating={props.initialRating}>
+      <SignalCardShell kicker="What your account shares with others" reportId={props.reportId} cardType="fingerprint" initialRating={props.initialRating}>
         <p className="text-sm text-gray-300 leading-snug">
-          Your report joins the archive. As more reports cluster around its
-          phenomenon type, your fingerprint will sharpen.
+          Your account joins the archive. As more reports cluster around its
+          phenomenon type, the shared signature will sharpen.
         </p>
       </SignalCardShell>
     )
   }
   return (
-    <SignalCardShell kicker="What your story shares with others" reportId={props.reportId} cardType="fingerprint" initialRating={props.initialRating}>
+    <SignalCardShell kicker="What your account shares with others" reportId={props.reportId} cardType="fingerprint" initialRating={props.initialRating}>
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-sm text-white leading-snug">
-            Your report shares its{' '}
+            Your account shares its{' '}
             <span className="font-semibold text-purple-300">{d.primary_label}</span>{' '}
             signature with{' '}
             <span className="font-semibold text-purple-300">{d.primary_count.toLocaleString()}</span>{' '}

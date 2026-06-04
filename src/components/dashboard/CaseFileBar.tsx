@@ -88,16 +88,17 @@ export default function CaseFileBar({
           )
         })}
 
-        {/* + New case file (hidden on surfaces where creation belongs
-            elsewhere, e.g. the Map tab — Cases tab is the canonical
-            creation surface). */}
+        {/* + New collection (hidden on surfaces where creation belongs
+            elsewhere, e.g. the Map tab — Collections is the canonical
+            creation surface).
+            V11.17.67 Tier 1 — user-visible "case file" → "collection". */}
         {!hideCreate && (
           <button
             onClick={() => setCreateOpen(true)}
             className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary-600/10 border border-primary-500/30 text-primary-300 text-[11px] font-medium hover:bg-primary-600/20 transition-colors whitespace-nowrap"
           >
             <Plus className="w-3 h-3" />
-            <span className="hidden sm:inline">New case file</span>
+            <span className="hidden sm:inline">New collection</span>
             <span className="sm:hidden">New</span>
           </button>
         )}
@@ -132,7 +133,7 @@ export function CreateCaseFileModal({ onClose, onCreated }: CreateCaseFileModalP
 
   const handleSave = async () => {
     const t = title.trim()
-    if (!t) { setError('Give this case file a name'); return }
+    if (!t) { setError('Give this collection a name'); return }
     setSaving(true)
     setError(null)
     try {
@@ -172,7 +173,7 @@ export function CreateCaseFileModal({ onClose, onCreated }: CreateCaseFileModalP
             <div className="p-1.5 rounded-md bg-primary-600/20">
               <FolderOpen className="w-4 h-4 text-primary-400" />
             </div>
-            <h2 className="text-sm font-semibold text-white">New case file</h2>
+            <h2 className="text-sm font-semibold text-white">New collection</h2>
           </div>
           <button
             onClick={onClose}
@@ -205,7 +206,7 @@ export function CreateCaseFileModal({ onClose, onCreated }: CreateCaseFileModalP
             <textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
-              placeholder="What are you investigating in this case file?"
+              placeholder="What are you collecting in this group of accounts?"
               rows={3}
               maxLength={500}
               className="w-full px-3 py-2 bg-gray-900 border border-gray-800 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-primary-500/50 transition-colors resize-none"
@@ -258,7 +259,7 @@ export function CreateCaseFileModal({ onClose, onCreated }: CreateCaseFileModalP
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-primary-600 hover:bg-primary-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            {saving ? 'Creating...' : 'Create case file'}
+            {saving ? 'Creating...' : 'Create collection'}
           </button>
         </div>
       </div>

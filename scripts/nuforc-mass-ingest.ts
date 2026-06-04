@@ -61,7 +61,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
-import { nuforcAdapter } from '../src/lib/ingestion/adapters/nuforc';
+import { nuforcAdapter, SHAPE_TO_PHENOMENON_SLUG } from '../src/lib/ingestion/adapters/nuforc';
 // V11.17.56 — location safety net mirror of engine.ts. Mass-ingest
 // scripts bypass engine.ts so they don't get the V11.17.52 hook
 // automatically. Run extractAndGeocodeLocation pre-insert when the
@@ -761,6 +761,61 @@ async function runWorkerPool(
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// SHAPE→PHEN MAPPING VALIDATION (V11.17.62)
+// ─────────────────────────────────────────────────────────────────────
+//
+// Phen-dedup runs (V11.17.57+) can flip a previously-canonical slug to
+// status='merged', silently breaking the deterministic linker (every
+// matching shape would land WITHOUT a phenomenon junction). Validate the
+// full SHAPE_TO_PHENOMENON_SLUG map at startup; if any target isn't
+// active, print the canonical replacement and abort before any AI spend.
+async function validateShapeMapping(supabase: SupabaseClient): Promise<void> {
+  const uniqueSlugs = Array.from(new Set(Object.values(SHAPE_TO_PHENOMENON_SLUG)));
+  const { data, error } = await supabase
+    .from('phenomena')
+    .select('slug, status, merged_into_id')
+    .in('slug', uniqueSlugs);
+  if (error) {
+    console.error('[nuforc-mass-ingest] Shape-mapping validation query failed: ' + error.message);
+    process.exit(1);
+  }
+  const bySlug = new Map((data || []).map((r: any) => [r.slug, r]));
+  const broken: { shape: string; slug: string; status: string; canonical: string }[] = [];
+  const missing: { shape: string; slug: string }[] = [];
+  for (const [shape, slug] of Object.entries(SHAPE_TO_PHENOMENON_SLUG)) {
+    const row: any = bySlug.get(slug);
+    if (!row) {
+      missing.push({ shape, slug });
+      continue;
+    }
+    if (row.status !== 'active') {
+      let canonical = '(unknown)';
+      if (row.merged_into_id) {
+        const { data: c } = await supabase
+          .from('phenomena')
+          .select('slug, status')
+          .eq('id', row.merged_into_id)
+          .maybeSingle();
+        canonical = c ? ((c as any).slug + ' (' + (c as any).status + ')') : '(merged_into_id orphan)';
+      }
+      broken.push({ shape, slug, status: row.status, canonical });
+    }
+  }
+  if (broken.length > 0 || missing.length > 0) {
+    console.error('\n[nuforc-mass-ingest] FATAL — SHAPE_TO_PHENOMENON_SLUG has broken entries.');
+    console.error('Edit src/lib/ingestion/adapters/nuforc.ts and re-point each row at its canonical slug.\n');
+    for (const b of broken) {
+      console.error('  ' + b.shape.padEnd(12) + ' → ' + b.slug.padEnd(28) + ' status=' + b.status + '  canonical: ' + b.canonical);
+    }
+    for (const m of missing) {
+      console.error('  ' + m.shape.padEnd(12) + ' → ' + m.slug.padEnd(28) + ' SLUG NOT FOUND in phenomena table');
+    }
+    process.exit(1);
+  }
+  console.log('[nuforc-mass-ingest] Shape mapping validated: ' + uniqueSlugs.length + ' unique phens, all active.');
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // MAIN
 // ─────────────────────────────────────────────────────────────────────
 
@@ -779,6 +834,11 @@ async function main() {
   }
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+  // V11.17.62 — fail-fast if any SHAPE_TO_PHENOMENON_SLUG target is no
+  // longer status='active' (typically because phen-dedup re-canonicalized
+  // it). Cheap pre-flight check; runs before any scrape or AI spend.
+  await validateShapeMapping(supabase);
 
   // Load or initialize state
   let state: MassIngestState;

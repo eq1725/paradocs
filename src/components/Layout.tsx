@@ -87,10 +87,12 @@ export default function Layout({ children }: LayoutProps) {
 
   // Main navigation — unified labels across all nav surfaces
   // (May 2026 panel-review rename: "Reports" → "Today")
+  // V11.17.67 Tier 1 rename: "Lab" → "My Record" per LAB_PANEL_REVIEW_V3.
+  // URL stays /lab (indexed, in PostHog); only the chrome label flips.
   const navigation = [
     { name: 'Today', href: '/discover', icon: Flame },
     { name: 'Phenomena', href: '/explore', icon: Compass },
-    { name: 'Lab', href: '/lab', icon: Sparkles },
+    { name: 'My Record', href: '/lab', icon: Sparkles },
   ]
 
   return (
@@ -194,7 +196,7 @@ export default function Layout({ children }: LayoutProps) {
                         </div>
                         <Link href="/lab" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
                           <LayoutDashboard className="w-4 h-4" />
-                          Lab
+                          My Record
                         </Link>
                         <Link href="/profile" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
                           <User className="w-4 h-4" />
@@ -302,7 +304,7 @@ export default function Layout({ children }: LayoutProps) {
               <ul className="space-y-2 text-sm text-gray-400">
                 <li><Link href="/start" className="hover:text-white">Submit Report</Link></li>
                 <li><Link href="/discover" className="hover:text-white">Today</Link></li>
-                <li><Link href="/lab" className="hover:text-white">Lab</Link></li>
+                <li><Link href="/lab" className="hover:text-white">My Record</Link></li>
                 <li><Link href="/about" className="hover:text-white">About</Link></li>
               </ul>
             </div>

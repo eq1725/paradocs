@@ -34,6 +34,11 @@ import { isObviouslyLowQuality, assessQuality, getStatusFromScore, smartReEvalua
 import { redactReportPii } from '../src/lib/ingestion/utils/redact-pii';
 import { enrichReport } from '../src/lib/ingestion/enrichment/report-enricher';
 import { normalizeLocation, geocodeWithFallback, makeSupabaseGeocodeCache } from '../src/lib/ingestion/utils/normalize-location';
+// V11.17.62 — location safety net (mirror of nuforc-mass-ingest.ts:69).
+// YouTube comment bodies rarely carry structured city/state fields, so
+// normalizeLocation can't geocode them. Haiku-extract from title + body
+// when adapter+normalize produced nothing.
+import { extractAndGeocodeLocation } from '../src/lib/services/location-extraction.service';
 import { spawn } from 'child_process';
 
 // V11.17.29 — Channel roster
@@ -165,6 +170,33 @@ async function processBatch(supabase: SupabaseClient, reports: any[], stats: Pro
           { geocoder: 'maptiler', geocodeFn: geocodeWithFallback, cache: makeSupabaseGeocodeCache(supabase) },
         );
       } catch (e) { /* non-fatal */ }
+      // V11.17.62 — location safety net. If adapter + normalize both
+      // produced no usable location, Haiku-extract from title/summary/
+      // description. Best-effort + non-blocking. Especially important for
+      // YouTube comments — typically no structured location fields.
+      const haveLocation = !!(normalizedLocation?.location_name || report.location_name);
+      if (!haveLocation) {
+        try {
+          const resolved = await extractAndGeocodeLocation({
+            title: report.title || null,
+            summary: report.summary || null,
+            description: report.description || null,
+          });
+          if (resolved) {
+            normalizedLocation = {
+              location_name: resolved.location_name,
+              city: resolved.city,
+              state_province: resolved.state_province,
+              country: resolved.country,
+              country_code: (resolved as any).country_code || null,
+              latitude: resolved.latitude,
+              longitude: resolved.longitude,
+              location_precision: resolved.location_precision,
+              coords_synthetic: false,
+            };
+          }
+        } catch { /* leave normalizedLocation null */ }
+      }
       const slug = generateSlug(report.title || 'untitled', report.original_report_id || null, report.source_type);
       toInsert.push({
         title: report.title, slug, summary: report.summary, description: report.description,
