@@ -559,13 +559,17 @@ async function executeQueryInner(
 
     /* ----------------------------------------------------------------- */
     case 'archive_growth_count': {
+      // V11.17.66 — use ingested_at instead of created_at. created_at
+      // gets rewritten by bulk re-ingest adapters (NUFORC, Reddit, etc.)
+      // so it can't measure organic archive growth. ingested_at is
+      // set-once-on-INSERT and never updated, giving us a stable signal.
       var minDenom7 = query.min_denominator || DEFAULT_MIN_DENOMINATOR.archive_growth_count
       var since = new Date(Date.now() - query.days * 24 * 60 * 60 * 1000).toISOString()
       var aq = svc
         .from('reports')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'approved')
-        .gte('created_at', since)
+        .gte('ingested_at', since)
       if (query.phen_family) aq = aq.eq('category', query.phen_family)
       var aRes = await aq
       var aCount = safeNumber(aRes.count)
