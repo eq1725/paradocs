@@ -63,6 +63,11 @@ import LabCasesTab from '@/components/dashboard/LabCasesTab'
 // LabSubmissionsTab merged into LabCasesTab — submissions show as pinned section
 import LabConstellationTab from '@/components/dashboard/LabConstellationTab'
 import SignatureGrowthCard from '@/components/dashboard/SignatureGrowthCard'
+// V11.17.65 — Hints rail (data-driven catalogue surface) above SIGNAL
+// on the Story tab. Lives between RADAR and the Your Signal block so
+// the founder can see Hints in production against the live archive
+// without redesigning the Lab.
+import HintsRail from '@/components/lab/HintsRail'
 import { useLabData } from '@/lib/hooks/useLabData'
 import { Star } from 'lucide-react'
 
@@ -358,6 +363,12 @@ export default function LabPage() {
                   </div>
                   <div data-section="lab-constellation">
                     <LabConstellationTab />
+                  </div>
+                  {/* V11.17.65 — Hints rail between RADAR and SIGNAL.
+                      Surfaces data-driven catalogue observations
+                      grounded against the live corpus. */}
+                  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2">
+                    <HintsRail />
                   </div>
                   {/* V10.14 — SIGNAL embedded directly under RADAR.
                       Single mental model: "your story and how it
