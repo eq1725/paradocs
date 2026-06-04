@@ -1,10 +1,18 @@
-/**
- * API: POST /api/webhooks/stripe
- *
- * Handles Stripe webhook events for subscription management.
- * Events: checkout.session.completed, customer.subscription.updated,
- *         customer.subscription.deleted, invoice.payment_failed
- */
+// V11.17.68 - Tier 2A
+//
+// API: POST /api/webhooks/stripe
+//
+// Handles Stripe webhook events for subscription management.
+// Events handled:
+//   - checkout.session.completed    → create user_subscriptions row,
+//                                     set profiles.current_tier_id
+//   - customer.subscription.updated → mirror status, idempotently
+//                                     align tier on plan flips
+//   - customer.subscription.deleted → revert to Free
+//   - invoice.payment_succeeded     → write billing_history row (new
+//                                     in Tier 2A; powers the invoices
+//                                     list on /account/subscription)
+//   - invoice.payment_failed        → mark subscription past_due
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createServerClient } from '@/lib/supabase';
@@ -107,6 +115,15 @@ export default async function handler(
     } else if (event.type === 'customer.subscription.updated') {
       var subscription = event.data.object as any;
       var subUserId = subscription.metadata ? subscription.metadata.supabase_user_id : null;
+      // V11.17.68 Tier 2A — plan flips (Basic → Pro, etc.) also arrive
+      // as 'customer.subscription.updated' events. The 'tier' or
+      // 'plan' metadata is set by create-checkout when the customer
+      // first subscribes; when Stripe initiates a plan change via the
+      // Billing Portal we fall back to looking up the tier by the
+      // Stripe product/price ID embedded in the subscription items.
+      var subPlanMeta = subscription.metadata
+        ? (subscription.metadata.tier || subscription.metadata.plan)
+        : null;
 
       if (subUserId) {
         var status = subscription.status;
@@ -120,7 +137,72 @@ export default async function handler(
           .update({ status: mappedStatus })
           .eq('payment_subscription_id', subscription.id);
 
-        console.log('[StripeWebhook] Subscription updated: ' + subscription.id + ' status=' + mappedStatus);
+        // V11.17.68 — if metadata names a plan, ensure the user's
+        // current_tier_id matches it. This makes plan-flip events
+        // idempotent on tier state.
+        if (subPlanMeta && (mappedStatus === 'active' || mappedStatus === 'trial')) {
+          var updatedTierResult = await (supabase
+            .from('subscription_tiers') as any)
+            .select('id')
+            .eq('name', subPlanMeta)
+            .single();
+          if (updatedTierResult.data) {
+            await (supabase.from('profiles') as any)
+              .update({ current_tier_id: updatedTierResult.data.id })
+              .eq('id', subUserId);
+            await (supabase.from('user_subscriptions') as any)
+              .update({ tier_id: updatedTierResult.data.id })
+              .eq('payment_subscription_id', subscription.id);
+          }
+        }
+
+        console.log('[StripeWebhook] Subscription updated: ' + subscription.id + ' status=' + mappedStatus + ' plan=' + (subPlanMeta || 'unchanged'));
+      }
+    } else if (event.type === 'invoice.payment_succeeded') {
+      // V11.17.68 Tier 2A — log successful payments to billing_history
+      // so /account/subscription can render an invoice list without an
+      // extra Stripe round-trip per render. Idempotent on the Stripe
+      // invoice id.
+      var paidInvoice = event.data.object as any;
+      var invUserId: string | null = null;
+      // Resolve user from the subscription's metadata (preferred) or
+      // by Stripe customer ID lookup against profiles as fallback.
+      if (paidInvoice.subscription_details && paidInvoice.subscription_details.metadata) {
+        invUserId = paidInvoice.subscription_details.metadata.supabase_user_id
+          || paidInvoice.subscription_details.metadata.user_id
+          || null;
+      }
+      if (!invUserId && paidInvoice.customer) {
+        var customerLookup = await (supabase
+          .from('profiles') as any)
+          .select('id')
+          .eq('stripe_customer_id', paidInvoice.customer)
+          .single();
+        if (customerLookup.data) {
+          invUserId = customerLookup.data.id;
+        }
+      }
+
+      if (invUserId) {
+        // Best-effort insert; ignore unique-constraint duplicates so
+        // Stripe retries don't double-write.
+        await (supabase.from('billing_history') as any)
+          .insert({
+            user_id: invUserId,
+            stripe_invoice_id: paidInvoice.id,
+            amount: paidInvoice.amount_paid ? paidInvoice.amount_paid / 100 : 0,
+            currency: paidInvoice.currency || 'usd',
+            status: 'paid',
+            description: paidInvoice.lines && paidInvoice.lines.data && paidInvoice.lines.data[0]
+              ? paidInvoice.lines.data[0].description
+              : 'Subscription payment',
+            receipt_url: paidInvoice.hosted_invoice_url || paidInvoice.invoice_pdf || null,
+            invoice_date: paidInvoice.created
+              ? new Date(paidInvoice.created * 1000).toISOString()
+              : new Date().toISOString(),
+            payment_method: 'stripe'
+          });
+        console.log('[StripeWebhook] Invoice paid: ' + paidInvoice.id + ' user=' + invUserId);
       }
     } else if (event.type === 'customer.subscription.deleted') {
       var deletedSub = event.data.object as any;

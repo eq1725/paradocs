@@ -1,32 +1,81 @@
-/**
- * API: POST /api/subscription/create-checkout
- *
- * Creates a Stripe Checkout session for upgrading to a paid plan.
- * Returns the checkout URL for the client to redirect to.
- *
- * Body: { plan: 'basic' | 'pro' | 'enterprise', interval: 'monthly' | 'yearly' }
- */
+// V11.17.68 - Tier 2A
+//
+// API: POST /api/subscription/create-checkout
+//
+// Creates a Stripe Checkout session for upgrading to a paid plan.
+// Returns the checkout URL for the client to redirect to.
+//
+// Body: { plan: 'basic' | 'pro', interval: 'monthly' | 'annual' | 'yearly' }
+//
+// Tier 2A changes (V11.17.68):
+//   - Added STRIPE_PRICE_BASIC_ANNUAL / STRIPE_PRICE_PRO_ANNUAL env
+//     vars for the new annual cadence (founder confirmed annual ships
+//     at launch; $59/yr Basic, $149/yr Pro, ~17% off monthly).
+//   - 'annual' and 'yearly' are accepted as synonyms in the request
+//     body; the legacy '_yearly' env var name is kept as a fallback so
+//     existing infra still resolves while new keys roll out.
+//   - success_url → /account/subscription?checkout=success&plan=…
+//     (was /account/settings — wrong page; the subscription page is
+//     where the user's new tier state is visible).
+//   - cancel_url → /pricing?checkout=cancelled (was /account/settings;
+//     panel memo §3.6 puts the user back where they decided).
+//   - subscription_data.metadata carries supabase_user_id + plan +
+//     cadence so the webhook can resolve the right tier without
+//     re-querying Stripe.
+//
+// V9.6 — dropped the hardcoded test-mode Price ID fallbacks
+// (price_1T1HGT…) that were left over from the original $9.99/$29.99
+// pricing. Any unset env var falls through to the mock-checkout
+// branch below, which is the safe behaviour while Stripe products are
+// being reconfigured.
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createServerClient } from '@/lib/supabase';
 
-// Stripe price IDs sourced from env vars only.
-//
-// V9.6 — dropped the hardcoded test-mode Price ID fallbacks
-// (price_1T1HGT…) that were left over from the original $9.99/$29.99
-// pricing. Now that the public pricing is $5.99/$14.99 (V9.6 T1.2),
-// those old test prices would charge the wrong amount if they ever
-// resolved against a live Stripe key. Any unset env var falls
-// through to the mock-checkout branch below, which is the safe
-// behaviour while Stripe products are being reconfigured.
-var STRIPE_PRICES: Record<string, string> = {
-  basic_monthly: process.env.STRIPE_PRICE_BASIC_MONTHLY || '',
-  basic_yearly: process.env.STRIPE_PRICE_BASIC_YEARLY || '',
-  pro_monthly: process.env.STRIPE_PRICE_PRO_MONTHLY || '',
-  pro_yearly: process.env.STRIPE_PRICE_PRO_YEARLY || '',
-  enterprise_monthly: process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY || '',
-  enterprise_yearly: process.env.STRIPE_PRICE_ENTERPRISE_YEARLY || '',
-};
+// Resolve a price ID from env. Annual prices accept both the new
+// ANNUAL key and the legacy YEARLY key to ease the migration.
+function resolvePriceId(plan: string, interval: string): string {
+  var p = plan.toLowerCase();
+  var i = interval.toLowerCase();
+  // Normalize 'yearly' (legacy) → 'annual' (new naming the founder
+  // sent in the brief) so callers can pass either.
+  if (i === 'yearly') i = 'annual';
+  if (i !== 'monthly' && i !== 'annual') return '';
+
+  if (p === 'basic' && i === 'monthly') {
+    return process.env.STRIPE_PRICE_BASIC_MONTHLY || '';
+  }
+  if (p === 'basic' && i === 'annual') {
+    return (
+      process.env.STRIPE_PRICE_BASIC_ANNUAL ||
+      process.env.STRIPE_PRICE_BASIC_YEARLY ||
+      ''
+    );
+  }
+  if (p === 'pro' && i === 'monthly') {
+    return process.env.STRIPE_PRICE_PRO_MONTHLY || '';
+  }
+  if (p === 'pro' && i === 'annual') {
+    return (
+      process.env.STRIPE_PRICE_PRO_ANNUAL ||
+      process.env.STRIPE_PRICE_PRO_YEARLY ||
+      ''
+    );
+  }
+  // Legacy enterprise tier — admin-only, never surfaced publicly but
+  // kept resolvable in case an admin tool needs it.
+  if (p === 'enterprise' && i === 'monthly') {
+    return process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY || '';
+  }
+  if (p === 'enterprise' && i === 'annual') {
+    return (
+      process.env.STRIPE_PRICE_ENTERPRISE_ANNUAL ||
+      process.env.STRIPE_PRICE_ENTERPRISE_YEARLY ||
+      ''
+    );
+  }
+  return '';
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -53,10 +102,12 @@ export default async function handler(
     }
 
     var user = userResult.data.user;
-    var plan = req.body.plan || 'pro';
-    var interval = req.body.interval || 'monthly';
-    var priceKey = plan + '_' + interval;
-    var priceId = STRIPE_PRICES[priceKey];
+    var plan = (req.body.plan || 'pro') as string;
+    var interval = (req.body.interval || 'monthly') as string;
+    // Normalize cadence to the new 'annual' naming used in metadata
+    // + URLs even when the caller still sends 'yearly'.
+    var cadence = interval.toLowerCase() === 'yearly' ? 'annual' : interval.toLowerCase();
+    var priceId = resolvePriceId(plan, cadence);
 
     if (!priceId) {
       // V9.6 — no env var configured for this plan/interval. Always
@@ -65,7 +116,7 @@ export default async function handler(
       // wrong (legacy) price while Stripe products are being set up.
       return res.status(200).json({
         url: (process.env.NEXT_PUBLIC_SITE_URL || 'https://beta.discoverparadocs.com') +
-          '/account/settings?checkout=mock&plan=' + plan,
+          '/account/subscription?checkout=mock&plan=' + plan + '&cadence=' + cadence,
         mock: true,
         reason: 'stripe_price_not_configured'
       });
@@ -79,7 +130,7 @@ export default async function handler(
       // Stripe not installed \u2014 return mock checkout
       return res.status(200).json({
         url: (process.env.NEXT_PUBLIC_SITE_URL || 'https://beta.discoverparadocs.com') +
-          '/account/settings?checkout=mock&plan=' + plan,
+          '/account/subscription?checkout=mock&plan=' + plan + '&cadence=' + cadence,
         mock: true
       });
     }
@@ -118,17 +169,29 @@ export default async function handler(
       customer: customerId,
       mode: 'subscription',
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: baseUrl + '/account/settings?checkout=success&plan=' + plan,
-      cancel_url: baseUrl + '/account/settings?checkout=cancelled',
+      // V11.17.68 — success lands on /account/subscription (the page
+      // that actually shows the user their new tier state); cancel
+      // returns to /pricing so the user is back where they decided.
+      success_url: baseUrl + '/account/subscription?checkout=success&plan=' + plan + '&cadence=' + cadence,
+      cancel_url: baseUrl + '/pricing?checkout=cancelled',
       metadata: {
         supabase_user_id: user.id,
         plan: plan,
-        interval: interval
+        interval: interval,
+        cadence: cadence
       },
       subscription_data: {
+        // V11.17.68 — webhook reads cadence from sub metadata so it
+        // can set the right tier on the user record without a Stripe
+        // round-trip. user_id duplicated here so the subscription
+        // event handlers (which only see the subscription object) can
+        // resolve the user too.
         metadata: {
           supabase_user_id: user.id,
-          plan: plan
+          user_id: user.id,
+          plan: plan,
+          tier: plan,
+          cadence: cadence
         }
       },
       allow_promotion_codes: true
