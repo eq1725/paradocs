@@ -7,6 +7,7 @@ import AdminLayout from '@/components/admin/AdminLayout'
 import StatsCard from '@/components/admin/StatsCard'
 import ActivityFeed from '@/components/admin/ActivityFeed'
 import SourceHealthGrid from '@/components/admin/SourceHealthGrid'
+import CostPanel from '@/components/admin/CostPanel'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts'
 
 interface DataSource {
@@ -425,6 +426,12 @@ export default function AdminDashboard() {
             )}
           </button>
         </div>
+
+        {/* V11.17.85 — AI spend ledger. Surfaces /api/admin/cost-summary
+            at the top of /admin so the founder can see today's spend,
+            yesterday-vs-today delta, and the 14-day daily series before
+            anything else on the page. */}
+        <CostPanel />
 
         {/* Message Banner */}
         {message && (
