@@ -29,6 +29,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
+import { logAiUsage, getCostLogClient } from '@/lib/services/ai-cost-logger'
 
 var SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 var SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
@@ -337,6 +338,26 @@ async function callHaikuSynth(prompt: string): Promise<string | null> {
     if (!resp.ok) return null
     var data = await resp.json()
     var text = (data.content && data.content[0] && data.content[0].text) || ''
+
+    // V11.17.84 — unified cost log. Volume here is per-user-visit and
+    // low, but still worth tracking so the cost-summary endpoint can
+    // attribute lab/dossier-driven spend to the right surface.
+    try {
+      var usage = data.usage || {}
+      var logClient = await getCostLogClient()
+      if (logClient) {
+        logAiUsage('synthesized-paragraph', logClient, {
+          model: HAIKU_MODEL,
+          inputTokens: usage.input_tokens || 0,
+          outputTokens: usage.output_tokens || 0,
+          cacheCreationTokens: usage.cache_creation_input_tokens || 0,
+          cacheReadTokens: usage.cache_read_input_tokens || 0,
+          requestId: data.id || null,
+          status: 'completed',
+        })
+      }
+    } catch (_logErr) { /* logging never blocks */ }
+
     return sanitizeParagraph(text)
   } catch (_e) {
     clearTimeout(timeoutId)

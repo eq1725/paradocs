@@ -31,6 +31,17 @@
  * sentinel-day-of-month / sentinel-month-and-day so the column stays
  * a real DATE. Consumers MUST consult `precision` before rendering;
  * see ReportMeta.formatWhen (V10.7.I).
+ *
+ * V11.17.82 — prose-year guard. A year mention is NOT an event date
+ * when it's bound (within ~30 chars) to architectural / object-age
+ * context: "early 1900s warehouse looking building", "1970s style
+ * truck", "built in 1865", "turn of the century church". The
+ * extractor previously grabbed bare decade phrases ("1900s") and
+ * landed event_date at 1902-01-01 for Reddit posts whose titles
+ * literally said "last night" — flagged on report
+ * last-night-i-rode-out-the-vibrations-gl6dd5. Year extraction now
+ * skips a match that the guard rejects and falls through; if no
+ * other date layer fires we return precision='unknown'.
  */
 
 export type DatePrecision = 'exact' | 'month' | 'year' | 'unknown'
@@ -465,24 +476,30 @@ function relativeResult(
 function extractProseYear(text: string, minYear: number, maxYear: number): ExtractedDate | null {
   // Year preceded by a date-context preposition or followed by punctuation
   // so we don't hit "1,200 reports" or random 4-digit numbers.
-  const contextual = firstMatch(
-    text,
-    /(?:in|around|during|since|circa|about|approximately|before|after|by)\s+(\d{4})\b/gi,
-  )
-  if (contextual) {
-    const year = parseInt(contextual[1], 10)
-    if (year >= minYear && year <= maxYear) {
-      return { date: year + '-01-01', precision: 'year', source: 'prose-year', matchedText: contextual[0] }
-    }
+  //
+  // V11.17.82 — global walk + architectural-context guard. If the first
+  // match is bound to architectural / object-age context (e.g. "in 1970s
+  // style truck", "since 1865 cabin"), skip it and keep walking for a
+  // cleaner downstream year. Falls through to null if every match is
+  // rejected — extractDate then returns precision='unknown'.
+  const contextRe = /(?:in|around|during|since|circa|about|approximately|before|after|by)\s+(\d{4})\b/gi
+  let cm: RegExpExecArray | null
+  while ((cm = contextRe.exec(text)) !== null) {
+    const year = parseInt(cm[1], 10)
+    if (year < minYear || year > maxYear) continue
+    if (hasArchitecturalContext(text, cm.index, cm[0])) continue  // V11.17.82
+    return { date: year + '-01-01', precision: 'year', source: 'prose-year', matchedText: cm[0] }
   }
 
   // Year followed by sentence/clause punctuation
-  const punct = firstMatch(text, /\b(\d{4})\s*[.,;:]/g)
-  if (punct) {
-    const year = parseInt(punct[1], 10)
-    if (year >= minYear && year <= maxYear && !looksLikeCount(text, punct.index!)) {
-      return { date: year + '-01-01', precision: 'year', source: 'prose-year', matchedText: punct[1] }
-    }
+  const punctRe = /\b(\d{4})\s*[.,;:]/g
+  let pm: RegExpExecArray | null
+  while ((pm = punctRe.exec(text)) !== null) {
+    const year = parseInt(pm[1], 10)
+    if (year < minYear || year > maxYear) continue
+    if (looksLikeCount(text, pm.index)) continue
+    if (hasArchitecturalContext(text, pm.index, pm[0])) continue  // V11.17.82
+    return { date: year + '-01-01', precision: 'year', source: 'prose-year', matchedText: pm[1] }
   }
 
   return null
@@ -497,32 +514,129 @@ function detectApproximate(text: string, minYear: number, maxYear: number): Extr
   //   early → start + 2 (e.g. early 90s → 1992)
   //   mid   → start + 5 (e.g. mid 70s → 1975)
   //   late  → start + 7 (e.g. late 90s → 1997)
-  const decade = firstMatch(text, /\b(early|mid|late)[\s-]+(\d{2,4})s\b/gi)
-  if (decade) {
-    const phase = decade[1].toLowerCase()
-    let decadeStart = parseInt(decade[2], 10)
+  //
+  // V11.17.82 — same architectural-context guard. Walks all matches
+  // rather than just the first, so "early 1900s warehouse" is rejected
+  // even when it appears before a legit "in 2024" downstream.
+  const decadeRe = /\b(early|mid|late)[\s-]+(\d{2,4})s\b/gi
+  let dm: RegExpExecArray | null
+  while ((dm = decadeRe.exec(text)) !== null) {
+    const phase = dm[1].toLowerCase()
+    let decadeStart = parseInt(dm[2], 10)
     if (decadeStart < 100) decadeStart = decadeStart < 50 ? 2000 + decadeStart : 1900 + decadeStart
-    if (decadeStart >= minYear && decadeStart <= maxYear) {
-      const year =
-        phase === 'early' ? decadeStart + 2 :
-        phase === 'mid'   ? decadeStart + 5 :
-                            decadeStart + 7  // late
-      return { date: year + '-01-01', precision: 'year', source: 'prose-year', matchedText: decade[0], approximate: true }
-    }
+    if (decadeStart < minYear || decadeStart > maxYear) continue
+    if (hasArchitecturalContext(text, dm.index, dm[0])) continue  // V11.17.82
+    const year =
+      phase === 'early' ? decadeStart + 2 :
+      phase === 'mid'   ? decadeStart + 5 :
+                          decadeStart + 7  // late
+    return { date: year + '-01-01', precision: 'year', source: 'prose-year', matchedText: dm[0], approximate: true }
   }
 
   // Bare "the <decade>s" — "the 1970s", "the 90s". Mid-decade, approximate.
-  const bare = firstMatch(text, /\bthe\s+(\d{2,4})s\b/gi)
-  if (bare) {
-    let dec = parseInt(bare[1], 10)
+  // V11.17.82 — same guard. "the 1900s warehouse" should NOT yield 1905.
+  const bareRe = /\bthe\s+(\d{2,4})s\b/gi
+  let bm: RegExpExecArray | null
+  while ((bm = bareRe.exec(text)) !== null) {
+    let dec = parseInt(bm[1], 10)
     if (dec < 100) dec = dec < 50 ? 2000 + dec : 1900 + dec
     const year = dec + 5
-    if (year >= minYear && year <= maxYear) {
-      return { date: year + '-01-01', precision: 'year', source: 'prose-year', matchedText: bare[0], approximate: true }
-    }
+    if (year < minYear || year > maxYear) continue
+    if (hasArchitecturalContext(text, bm.index, bm[0])) continue  // V11.17.82
+    return { date: year + '-01-01', precision: 'year', source: 'prose-year', matchedText: bm[0], approximate: true }
+  }
+
+  // V11.17.82 — bare "<decade>s" without leading "the" (e.g. "early
+  // 1900s warehouse looking building", "1900s style farmhouse"). This
+  // was the gap that mis-fired report ...-gl6dd5 — the prose said
+  // "old early 1900s warehouse" and the OLD bare-decade matcher above
+  // required the leading "the". Match unguarded decades but apply the
+  // same architectural-context guard; never emit a date when the
+  // guard rejects.
+  const looseRe = /\b(\d{4})s\b/gi
+  let lm: RegExpExecArray | null
+  while ((lm = looseRe.exec(text)) !== null) {
+    const dec = parseInt(lm[1], 10)
+    const year = dec + 5
+    if (year < minYear || year > maxYear) continue
+    if (hasArchitecturalContext(text, lm.index, lm[0])) continue
+    // Without context binding AND without "early/mid/late/the" we
+    // still don't trust a bare "1900s" to be an event date. Skip it.
+    // The guard above is the only safe path through.
+    continue
   }
 
   return null
+}
+
+// ── V11.17.82 — Architectural / object-age context guard ─────────
+//
+// When a year mention is bound to a noun phrase describing a building,
+// vehicle, artifact, era, or "X style", it's almost always describing
+// the AGE OF THE OBJECT inside the dream/experience — not the date the
+// event happened. Returns true when the year should be rejected.
+//
+// Scan window: ±30 chars of the matched span. Wider would catch unrelated
+// context; narrower misses "1900s warehouse looking building".
+
+const ARCH_NOUNS_AFTER = [
+  // Buildings & structures
+  'style', 'era', 'looking', 'fashion', 'fashioned', 'design', 'vintage',
+  'building', 'house', 'home', 'cottage', 'cabin', 'shack', 'barn', 'farmhouse',
+  'farm', 'silo', 'warehouse', 'factory', 'mill', 'foundry', 'church', 'chapel',
+  'cathedral', 'temple', 'shrine', 'fort', 'mansion', 'manor', 'estate',
+  'asylum', 'sanitorium', 'sanitarium', 'hospital', 'hotel', 'motel', 'inn',
+  'theater', 'theatre', 'opera', 'school', 'schoolhouse', 'prison', 'jail',
+  'cemetery', 'graveyard', 'gravestone', 'tombstone', 'tomb', 'crypt',
+  'monument', 'statue', 'fountain', 'bridge', 'tunnel', 'station',
+  'depot', 'lighthouse', 'windmill', 'castle', 'palace', 'ruin', 'ruins',
+  'architecture', 'architectural',
+  // Vehicles
+  'car', 'truck', 'pickup', 'van', 'bus', 'tractor', 'plane', 'aircraft',
+  'biplane', 'locomotive', 'train', 'wagon', 'carriage', 'buggy',
+  'motorcycle', 'bike', 'bicycle', 'boat', 'ship', 'sailboat',
+  // Clothing / artifacts
+  'dress', 'suit', 'uniform', 'coat', 'hat', 'gown', 'garb', 'attire',
+  'clothing', 'clothes', 'furniture', 'lamp', 'radio', 'phonograph',
+  // Generic period words
+  'period', 'aesthetic', 'feel',
+]
+
+const ARCH_NOUNS_BEFORE = [
+  // "built in 1865", "constructed in 1970", "dating from 1920"
+  'built', 'constructed', 'erected', 'founded', 'established', 'opened',
+  'dating', 'dates', 'dated', 'circa', 'c.', 'ca.', 'made', 'manufactured',
+  'painted', 'restored', 'renovated',
+]
+
+function hasArchitecturalContext(text: string, matchStart: number, matchedText: string): boolean {
+  const matchEnd = matchStart + matchedText.length
+  const after = text.slice(matchEnd, matchEnd + 40).toLowerCase()
+  const beforeStart = Math.max(0, matchStart - 40)
+  const before = text.slice(beforeStart, matchStart).toLowerCase()
+
+  // "1900s warehouse", "1970s style", "1865 cabin" — any architectural
+  // noun within ~30 chars AFTER the match. We allow a short connector
+  // sequence (up to 3 words / 30 chars) before the noun: "1900s old
+  // looking warehouse" still trips.
+  for (const noun of ARCH_NOUNS_AFTER) {
+    const re = new RegExp('^[\\s\\w\'-]{0,30}\\b' + escapeRegex(noun) + '\\b', 'i')
+    if (re.test(after)) return true
+  }
+
+  // "built in 1865", "dating from the 1920s", "circa 1900" — any
+  // construction verb within ~30 chars BEFORE the match.
+  for (const verb of ARCH_NOUNS_BEFORE) {
+    const re = new RegExp('\\b' + escapeRegex(verb) + '\\b[\\s\\w]{0,30}$', 'i')
+    if (re.test(before)) return true
+  }
+
+  // "turn of the century" — special case, the match in question is the
+  // century phrase itself; if the BEFORE window contains "turn of the",
+  // reject.
+  if (/\bturn\s+of\s+the\s*$/i.test(before)) return true
+
+  return false
 }
 
 // ── Helpers ──────────────────────────────────────────────────────

@@ -7,6 +7,26 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { createServerClient } from '../supabase';
+import { logAiUsage, getCostLogClient } from './ai-cost-logger';
+
+// V11.17.84 — local helper that fires the unified cost log for any of
+// the four anthropic.messages.create calls below. Fire-and-forget.
+async function logPhenAiUsage(model: string, message: any): Promise<void> {
+  try {
+    const usage = (message as any).usage || {};
+    const logClient = await getCostLogClient();
+    if (!logClient) return;
+    logAiUsage('phenomena-service', logClient, {
+      model: model,
+      inputTokens: usage.input_tokens || 0,
+      outputTokens: usage.output_tokens || 0,
+      cacheCreationTokens: usage.cache_creation_input_tokens || 0,
+      cacheReadTokens: usage.cache_read_input_tokens || 0,
+      requestId: (message as any).id || null,
+      status: 'completed',
+    });
+  } catch (_logErr) { /* logging never blocks */ }
+}
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -231,6 +251,7 @@ Only suggest a new phenomenon if it's clearly distinct from existing ones and ap
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     });
+    logPhenAiUsage('claude-sonnet-4-20250514', response);
 
     const content = response.content[0];
     if (content.type !== 'text') {
@@ -356,6 +377,7 @@ Respond in JSON format:
       max_tokens: 3000,
       messages: [{ role: 'user', content: prompt }],
     });
+    logPhenAiUsage('claude-sonnet-4-20250514', response);
 
     const content = response.content[0];
     if (content.type !== 'text') {
@@ -448,6 +470,7 @@ Respond with ONLY the JSON object, no other text.`;
       max_tokens: 500,
       messages: [{ role: 'user', content: prompt }],
     });
+    logPhenAiUsage('claude-sonnet-4-20250514', response);
 
     const content = response.content[0];
     if (content.type !== 'text') {
@@ -552,6 +575,7 @@ Important: Do NOT invent specific names, dates, or citations. Only reference wel
       max_tokens: 4000,
       messages: [{ role: 'user', content: prompt }],
     });
+    logPhenAiUsage('claude-sonnet-4-20250514', response);
 
     const content = response.content[0];
     if (content.type !== 'text') {

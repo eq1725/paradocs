@@ -88,6 +88,12 @@ export interface RawLocation {
   location_name?: string | null
   latitude?: number | null
   longitude?: number | null
+  /** V11.17.83 — true when the upstream caller (e.g. report-enricher
+   * after geocodeStructuredLocation returned a state-centroid fallback)
+   * already knows the coords came from a centroid, not a real geocode.
+   * Without this, step 3a would treat them as 'exact, non-synthetic'.
+   */
+  coords_synthetic?: boolean
 }
 
 export interface GeocodeCacheLike {
@@ -225,8 +231,17 @@ export async function normalizeLocation(
   if (isValidCoord(raw.latitude, raw.longitude)) {
     latitude = raw.latitude as number
     longitude = raw.longitude as number
-    precision = 'exact'
-    coordsSynthetic = false
+    // V11.17.83 — honor upstream coords_synthetic. The report-enricher
+    // path now hands us state-centroid coords with coords_synthetic=true;
+    // without this, we'd stamp them as precision='exact' and the map
+    // would render them as a precise pin instead of a region halo.
+    if (raw.coords_synthetic === true) {
+      precision = 'region'
+      coordsSynthetic = true
+    } else {
+      precision = 'exact'
+      coordsSynthetic = false
+    }
   } else if (
     city && stateKey && countryCode &&
     opts.geocoder !== 'none' && opts.geocodeFn

@@ -23,6 +23,7 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import { createServerClient } from '../supabase'
+import { logAiUsage, getCostLogClient } from './ai-cost-logger'
 
 var anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
@@ -353,6 +354,23 @@ export async function runDeepScan(userId: string): Promise<InsightInput[]> {
       system: 'You are a research analyst for Paradocs, a paranormal evidence platform. You find non-obvious patterns in user research collections. Be specific and evidence-based. Never fabricate connections that are not supported by the data. Return valid JSON only.',
       messages: [{ role: 'user', content: prompt }],
     })
+
+    // V11.17.84 — unified cost log.
+    try {
+      var usage = (response as any).usage || {}
+      var logClient = await getCostLogClient()
+      if (logClient) {
+        logAiUsage('research-hub-insights', logClient, {
+          model: DEEP_SCAN_MODEL,
+          inputTokens: usage.input_tokens || 0,
+          outputTokens: usage.output_tokens || 0,
+          cacheCreationTokens: usage.cache_creation_input_tokens || 0,
+          cacheReadTokens: usage.cache_read_input_tokens || 0,
+          requestId: (response as any).id || null,
+          status: 'completed',
+        })
+      }
+    } catch (_logErr) { /* logging never blocks */ }
 
     var responseText = ''
     response.content.forEach(function(block) {

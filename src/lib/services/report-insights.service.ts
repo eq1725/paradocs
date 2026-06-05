@@ -9,6 +9,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createServerClient } from '../supabase'
 import { Report } from '../database.types'
 import crypto from 'crypto'
+import { logAiUsage, getCostLogClient } from './ai-cost-logger'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
@@ -151,6 +152,24 @@ export async function generateReportInsight(
         }
       ]
     })
+
+    // V11.17.84 — unified cost log.
+    try {
+      const usage = (message as any).usage || {}
+      const logClient = await getCostLogClient()
+      if (logClient) {
+        logAiUsage('report-insights', logClient, {
+          model: MODEL,
+          inputTokens: usage.input_tokens || 0,
+          outputTokens: usage.output_tokens || 0,
+          cacheCreationTokens: usage.cache_creation_input_tokens || 0,
+          cacheReadTokens: usage.cache_read_input_tokens || 0,
+          reportId: (report as any)?.id || null,
+          requestId: (message as any).id || null,
+          status: 'completed',
+        })
+      }
+    } catch (_logErr) { /* logging never blocks */ }
 
     // Extract text response
     const textBlock = message.content.find(block => block.type === 'text')

@@ -57,6 +57,11 @@ export interface ScrapedReport {
   city?: string;
   latitude?: number;
   longitude?: number;
+  /** V11.17.83 — true when latitude/longitude came from a centroid
+   * fallback (e.g. state-centroid table) rather than a real geocode.
+   * Propagates from report-enricher → engine → DB row.
+   */
+  coords_synthetic?: boolean;
   event_date?: string;
   credibility?: 'low' | 'medium' | 'high' | 'verified';
   source_type: string;

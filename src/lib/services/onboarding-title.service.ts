@@ -15,6 +15,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
+import { logAiUsage, getCostLogClient } from './ai-cost-logger'
 
 var anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -78,12 +79,27 @@ export async function suggestOnboardingTitle(
       messages: [{ role: 'user', content: userMsg }],
     })
 
-    // Approximate cost: Haiku 4.5 = $1/M input, $5/M output (rough,
-    // current as of 2026-05). Token counts aren't 1:1 with chars,
-    // but ~1 token per 4 chars is the rule-of-thumb.
-    var inputTokens = Math.ceil((SYSTEM_PROMPT.length + userMsg.length) / 4)
-    var outputTokens = Math.ceil(60 / 4)
+    // V11.17.84 — actual token usage from the response (replaces the
+    // earlier char-based approximation) + unified cost log.
+    var realUsage: any = (message as any).usage || {}
+    var inputTokens = realUsage.input_tokens || Math.ceil((SYSTEM_PROMPT.length + userMsg.length) / 4)
+    var outputTokens = realUsage.output_tokens || Math.ceil(60 / 4)
     var costUsd = (inputTokens / 1_000_000) * 1.0 + (outputTokens / 1_000_000) * 5.0
+    try {
+      var logClient = await getCostLogClient()
+      if (logClient) {
+        logAiUsage('onboarding-title', logClient, {
+          model: MODEL,
+          inputTokens: inputTokens,
+          outputTokens: outputTokens,
+          cacheCreationTokens: realUsage.cache_creation_input_tokens || 0,
+          cacheReadTokens: realUsage.cache_read_input_tokens || 0,
+          costUsd: costUsd,
+          requestId: (message as any).id || null,
+          status: 'completed',
+        })
+      }
+    } catch (_logErr) { /* logging never blocks */ }
 
     var textBlock: any = message.content.find(function (b: any) { return b.type === 'text' })
     var raw = textBlock && textBlock.type === 'text' ? String(textBlock.text || '') : ''

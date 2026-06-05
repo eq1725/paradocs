@@ -355,6 +355,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 latitude: resolved.latitude,
                 longitude: resolved.longitude,
                 location_precision: resolved.location_precision,
+                // V11.17.83 — propagate centroid-fallback signal.
+                coords_synthetic: resolved.coords_synthetic === true,
               }).eq('id', (video as any).report_id)
               console.log('[video/finalize] Backfilled location: "' + resolved.location_name + '" (' + resolved.confidence + ')')
             }

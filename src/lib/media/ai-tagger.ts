@@ -2,6 +2,7 @@
 // Analyzes images and generates descriptive tags for searchability
 
 import Anthropic from '@anthropic-ai/sdk';
+import { logAiUsage, getCostLogClient } from '../services/ai-cost-logger';
 
 export interface MediaTagResult {
   tags: string[];
@@ -95,6 +96,25 @@ Example tags: bright light, night sky, urban, triangle shape, multiple objects, 
         }
       ]
     });
+
+    // V11.17.84 — unified cost log. Image-tagging is Sonnet + vision
+    // and the per-call cost is materially higher than the text Haiku
+    // paths, so this one matters even at low volume.
+    try {
+      const usage = (response as any).usage || {};
+      const logClient = await getCostLogClient();
+      if (logClient) {
+        logAiUsage('ai-tagger', logClient, {
+          model: 'claude-sonnet-4-20250514',
+          inputTokens: usage.input_tokens || 0,
+          outputTokens: usage.output_tokens || 0,
+          cacheCreationTokens: usage.cache_creation_input_tokens || 0,
+          cacheReadTokens: usage.cache_read_input_tokens || 0,
+          requestId: (response as any).id || null,
+          status: 'completed',
+        });
+      }
+    } catch (_logErr) { /* logging never blocks */ }
 
     // Parse the response
     const content = response.content[0];

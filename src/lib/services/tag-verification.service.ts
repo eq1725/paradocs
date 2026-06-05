@@ -30,6 +30,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
+import { logAiUsage, getCostLogClient } from './ai-cost-logger'
 
 var ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ''
 var HAIKU_MODEL = 'claude-haiku-4-5-20251001'
@@ -177,6 +178,26 @@ export async function verifyTag(
       temperature: 0,
       messages: [{ role: 'user', content: buildPrompt(phen, report) }],
     })
+
+    // V11.17.84 — unified cost log. Fire-and-forget so a slow insert
+    // never gates the verifier. This is the highest-volume Haiku path
+    // in the system (~5 calls per ingested report) and was previously
+    // unlogged, accounting for the bulk of the missing $590 in the
+    // June 1–5 cost reconciliation.
+    var usage = (resp as any).usage || {}
+    var logClient = await getCostLogClient()
+    if (logClient) {
+      logAiUsage('tag-verify', logClient, {
+        model: HAIKU_MODEL,
+        inputTokens: usage.input_tokens || 0,
+        outputTokens: usage.output_tokens || 0,
+        cacheCreationTokens: usage.cache_creation_input_tokens || 0,
+        cacheReadTokens: usage.cache_read_input_tokens || 0,
+        requestId: (resp as any).id || null,
+        status: 'completed',
+      })
+    }
+
     var text = ((resp.content[0] as any) && (resp.content[0] as any).text) || ''
     var trimmed = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
     var jStart = trimmed.indexOf('{')

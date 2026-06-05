@@ -274,8 +274,16 @@ function postToReport(post: ArcticShiftPost): ScrapedReport {
   // V10.8.B.2 — post created_utc is the Reddit submission timestamp, not the
   // event date. Move it to source_published_at and run extractDate over the
   // post body to attempt a real event-date capture.
+  //
+  // V11.17.82 — pass referenceDate so the prose-relative layer can resolve
+  // "last night", "yesterday", "3 days ago" against the post's actual
+  // submission timestamp. Title is included in the prose because Reddit
+  // titles frequently carry the timing ("last night I ...", "today I saw").
   const sourcePublishedAt = new Date(post.created_utc * 1000).toISOString();
-  const extracted = extractDate({ prose: post.selftext || null });
+  const extracted = extractDate({
+    prose: (post.title || '') + '\n' + (post.selftext || ''),
+    referenceDate: sourcePublishedAt,
+  });
   const media = extractMediaFromPost(post);
   const tags = extractTags(post, subreddit);
 

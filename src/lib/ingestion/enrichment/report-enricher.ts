@@ -7,7 +7,7 @@
 // If we can't find it, we leave it null. Period.
 
 import { ScrapedReport } from '../types';
-import { geocodeLocation, buildLocationQuery } from '../../services/geocoding.service';
+import { geocodeLocation, buildLocationQuery, geocodeStructuredLocation } from '../../services/geocoding.service';
 import { parseLocation } from '../utils/location-parser';
 
 // ============================================================================
@@ -326,7 +326,7 @@ export function validateDatePrecision(
  * Works globally — not limited to any country.
  * Returns coordinates or null. Never fabricates coordinates.
  */
-export async function geocodeReport(report: ScrapedReport): Promise<{ latitude: number; longitude: number; source: string; accuracy?: 'address' | 'street' | 'locality' | 'region' | 'country' } | null> {
+export async function geocodeReport(report: ScrapedReport): Promise<{ latitude: number; longitude: number; source: string; accuracy?: 'address' | 'street' | 'locality' | 'region' | 'country'; synthetic?: boolean } | null> {
   // Skip if already has coordinates
   if (report.latitude != null && report.longitude != null &&
       report.latitude !== 0 && report.longitude !== 0) {
@@ -349,24 +349,27 @@ export async function geocodeReport(report: ScrapedReport): Promise<{ latitude: 
     return null;
   }
 
-  // Build location query from available fields
-  var locationQuery = buildLocationQuery({
-    city: report.city,
-    state: report.state_province,
-    country: report.country,
-    location_name: report.location_name
-  });
-
-  if (!locationQuery || locationQuery.length < 3) return null;
-
+  // V11.17.83 — Use the structured-geocode helper which detects when
+  // the geocoder degraded a state+country query to a country-precision
+  // result and falls back to the static state centroid. Previously the
+  // raw `geocodeLocation` call would accept (39.78, -100.45) for
+  // "New York, United States" because MapTiler/Nominatim matched only
+  // the country portion — producing the founder's Kansas-pin-for-NY bug
+  // (`odd-critter-in-the-road-last-night-ge7ofq`).
   try {
-    var result = await geocodeLocation(locationQuery);
+    var result = await geocodeStructuredLocation({
+      city: report.city,
+      state: report.state_province,
+      country: report.country,
+      location_name: report.location_name,
+    });
     if (result) {
       return {
         latitude: result.latitude,
         longitude: result.longitude,
-        source: locationQuery,
-        accuracy: (result as any).accuracy as ('address' | 'street' | 'locality' | 'region' | 'country' | undefined),
+        source: result.source,
+        accuracy: result.accuracy,
+        synthetic: result.synthetic,
       };
     }
     return null;
@@ -492,11 +495,17 @@ export async function enrichReport(report: ScrapedReport, options?: { skipGeocod
     if (geoResult) {
       report.latitude = geoResult.latitude;
       report.longitude = geoResult.longitude;
+      // V11.17.83 — propagate synthetic flag so downstream normalizeLocation
+      // (which sees pre-filled lat/lng as 'exact') doesn't mis-stamp
+      // synthetic state-centroid coords as 'exact precision, real coords'.
+      if (geoResult.synthetic) {
+        report.coords_synthetic = true;
+      }
       log.geocoded = true;
       log.geocodeSource = geoResult.source;
       log.fieldsEnriched.push('latitude', 'longitude');
       geoAccuracy = geoResult.accuracy;
-      console.log('[Enrichment] Geocoded: ' + geoResult.source + ' -> ' + geoResult.latitude.toFixed(4) + ', ' + geoResult.longitude.toFixed(4) + ' (' + (geoAccuracy || 'unknown') + ')');
+      console.log('[Enrichment] Geocoded: ' + geoResult.source + ' -> ' + geoResult.latitude.toFixed(4) + ', ' + geoResult.longitude.toFixed(4) + ' (' + (geoAccuracy || 'unknown') + ', synthetic=' + (geoResult.synthetic ? 'yes' : 'no') + ')');
     }
   }
 

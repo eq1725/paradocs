@@ -283,7 +283,12 @@ function convertVideoToReport(
   // V10.8.B.2 — publishedAt is the video upload timestamp, not the event
   // date. Move it to source_published_at and run extractDate over the video
   // description (and title) to attempt a real event-date capture.
-  const extracted = extractDate({ prose: (title || '') + '\n' + (truncatedDescription || '') });
+  // V11.17.82 — pass referenceDate so "last week", "3 days ago" in the
+  // description resolve against the actual upload date.
+  const extracted = extractDate({
+    prose: (title || '') + '\n' + (truncatedDescription || ''),
+    referenceDate: publishedAt,
+  });
 
   return {
     original_report_id: `yt-video-${video.id}`,
@@ -343,7 +348,12 @@ function convertCommentToReport(
   // V10.8.B.2 — comment publishedAt is the comment-post timestamp, not the
   // event date. Move it to source_published_at and run extractDate over the
   // comment body to attempt a real event-date capture.
-  const extracted = extractDate({ prose: cleanText });
+  // V11.17.82 — pass referenceDate so relative phrases resolve against the
+  // comment's posted-at timestamp.
+  const extracted = extractDate({
+    prose: cleanText,
+    referenceDate: snippet.publishedAt,
+  });
 
   return {
     original_report_id: `yt-comment-${comment.snippet.topLevelComment.id}`,

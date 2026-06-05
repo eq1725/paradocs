@@ -14,6 +14,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
+import { logAiUsage, getCostLogClient } from './ai-cost-logger'
 
 var anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -225,6 +226,24 @@ export async function runHaikuExtract(transcript: string): Promise<ExtractedMeta
       system: HAIKU_EXTRACT_SYSTEM,
       messages: [{ role: 'user', content: 'Transcript:\n\n' + transcript.slice(0, 4000) }],
     })
+
+    // V11.17.84 — unified cost log.
+    try {
+      var usage = (resp as any).usage || {}
+      var logClient = await getCostLogClient()
+      if (logClient) {
+        logAiUsage('video-transcribe', logClient, {
+          model: 'claude-haiku-4-5-20251001',
+          inputTokens: usage.input_tokens || 0,
+          outputTokens: usage.output_tokens || 0,
+          cacheCreationTokens: usage.cache_creation_input_tokens || 0,
+          cacheReadTokens: usage.cache_read_input_tokens || 0,
+          requestId: (resp as any).id || null,
+          status: 'completed',
+        })
+      }
+    } catch (_logErr) { /* logging never blocks */ }
+
     var block: any = resp.content.find(function (b: any) { return b.type === 'text' })
     var raw = block && block.type === 'text' ? String(block.text || '') : ''
     var cleaned = raw.trim().replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim()

@@ -59,6 +59,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
+import { logAiUsage, getCostLogClient } from '../services/ai-cost-logger'
 import { createClient } from '@supabase/supabase-js'
 
 // ── Constants ───────────────────────────────────────────────
@@ -381,6 +382,25 @@ async function runClaimCheck(
       temperature: 0,
       messages: [{ role: 'user', content: prompt }],
     })
+
+    // V11.17.84 — unified cost log (claim-check sub-pass).
+    try {
+      const usage = (resp as any).usage || {}
+      const logClient = await getCostLogClient()
+      if (logClient) {
+        logAiUsage('rewrite-pipeline', logClient, {
+          model: model,
+          inputTokens: usage.input_tokens || 0,
+          outputTokens: usage.output_tokens || 0,
+          cacheCreationTokens: usage.cache_creation_input_tokens || 0,
+          cacheReadTokens: usage.cache_read_input_tokens || 0,
+          requestId: (resp as any).id || null,
+          status: 'completed',
+          reason: 'claim-check',
+        })
+      }
+    } catch (_logErr) { /* logging never blocks */ }
+
     const content = resp.content[0]
     if (!content || content.type !== 'text') return { passed: false, notes: 'claim-check returned no text' }
 
@@ -540,6 +560,25 @@ export async function rewriteWithGuardrails(input: RewriteInput): Promise<Rewrit
         temperature,
         messages: [{ role: 'user', content: promptText }],
       })
+
+      // V11.17.84 — unified cost log.
+      try {
+        const usage = (resp as any).usage || {}
+        const logClient = await getCostLogClient()
+        if (logClient) {
+          logAiUsage('rewrite-pipeline', logClient, {
+            model: model,
+            inputTokens: usage.input_tokens || 0,
+            outputTokens: usage.output_tokens || 0,
+            cacheCreationTokens: usage.cache_creation_input_tokens || 0,
+            cacheReadTokens: usage.cache_read_input_tokens || 0,
+            reportId: input.reportId || null,
+            requestId: (resp as any).id || null,
+            status: 'completed',
+          })
+        }
+      } catch (_logErr) { /* logging never blocks */ }
+
       const content = resp.content[0]
       if (!content || content.type !== 'text') {
         return { output: null, insufficient: false, error: true }

@@ -1153,6 +1153,10 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                 location_name: insertData.location_name || null,
                 latitude: insertData.latitude ?? null,
                 longitude: insertData.longitude ?? null,
+                // V11.17.83 — pass through enricher's synthetic flag so
+                // normalizeLocation 3a doesn't re-stamp state-centroid
+                // coords as precision='exact'.
+                coords_synthetic: (report as any).coords_synthetic === true,
               },
               {
                 // V10.8.C.1 — always run the chained geocoder. It uses
@@ -1256,6 +1260,10 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                     latitude: resolved.latitude,
                     longitude: resolved.longitude,
                     location_precision: resolved.location_precision,
+                    // V11.17.83 — propagate synthetic flag so map renderer
+                    // shows region halos (not precise pins) for coords
+                    // that came from the state-centroid fallback.
+                    coords_synthetic: resolved.coords_synthetic === true,
                   }).eq('id', insertedReport.id);
                   console.log('[Ingestion] Backfilled location: "' + resolved.location_name + '" (' + resolved.confidence + ')');
                 }

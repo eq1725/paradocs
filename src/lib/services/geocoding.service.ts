@@ -3,6 +3,16 @@
 // Fallback: Nominatim / OpenStreetMap (free, no key required)
 // Falls back gracefully: city → state/province → country
 
+// V11.17.83 — state-centroid fallback. When the caller asked for a
+// state-level (or finer) match but the geocoder only returned a
+// country-level result, we treat that as a miss for the requested
+// precision and fall back to the static state-centroid table instead
+// of writing the country centroid to the DB (which would visually
+// place a New York report in Kansas — the exact bug that prompted
+// this revision; see scripts/audit-state-coord-mismatch.ts).
+import stateCentroids from '../ingestion/utils/state-centroids.json'
+import countryCentroids from '../ingestion/utils/country-centroids.json'
+
 // V11.17.6 — accuracy field exposes the geocoder's place_type so the
 // caller can set location_precision honestly. Without this, callers
 // were stamping precision='exact' on a state-centroid result. Values
@@ -327,4 +337,182 @@ export async function batchGeocode(
  */
 export function clearGeocodeCache(): void {
   geocodeCache.clear();
+}
+
+// ============================================================================
+// V11.17.83 — state-centroid fallback
+// ============================================================================
+
+// Build the country-name → ISO2 and state-name → state-key lookup tables
+// once at module load (same approach as normalize-location.ts). These let
+// us resolve "New York" / "NY" / "Estado de Nueva York" → centroid coords
+// without an external call. Lookups are case + punctuation insensitive.
+interface CountryEntry { name: string; lat: number; lng: number; aliases?: string[] }
+interface StateEntry { name: string; lat: number; lng: number; aliases?: string[] }
+
+function normalizeKey(s: string): string {
+  // Mirrors normalize-location.ts — lowercase, strip non-alphanum.
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
+var COUNTRY_BY_KEY: Record<string, string> = {}
+var COUNTRY_BY_CODE: Record<string, CountryEntry> = {}
+var STATE_BY_KEY: Record<string, Record<string, string>> = {}
+var STATE_BY_CODE: Record<string, Record<string, StateEntry>> = {}
+
+;(function buildCentroidIndex() {
+  for (var code of Object.keys(countryCentroids as Record<string, unknown>)) {
+    if (code.startsWith('$')) continue
+    var entry = (countryCentroids as Record<string, unknown>)[code] as CountryEntry
+    if (!entry || typeof entry !== 'object') continue
+    COUNTRY_BY_CODE[code] = entry
+    COUNTRY_BY_KEY[code.toLowerCase()] = code
+    COUNTRY_BY_KEY[normalizeKey(entry.name)] = code
+    for (var alias of entry.aliases || []) {
+      COUNTRY_BY_KEY[normalizeKey(alias)] = code
+    }
+  }
+  for (var countryCode of Object.keys(stateCentroids as Record<string, unknown>)) {
+    if (countryCode.startsWith('$')) continue
+    var sub = (stateCentroids as Record<string, unknown>)[countryCode] as Record<string, StateEntry>
+    STATE_BY_CODE[countryCode] = sub
+    STATE_BY_KEY[countryCode] = {}
+    for (var stateKey of Object.keys(sub)) {
+      var stateEntry = sub[stateKey]
+      STATE_BY_KEY[countryCode][stateKey.toLowerCase()] = stateKey
+      STATE_BY_KEY[countryCode][normalizeKey(stateEntry.name)] = stateKey
+      for (var sAlias of stateEntry.aliases || []) {
+        STATE_BY_KEY[countryCode][normalizeKey(sAlias)] = stateKey
+      }
+    }
+  }
+})()
+
+function resolveCountryCode(country: string | null | undefined): string | null {
+  if (!country) return null
+  var key = normalizeKey(String(country))
+  return COUNTRY_BY_KEY[key] || null
+}
+
+function resolveStateCentroid(countryCode: string | null, state: string | null | undefined): { lat: number; lng: number; name: string } | null {
+  if (!countryCode || !state) return null
+  var map = STATE_BY_KEY[countryCode]
+  if (!map) return null
+  var key = map[normalizeKey(String(state))]
+  if (!key) return null
+  var entry = STATE_BY_CODE[countryCode]?.[key]
+  if (!entry) return null
+  return { lat: entry.lat, lng: entry.lng, name: entry.name }
+}
+
+/**
+ * V11.17.83 — Structured geocode with centroid fallback.
+ *
+ * The plain `geocodeLocation(string)` happily accepts a country-level
+ * result for a query like "New York, United States" — MapTiler/Nominatim
+ * sometimes match only the country portion and return its centroid
+ * (39.78, -100.45 for "United States"). That coordinate then gets
+ * written to the DB and surfaces as a pin in central Kansas for a New
+ * York report (the founder's `odd-critter-in-the-road-last-night-ge7ofq`
+ * bug).
+ *
+ * This wrapper takes structured fields, calls the geocoder, then:
+ *   - keeps the geocode result if it's locality/region precision or
+ *     finer (the requested level was actually resolved);
+ *   - if a state was supplied but the geocoder degraded to 'country',
+ *     drops the geocode result and uses the static state centroid
+ *     instead, with synthetic=true flag for downstream coords_synthetic;
+ *   - if no state but country known, leaves coords null (country-only
+ *     reports surface via aggregate rails, not as map pins — same
+ *     policy as report-enricher.geocodeReport's early bail).
+ *
+ * Returns null when no usable coordinates can be produced. Callers
+ * should treat that as "leave coords null" — never invent.
+ */
+export interface StructuredGeocodeInput {
+  city?: string | null
+  state?: string | null
+  country?: string | null
+  location_name?: string | null
+}
+
+export interface StructuredGeocodeResult {
+  latitude: number
+  longitude: number
+  accuracy: GeocodeAccuracy
+  /** True when coords came from the centroid table (not the live geocoder). */
+  synthetic: boolean
+  source: string
+}
+
+export async function geocodeStructuredLocation(
+  input: StructuredGeocodeInput,
+): Promise<StructuredGeocodeResult | null> {
+  var hasCity = !!(input.city && String(input.city).trim())
+  var hasState = !!(input.state && String(input.state).trim())
+  var hasCountry = !!(input.country && String(input.country).trim())
+
+  // Country-only — never synthesize, mirrors geocodeReport policy.
+  if (!hasCity && !hasState) return null
+
+  var countryCode = resolveCountryCode(input.country)
+  var stateCentroid = resolveStateCentroid(countryCode, input.state || null)
+
+  var query = buildLocationQuery({
+    city: input.city || undefined,
+    state: input.state || undefined,
+    country: input.country || undefined,
+    location_name: input.location_name || undefined,
+  })
+
+  if (!query || query.length < 3) {
+    // No usable query — fall through to centroid if we have one.
+    if (stateCentroid) {
+      return {
+        latitude: stateCentroid.lat,
+        longitude: stateCentroid.lng,
+        accuracy: 'region',
+        synthetic: true,
+        source: 'state-centroid:' + stateCentroid.name,
+      }
+    }
+    return null
+  }
+
+  var geocoded = await geocodeLocation(query)
+
+  // Treat country-level results as a miss when we asked for finer
+  // precision — fall through to state centroid instead.
+  if (geocoded) {
+    var acc = geocoded.accuracy
+    var degraded = acc === 'country' && (hasCity || hasState)
+    if (!degraded) {
+      return {
+        latitude: geocoded.latitude,
+        longitude: geocoded.longitude,
+        accuracy: acc,
+        synthetic: false,
+        source: query,
+      }
+    }
+    // Else: silently degrade-to-centroid (logged below).
+    console.log(
+      '[Geocoding] V11.17.83 — geocoder returned country precision for "' + query +
+      '"; falling back to state centroid (' + (stateCentroid?.name || '(none)') + ')',
+    )
+  }
+
+  if (stateCentroid) {
+    return {
+      latitude: stateCentroid.lat,
+      longitude: stateCentroid.lng,
+      accuracy: 'region',
+      synthetic: true,
+      source: 'state-centroid:' + stateCentroid.name,
+    }
+  }
+
+  // No state centroid (e.g. unknown country or state alias not in our
+  // table). Return null rather than the bad country-centroid coords.
+  return null
 }

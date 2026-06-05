@@ -29,7 +29,8 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
-import { geocodeLocation, buildLocationQuery } from './geocoding.service'
+import { geocodeStructuredLocation } from './geocoding.service'
+import { logAiUsage, getCostLogClient } from './ai-cost-logger'
 
 var ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ''
 var HAIKU_MODEL = 'claude-haiku-4-5-20251001'
@@ -57,6 +58,8 @@ export interface ResolvedLocation {
   longitude: number | null
   location_precision: 'exact' | 'region' | 'country'
   confidence: 'high' | 'medium' | 'low'
+  /** V11.17.83 — true when coords came from a centroid fallback (not a real geocode). */
+  coords_synthetic?: boolean
 }
 
 var EXTRACT_PROMPT = [
@@ -105,6 +108,24 @@ async function callHaikuExtract(input: ExtractInput): Promise<ExtractedLocation 
       system: EXTRACT_PROMPT,
       messages: [{ role: 'user', content: buildUserPrompt(input) }],
     })
+
+    // V11.17.84 — unified cost log. Volume here is low (only fires
+    // when ingestion-time location extraction missed) but still worth
+    // tracking for the daily-cost summary.
+    var usage = (resp as any).usage || {}
+    var logClient = await getCostLogClient()
+    if (logClient) {
+      logAiUsage('location-extract', logClient, {
+        model: HAIKU_MODEL,
+        inputTokens: usage.input_tokens || 0,
+        outputTokens: usage.output_tokens || 0,
+        cacheCreationTokens: usage.cache_creation_input_tokens || 0,
+        cacheReadTokens: usage.cache_read_input_tokens || 0,
+        requestId: (resp as any).id || null,
+        status: 'completed',
+      })
+    }
+
     var text = ((resp.content[0] as any) && (resp.content[0] as any).text) || ''
     var trimmed = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
     var jStart = trimmed.indexOf('{')
@@ -151,26 +172,17 @@ export async function extractAndGeocodeLocation(input: ExtractInput): Promise<Re
   // this is just a type-safe alias for the narrowed value.
   var confidence: 'high' | 'medium' | 'low' = loc.confidence
 
-  var query = buildLocationQuery({
+  // V11.17.83 — structured geocode with state-centroid fallback. When
+  // the geocoder degrades to a country-level match (e.g. Nominatim
+  // returning the US centroid for "New York, United States"), this
+  // wrapper substitutes the static state centroid so we don't write
+  // a Kansas pin for a NY report. See geocoding.service.ts.
+  var geo = await geocodeStructuredLocation({
     city: loc.city || undefined,
     state: loc.state_province || undefined,
     country: loc.country || undefined,
   })
 
-  if (!query) {
-    return {
-      location_name: locationName,
-      city: loc.city,
-      state_province: loc.state_province,
-      country: loc.country,
-      latitude: null,
-      longitude: null,
-      location_precision: 'country',
-      confidence: confidence,
-    }
-  }
-
-  var geo = await geocodeLocation(query)
   if (!geo) {
     // Have text but no coords — still useful (UI shows "Location: <text>"
     // instead of "no location specified").
@@ -195,5 +207,6 @@ export async function extractAndGeocodeLocation(input: ExtractInput): Promise<Re
     longitude: geo.longitude,
     location_precision: precisionFromAccuracy(geo.accuracy || 'country'),
     confidence: confidence,
+    coords_synthetic: geo.synthetic,
   }
 }

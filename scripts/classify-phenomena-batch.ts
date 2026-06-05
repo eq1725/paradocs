@@ -30,6 +30,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { verifyTag } from '../src/lib/services/tag-verification.service'
+import { logAiUsage } from '../src/lib/services/ai-cost-logger'
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
 if (!ANTHROPIC_API_KEY) {
@@ -411,11 +412,29 @@ async function classifyCategory(
           } catch (_e) {}
 
           const usage = row.result.message?.usage || {}
-          stats.cost +=
+          const rowCost =
             (usage.input_tokens || 0) / 1e6 * HAIKU_INPUT_BATCH +
             (usage.cache_creation_input_tokens || 0) / 1e6 * HAIKU_CACHE_WRITE_BATCH +
             (usage.cache_read_input_tokens || 0) / 1e6 * HAIKU_CACHE_READ_BATCH +
             (usage.output_tokens || 0) / 1e6 * HAIKU_OUTPUT_BATCH
+          stats.cost += rowCost
+
+          // V11.17.84 — unified cost log. Each batch result row gets
+          // its own ledger entry so the daily cost-summary endpoint
+          // can attribute spend to the classifier path. classify-
+          // phenomena-batch processes ~100k reports per drain and was
+          // previously unlogged — a major contributor to the missing
+          // $590 in the June 1–5 reconciliation.
+          logAiUsage('classifier-primary', sb, {
+            model: HAIKU_MODEL,
+            inputTokens: usage.input_tokens || 0,
+            outputTokens: usage.output_tokens || 0,
+            cacheCreationTokens: usage.cache_creation_input_tokens || 0,
+            cacheReadTokens: usage.cache_read_input_tokens || 0,
+            costUsd: rowCost,
+            reportId: row.custom_id || null,
+            status: 'completed',
+          })
 
           if (!parsed || (parsed.primary == null && (!Array.isArray(parsed.secondary) || parsed.secondary.length === 0))) {
             stats.nullMatched++

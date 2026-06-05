@@ -20,6 +20,7 @@
  */
 
 import { createServerClient } from '../supabase'
+import { logAiUsage, getCostLogClient } from './ai-cost-logger'
 
 var ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ''
 var HAIKU_MODEL = 'claude-haiku-4-5-20251001'
@@ -126,6 +127,24 @@ async function callHaiku(systemPrompt: string, userPrompt: string): Promise<stri
     }
     var data: any = await resp.json()
     var text = data?.content?.[0]?.text || ''
+
+    // V11.17.84 — unified cost log.
+    try {
+      var usage = data.usage || {}
+      var logClient = await getCostLogClient()
+      if (logClient) {
+        logAiUsage('cluster-finding', logClient, {
+          model: HAIKU_MODEL,
+          inputTokens: usage.input_tokens || 0,
+          outputTokens: usage.output_tokens || 0,
+          cacheCreationTokens: usage.cache_creation_input_tokens || 0,
+          cacheReadTokens: usage.cache_read_input_tokens || 0,
+          requestId: data.id || null,
+          status: 'completed',
+        })
+      }
+    } catch (_logErr) { /* logging never blocks */ }
+
     return text || null
   } catch (e: any) {
     clearTimeout(timeoutId)

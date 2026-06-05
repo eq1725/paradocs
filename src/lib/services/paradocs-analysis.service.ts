@@ -115,6 +115,9 @@ async function logParadocsCost(
 ): Promise<void> {
   try {
     await supabase.from('paradocs_narrative_cost_log').insert({
+      // V11.17.84 — tag the service so cost-summary endpoint can
+      // partition spend by subsystem.
+      service: 'paradocs-analysis',
       report_id: args.report_id,
       model: args.model,
       input_tokens: args.input_tokens,

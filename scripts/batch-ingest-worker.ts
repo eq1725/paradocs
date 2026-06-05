@@ -921,10 +921,14 @@ async function logBatchCost(
 ): Promise<void> {
   try {
     await supabase.from('paradocs_narrative_cost_log').insert({
+      // V11.17.84 — service column tags the batch path so the unified
+      // cost-summary endpoint can attribute it correctly.
+      service: 'consolidated-batch',
       report_id: reportId,
       model: HAIKU_MODEL + ' (consolidated-batch)',
       input_tokens: inputTokens,
       output_tokens: outputTokens,
+      cache_creation_tokens: cacheCreationTokens,
       cost_usd: costUsd,
       status: status === 'completed' ? 'completed' : 'failed',
       reason: reason,

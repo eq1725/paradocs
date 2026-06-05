@@ -6,6 +6,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
+import { logAiUsage, getCostLogClient } from './ai-cost-logger'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
@@ -67,6 +68,23 @@ export async function extractTitleElements(description: string): Promise<TitleEl
         }
       ]
     })
+
+    // V11.17.84 — unified cost log.
+    try {
+      const usage = (message as any).usage || {}
+      const logClient = await getCostLogClient()
+      if (logClient) {
+        logAiUsage('ai-title', logClient, {
+          model: MODEL,
+          inputTokens: usage.input_tokens || 0,
+          outputTokens: usage.output_tokens || 0,
+          cacheCreationTokens: usage.cache_creation_input_tokens || 0,
+          cacheReadTokens: usage.cache_read_input_tokens || 0,
+          requestId: (message as any).id || null,
+          status: 'completed',
+        })
+      }
+    } catch (_logErr) { /* logging never blocks */ }
 
     // Extract text response
     const textBlock = message.content.find(block => block.type === 'text')

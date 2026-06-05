@@ -19,6 +19,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
+import { logAiUsage, getCostLogClient } from './ai-cost-logger'
 
 export interface TextModerationResult {
   decision: 'approved' | 'pending' | 'rejected'
@@ -83,6 +84,23 @@ export async function moderateText(
         { role: 'user', content: 'Classify this ' + contextLabel + ':\n\n' + text.trim() },
       ],
     })
+
+    // V11.17.84 — unified cost log.
+    try {
+      var usage = (response as any).usage || {}
+      var logClient = await getCostLogClient()
+      if (logClient) {
+        logAiUsage('text-moderation', logClient, {
+          model: MODEL,
+          inputTokens: usage.input_tokens || 0,
+          outputTokens: usage.output_tokens || 0,
+          cacheCreationTokens: usage.cache_creation_input_tokens || 0,
+          cacheReadTokens: usage.cache_read_input_tokens || 0,
+          requestId: (response as any).id || null,
+          status: 'completed',
+        })
+      }
+    } catch (_logErr) { /* logging never blocks */ }
 
     var content = response.content && response.content[0]
     var raw = ''

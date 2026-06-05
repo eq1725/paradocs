@@ -663,10 +663,14 @@ async function logConsolidatedCost(
 ): Promise<void> {
   try {
     await supabase.from('paradocs_narrative_cost_log').insert({
+      // V11.17.84 — service column for unified cost-summary partitioning.
+      service: 'consolidated-narrative',
       report_id: reportId,
       model: HAIKU_MODEL + ' (consolidated)',
       input_tokens: result.inputTokens,
       output_tokens: result.outputTokens,
+      cache_creation_tokens: result.cacheCreationTokens,
+      cache_read_tokens: result.cacheReadTokens,
       cost_usd: result.costUsd,
       status: status === 'completed' ? 'completed' : 'failed',
       reason: status === 'completed' ? null : status,
