@@ -170,9 +170,47 @@ interface BatchRequest {
   }
 }
 
+// V11.17.77 — Unicode surrogate-pair sanitizer.
+// Reddit (and some YouTube) ingest occasionally carries orphan UTF-16
+// surrogate halves in report text — a high surrogate (U+D800–U+DBFF)
+// without its required low surrogate (U+DC00–U+DFFF), or vice versa.
+// JSON.stringify happily serializes these as \uD83D etc., but Anthropic's
+// JSON parser rejects the entire batch with:
+//   "no low surrogate in string: line 1 column X"
+// One bad character in a 5,000-report batch kills all 5,000. This
+// sanitizer strips orphan halves before serialization. Well-formed
+// surrogate pairs (valid emoji, CJK supplementary, etc.) are preserved.
+function stripLoneSurrogates(s: string | null | undefined): string {
+  if (s == null) return ''
+  return s
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')
+    .replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '')
+}
+
+function sanitizeReportForBatch(report: any): any {
+  // Defensive clone — never mutate the caller's report object.
+  var clean: any = Object.assign({}, report)
+  var fields = ['title', 'summary', 'description', 'location_name',
+                'country', 'state_province', 'city', 'source_label']
+  for (var i = 0; i < fields.length; i++) {
+    var f = fields[i]
+    if (typeof clean[f] === 'string') {
+      clean[f] = stripLoneSurrogates(clean[f])
+    }
+  }
+  // tags is string[]; sanitize each.
+  if (Array.isArray(clean.tags)) {
+    clean.tags = clean.tags.map(function (t: any) {
+      return typeof t === 'string' ? stripLoneSurrogates(t) : t
+    })
+  }
+  return clean
+}
+
 function buildBatchRequest(report: any): BatchRequest {
+  var safeReport = sanitizeReportForBatch(report)
   return {
-    custom_id: report.id,
+    custom_id: safeReport.id,
     params: {
       model: HAIKU_MODEL,
       max_tokens: MAX_TOKENS,
@@ -183,7 +221,7 @@ function buildBatchRequest(report: any): BatchRequest {
           cache_control: { type: 'ephemeral' },
         },
       ],
-      messages: [{ role: 'user', content: buildConsolidatedUserPrompt(report) }],
+      messages: [{ role: 'user', content: buildConsolidatedUserPrompt(safeReport) }],
       temperature: TEMPERATURE,
     },
   }
