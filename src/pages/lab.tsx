@@ -64,6 +64,14 @@ import GeographicSurface from '@/components/lab/GeographicSurface'
 import RadarSurface from '@/components/lab/RadarSurface'
 import CrossExperienceHeader from '@/components/lab/CrossExperienceHeader'
 
+// V11.17.71 - Pro Dossier (Tier 3A). Pro users see the live Dossier;
+// Free/Basic continue to see the LabPaywallSurface teaser below.
+import ProDossier from '@/components/lab/ProDossier'
+
+// V11.17.72 - Custom Watchlists (Tier 3B). Pro users see the live
+// WatchlistsRail; Free/Basic continue to see the LabPaywallSurface teaser.
+import WatchlistsRail from '@/components/lab/WatchlistsRail'
+
 // We also keep the rich match-list + manage panel UX that used to
 // live inside MyRecordTab. It still works as the legacy spine until
 // we migrate the SinceLastVisitLine / SignalAlertsOptInCard sub-
@@ -545,10 +553,15 @@ export default function LabPage() {
               <MyRecordTab />
             </div>
 
-            {/* ─── SECTION 9: Pro Dossier teaser (Tier 3 placeholder) ─
-                The Pro flagship per PRO_TIER_VALIDATION_V3 §3. Free
-                + Basic see the teaser; Pro sees the full Dossier (TBD
-                in Tier 3). */}
+            {/* ─── SECTION 9: Pro Dossier ─────────────────────────────
+                V11.17.71 — the Pro flagship per PRO_TIER_VALIDATION_V3
+                §3 is now LIVE for Pro users. Free + Basic continue to
+                see the LabPaywallSurface teaser. */}
+            {focused && tier === 'pro' && (
+              <div className="pt-6">
+                <ProDossier experienceReportId={focused.id} />
+              </div>
+            )}
             {focused && tier !== 'pro' && (
               <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
                 <LabPaywallSurface
@@ -562,7 +575,15 @@ export default function LabPage() {
               </div>
             )}
 
-            {/* ─── SECTION 10: Custom Watchlists teaser (Tier 3 placeholder) ─ */}
+            {/* ─── SECTION 10: Custom Watchlists ─────────────────────
+                V11.17.72 — the second Pro flagship per PRO_TIER_VALIDATION_V3
+                §4 is now LIVE for Pro users. Free + Basic continue to see
+                the LabPaywallSurface teaser. */}
+            {tier === 'pro' && (
+              <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+                <WatchlistsRail />
+              </div>
+            )}
             {focused && tier !== 'pro' && (
               <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
                 <LabPaywallSurface
