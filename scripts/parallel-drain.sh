@@ -43,6 +43,15 @@ CHUNK_SIZE=${CHUNK_SIZE:-5000}
 POLL_INTERVAL=${POLL_INTERVAL:-60}
 MAX_WAIT=${MAX_WAIT:-86400}
 STAGGER_SEC=${STAGGER_SEC:-20}
+
+# V11.17.76 — skip the in-worker Stage D classifier auto-spawn by default.
+# Each worker would otherwise spawn its own `classify-phenomena-batch --all`
+# child after narratives persist. With N workers running in parallel that
+# creates N redundant classifiers all racing on the same un-tagged report
+# set — wastes Anthropic budget without speeding up tagging. Default-off
+# here; run ONE consolidated classifier after all narrative waves drain.
+# Override via SKIP_CLASSIFY=0 to restore legacy per-worker auto-spawn.
+SKIP_CLASSIFY=${SKIP_CLASSIFY:-1}
 LOG_DIR="outputs"
 mkdir -p "$LOG_DIR"
 RUN_ID=$(date +%Y%m%d-%H%M%S)
@@ -92,13 +101,19 @@ for ((W=0; W<EFFECTIVE_WORKERS; W++)); do
   OFFSET=$(( W * CHUNK_SIZE ))
   WORKER_LOG="$LOG_DIR/parallel-drain-${RUN_ID}-w${W}.log"
   LOGS+=("$WORKER_LOG")
-  echo "[w${W}] Launching with --offset $OFFSET --limit $CHUNK_SIZE  (log: $WORKER_LOG)" | tee -a "$SUMMARY_LOG"
+  # V11.17.76 — pass --no-classify when SKIP_CLASSIFY=1 (default).
+  NO_CLASSIFY_FLAG=""
+  if [ "$SKIP_CLASSIFY" = "1" ]; then
+    NO_CLASSIFY_FLAG="--no-classify"
+  fi
+  echo "[w${W}] Launching with --offset $OFFSET --limit $CHUNK_SIZE $NO_CLASSIFY_FLAG  (log: $WORKER_LOG)" | tee -a "$SUMMARY_LOG"
   npx tsx scripts/batch-ingest-worker.ts \
     --backfill \
     --offset $OFFSET \
     --limit $CHUNK_SIZE \
     --poll-interval $POLL_INTERVAL \
     --max-wait $MAX_WAIT \
+    $NO_CLASSIFY_FLAG \
     > "$WORKER_LOG" 2>&1 &
   PID=$!
   PIDS+=("$PID")
