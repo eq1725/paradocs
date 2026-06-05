@@ -1,5 +1,19 @@
 'use client'
 
+// V11.17.75 — Tier 3E cleanup
+//
+// Resolves the long-flagged duplication between RadarSurface (the
+// V3 §5 categorical lens) and the legacy MyRecordTab polished radar.
+// MyRecordTab has been deleted; the parts of it that were still
+// load-bearing — the rich match-list rendering and the manage-
+// submissions panel — are now standalone components in /lab:
+//   - `MatchList` (src/components/lab/MatchList.tsx)
+//   - `ManageSubmissionsPanel` (src/components/lab/ManageSubmissionsPanel.tsx)
+// The polished radar dial inside MyRecordTab is gone entirely;
+// RadarSurface is the single canonical dial on the page.
+//
+// V11.17.74 — Sentiment + endpoints (Tier 3D wire-up)
+//
 // V11.17.69 - Tier 2B
 //
 // My Record — single-page IA (Tier 2B structural rebuild).
@@ -32,7 +46,7 @@
 //     ExploreTab). Library and Explore each live at their own routes
 //     already (/explore exists; the Collections grid will be revived
 //     as a sub-page if needed — for the current pass it's reachable
-//     via the "Manage your submissions" panel inside MyRecordTab).
+//     via the standalone ManageSubmissionsPanel (Tier 3E).
 //   - The legacy ?tab=... query-string redirect map (replaced with a
 //     no-op — every legacy tab key lands on this single surface now).
 //
@@ -72,11 +86,20 @@ import ProDossier from '@/components/lab/ProDossier'
 // WatchlistsRail; Free/Basic continue to see the LabPaywallSurface teaser.
 import WatchlistsRail from '@/components/lab/WatchlistsRail'
 
-// We also keep the rich match-list + manage panel UX that used to
-// live inside MyRecordTab. It still works as the legacy spine until
-// we migrate the SinceLastVisitLine / SignalAlertsOptInCard sub-
-// affordances into their own files (deferred to Tier 3).
-import MyRecordTab from '@/components/dashboard/MyRecordTab'
+// V11.17.73 - Named-Match + Peer DM (Tier 3C). Basic+ users see live
+// offers + thread rails; Free continues to see the LabPaywallSurface
+// teaser anchored on the named-match copy.
+import NamedMatchOffersRail from '@/components/lab/NamedMatchOffersRail'
+import DMThreadsList from '@/components/lab/DMThreadsList'
+import DiscoverabilityToggle from '@/components/lab/DiscoverabilityToggle'
+
+// V11.17.75 — Tier 3E cleanup. MyRecordTab is gone; the two pieces
+// that were still load-bearing now live in /lab as standalone
+// components. The polished-radar dial that used to live alongside
+// these (and visually duplicated RadarSurface) was dropped per the
+// Tier 2B open question.
+import MatchList from '@/components/lab/MatchList'
+import ManageSubmissionsPanel from '@/components/lab/ManageSubmissionsPanel'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -177,6 +200,16 @@ export default function LabPage() {
   var [reports, setReports] = useState<UserReportRow[]>([])
   var [focusedIdx, setFocusedIdx] = useState(0)
 
+  // V11.17.74 — Tier 3D. Bearer token threaded through to
+  // CrossExperienceHeader so it can POST to /api/lab/synthesized-paragraph
+  // for the Haiku body-of-work sentence.
+  var [authToken, setAuthToken] = useState<string | null>(null)
+
+  // V11.17.75 — Tier 3E. User email threaded through to MatchList so
+  // the inline NewMatchAlertsCard can scope its localStorage key and
+  // hit /api/user/notify-prefs. Null for anonymous viewers.
+  var [userEmail, setUserEmail] = useState<string | null>(null)
+
   // Per-experience derived surfaces.
   var [nearbyReports, setNearbyReports] = useState<NearbyReportShape[] | null>(null)
   var [matches, setMatches] = useState<any[]>([])
@@ -197,6 +230,8 @@ export default function LabPage() {
       supabase.auth.getSession().then(function (sessionResult) {
         var session = sessionResult.data.session
         setIsLoggedIn(!!session)
+        setAuthToken(session ? session.access_token : null)
+        setUserEmail(session && session.user.email ? session.user.email : null)
         if (session) {
           loadReports(session.access_token)
         } else {
@@ -260,6 +295,36 @@ export default function LabPage() {
     setSynthesizedParagraph(null)
     setHourDist(null)
     setDecadeDist(null)
+
+    // V11.17.74 — Tier 3D wire-up. Real temporal-distribution + Haiku
+    // synthesized paragraph endpoints now back the TemporalStrip and
+    // (when n≥2) the CrossExperienceHeader. Both calls are fire-and-
+    // forget — failures degrade to the same placeholder UX as before.
+    if (focused.category) {
+      var distUrl = '/api/lab/temporal-distribution?phen_family=' +
+        encodeURIComponent(focused.category) + '&dimension=hour'
+      fetch(distUrl).then(function (r) { return r.ok ? r.json() : null }).then(function (d) {
+        if (!d || !Array.isArray(d.distribution)) return
+        var arr: number[] = []
+        for (var i = 0; i < 24; i++) arr.push(0)
+        d.distribution.forEach(function (b: any) {
+          if (typeof b.bucket === 'number' && b.bucket >= 0 && b.bucket < 24) {
+            arr[b.bucket] = b.percentage || 0
+          }
+        })
+        setHourDist(arr)
+      }).catch(function () { /* keep placeholder */ })
+
+      var decUrl = '/api/lab/temporal-distribution?phen_family=' +
+        encodeURIComponent(focused.category) + '&dimension=decade'
+      fetch(decUrl).then(function (r) { return r.ok ? r.json() : null }).then(function (d) {
+        if (!d || !Array.isArray(d.distribution)) return
+        var decArr: { decade: number; share: number }[] = d.distribution.map(function (b: any) {
+          return { decade: b.bucket, share: b.percentage || 0 }
+        })
+        setDecadeDist(decArr)
+      }).catch(function () { /* keep placeholder */ })
+    }
 
     // Fetch matches via the existing constellation/match RPC.
     supabase.auth.getSession().then(function (s) {
@@ -458,6 +523,7 @@ export default function LabPage() {
                 <CrossExperienceHeader
                   experiences={experiencesLite}
                   tier={tier}
+                  authToken={authToken}
                 />
               </div>
             )}
@@ -524,6 +590,31 @@ export default function LabPage() {
               </div>
             )}
 
+            {/* ─── SECTION 6b: Named-Match rails (Basic+) ────────────
+                V11.17.73 — Tier 3C. Basic+ users see the live offers
+                rail + private-thread list. Free users do not reach
+                this slot (the paywall above is their slot). */}
+            {(tier === 'basic' || tier === 'pro') && (
+              <>
+                {focused && (
+                  <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+                    <div className="flex items-center justify-between mb-2 px-1">
+                      <p className="text-[10px] font-semibold tracking-widest uppercase text-gray-400">
+                        Discoverable on this experience
+                      </p>
+                      <DiscoverabilityToggle reportId={focused.id} />
+                    </div>
+                  </div>
+                )}
+                <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+                  <NamedMatchOffersRail />
+                </div>
+                <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+                  <DMThreadsList />
+                </div>
+              </>
+            )}
+
             {/* ─── SECTION 7: Categorical radar lens ─────────────────
                 Wrapped per V3 §5 with the eyebrow + tooltip + widen pill. */}
             {focused && matches.length > 0 && (
@@ -539,19 +630,58 @@ export default function LabPage() {
               </div>
             )}
 
-            {/* ─── SECTION 8: Legacy match list + manage panel ───────
-                MyRecordTab still renders the rich match-list, the
-                multi-submission Manage panel, and the inline
-                EditReportModal. Until Tier 3 splits these into their
-                own files, we keep MyRecordTab mounted below the new
-                surfaces so all existing UX remains reachable. The
-                tab's own RADAR (the polished view at the top of
-                MyRecordTab) duplicates RadarSurface above — that
-                duplication will be removed in Tier 3 along with the
-                MyRecordTab split. */}
-            <div data-section="lab-constellation" className="pt-6">
-              <MyRecordTab />
-            </div>
+            {/* ─── SECTION 8: Match list + manage submissions ────────
+                V11.17.75 — Tier 3E cleanup. The legacy MyRecordTab
+                wrapper is gone. The two pieces that were still load-
+                bearing are now standalone:
+                  - MatchList renders the rich, inline-expandable list
+                    of related-account cards (with filter chips, the
+                    witness-adjacency callout, the new-match alerts
+                    opt-in, per-dimension match bars, etc.).
+                  - ManageSubmissionsPanel surfaces the edit/delete
+                    panel as a small inline pill.
+                The polished radar dial that used to sit above the
+                match list is dropped — RadarSurface above is the
+                single canonical dial on the page. The legacy
+                data-section="lab-constellation" hook is retained on
+                the wrapper because analytics dashboards reference it. */}
+            {focused && matches.length > 0 && (
+              <div data-section="lab-constellation" className="pt-6">
+                <MatchList
+                  matches={matches}
+                  totalDatabase={totalDatabase}
+                  userLat={focused.latitude}
+                  userLng={focused.longitude}
+                  userEmail={userEmail}
+                  focusedReportId={focused.id}
+                />
+              </div>
+            )}
+            {isLoggedIn && (
+              <ManageSubmissionsPanel
+                onDeleted={function (deletedId) {
+                  setReports(function (prev) {
+                    var next = prev.filter(function (r) { return r.id !== deletedId })
+                    // If we deleted the focused row, fall back to the
+                    // first remaining row (or clear focus when empty).
+                    if (focused && focused.id === deletedId) {
+                      setFocusedIdx(0)
+                    } else {
+                      // Keep pointing at the same row by id, which
+                      // may have shifted index.
+                      var sameIdx = next.findIndex(function (r) { return focused && r.id === focused.id })
+                      setFocusedIdx(sameIdx >= 0 ? sameIdx : 0)
+                    }
+                    return next
+                  })
+                }}
+                onEdited={function () {
+                  // Refetch reports so the focused dossier reflects
+                  // any title/category/location/description changes.
+                  if (authToken) loadReports(authToken)
+                }}
+              />
+            )}
 
             {/* ─── SECTION 9: Pro Dossier ─────────────────────────────
                 V11.17.71 — the Pro flagship per PRO_TIER_VALIDATION_V3

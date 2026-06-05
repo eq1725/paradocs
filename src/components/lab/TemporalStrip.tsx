@@ -1,5 +1,12 @@
 'use client'
 
+// V11.17.74 — Sentiment + endpoints (Tier 3D wire-up)
+//   Now consumes real distributions from
+//   GET /api/lab/temporal-distribution?phen_family=X&dimension=hour|decade
+//   (fetched in src/pages/lab.tsx and passed via hourDistribution +
+//   decadeDistribution props). The placeholder bar layout still renders
+//   when those props are null so the strip never reflows.
+//
 // V11.17.69 - Tier 2B
 //
 // TemporalStrip — the "clock-and-decade strip" surface from

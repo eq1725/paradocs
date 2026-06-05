@@ -17,7 +17,7 @@
  *   - Hero metric: N new corroborating reports
  *   - Sub-line: "Paradocs added X reports this {month}"
  *   - Top aligned category badge (when user-personalized)
- *   - Inline CTA: "See what changed →" → scrolls to LabConstellationTab
+ *   - Inline CTA: "See what changed →" → scrolls to MatchList (data-section="lab-constellation")
  *
  * Defensive: silently hides on fetch error or empty payload.
  */

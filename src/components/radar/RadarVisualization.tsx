@@ -87,7 +87,7 @@ const CATEGORY_ANGLES: Record<string, number> = {
 }
 
 // ── Category → color (matches CATEGORY_CONFIG) ────────────────────────────────
-// V10.2.1 — exported so consumers (LabConstellationTab, /start reveal)
+// V10.2.1 — exported so consumers (RadarSurface, /start reveal)
 // can render a matching legend.
 export const CATEGORY_COLORS: Record<string, string> = {
   ufos_aliens:               '#4ade80',   // green

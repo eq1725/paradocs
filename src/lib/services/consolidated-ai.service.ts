@@ -1,5 +1,11 @@
 /**
- * Consolidated AI Service — V11.13
+ * Consolidated AI Service — V11.17.74 - Sentiment + endpoints (Tier 3D)
+ *
+ * V11.17.74: optionally appends sentiment-scoring fields (valence,
+ * arousal, dominant_emotion) to the consolidated JSON, persisting them
+ * into the reports.sentiment_* columns when INCLUDE_SENTIMENT=true.
+ * Opt-in via env so the existing prompt isn't disrupted until founder
+ * validates the sentiment output.
  *
  * Single Haiku 4.5 call that generates ALL the AI fields a Paradocs
  * report page + discover feed need: title, answer_line, hook, feed_hook,
@@ -452,6 +458,64 @@ CONSOLIDATED_SYSTEM_PROMPT = [
   'Return ONLY the JSON. No markdown fences. No commentary before or after.',
 ].join('\n')
 
+// V11.17.74 — Sentiment + endpoints (Tier 3D).
+//
+// Opt-in addendum: when INCLUDE_SENTIMENT=true, the live consolidated
+// path appends this block so freshly ingested reports also get their
+// language-pattern sentiment scored in the same call. Persisting hits
+// reports.sentiment_valence / sentiment_arousal / sentiment_dominant_emotion
+// / sentiment_computed_at.
+//
+// Brand-voice rules mirror src/lib/sentiment/score-prompt.ts:
+// language-pattern descriptors only; no diagnostic vocabulary.
+export var SENTIMENT_ADDENDUM_PROMPT: string = [
+  '',
+  '====================================================================',
+  'OPTIONAL — SENTIMENT BLOCK (return alongside the JSON above as an',
+  'additional top-level "sentiment" field):',
+  '====================================================================',
+  '- valence: a number in [-1.000, 1.000] capturing the LANGUAGE PATTERN of',
+  '  the account on a negative→positive axis. -1 = sustained alarm/fear,',
+  '  0 = reportorial neutral, +1 = wonder-and-calm. THREE DECIMAL PLACES.',
+  '- arousal: a number in [0.000, 1.000] capturing affective intensity.',
+  '  0 = detached/reportorial, 1 = acute/overwhelmed. THREE DECIMAL PLACES.',
+  '- dominant_emotion: one of fear|awe|calm|confusion|anger|sadness|joy|neutral.',
+  '- confidence: a number in [0.000, 1.000], your self-rated confidence.',
+  '',
+  'Brand-voice rules — these apply identically to the sentiment scores:',
+  '- Score the language of the ACCOUNT, not the witness\'s psychology.',
+  '- Never escalate. Plain prose receives plain scores.',
+  '- Banned vocabulary in any related copy: anxiety, depression,',
+  '  dissociation, trauma, PTSD, hallucination, pathology.',
+  '',
+  'Append this as a top-level key in the JSON:',
+  '  "sentiment": { "valence": ..., "arousal": ..., "dominant_emotion": "...", "confidence": ... }',
+].join('\n')
+
+/**
+ * V11.17.74 — Returns the effective system prompt, optionally extended
+ * with the sentiment addendum when INCLUDE_SENTIMENT=true. The live
+ * ingestion path + the batch worker both call this to keep their
+ * behavior aligned with the env flag.
+ */
+export function getEffectiveConsolidatedPrompt(): string {
+  if (isSentimentInclusionEnabled()) {
+    return CONSOLIDATED_SYSTEM_PROMPT + SENTIMENT_ADDENDUM_PROMPT
+  }
+  return CONSOLIDATED_SYSTEM_PROMPT
+}
+
+/**
+ * V11.17.74 — true when INCLUDE_SENTIMENT=true (consolidated AI prompt
+ * appends sentiment scoring; consolidated persistence path writes
+ * reports.sentiment_* columns when the parsed JSON contains them).
+ */
+export function isSentimentInclusionEnabled(): boolean {
+  var raw = process.env.INCLUDE_SENTIMENT
+  if (!raw) return false
+  return String(raw).toLowerCase() === 'true' || raw === '1'
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // USER PROMPT BUILDER
 // ─────────────────────────────────────────────────────────────────────
@@ -502,7 +566,10 @@ async function callHaikuConsolidated(
       system: [
         {
           type: 'text',
-          text: CONSOLIDATED_SYSTEM_PROMPT,
+          // V11.17.74 — when INCLUDE_SENTIMENT=true, the prompt also
+          // carries the sentiment block. Otherwise the static prompt
+          // is unchanged (and ephemeral-cached across reports).
+          text: getEffectiveConsolidatedPrompt(),
           cache_control: { type: 'ephemeral' },
         },
       ],
@@ -836,6 +903,31 @@ export async function persistConsolidatedResult(
     paradocs_analysis_generated_at: new Date().toISOString(),
     paradocs_analysis_model: HAIKU_MODEL + ' (' + (modelMarker || 'consolidated') + ')',
     feed_hook_generated_at: new Date().toISOString(),
+  }
+
+  // V11.17.74 — Sentiment + endpoints (Tier 3D).
+  // When INCLUDE_SENTIMENT=true the prompt asks Haiku to also emit a
+  // "sentiment" top-level field; persist those scores into the four
+  // reports.sentiment_* columns in the same UPDATE. Defensive — if the
+  // model omits or malforms the block we leave the columns untouched
+  // and the backfill script will pick the row up later.
+  if (p && p.sentiment && typeof p.sentiment === 'object') {
+    var s = p.sentiment
+    var v = typeof s.valence === 'number' ? s.valence : parseFloat(String(s.valence))
+    var ar = typeof s.arousal === 'number' ? s.arousal : parseFloat(String(s.arousal))
+    var ALLOWED = ['fear', 'awe', 'calm', 'confusion', 'anger', 'sadness', 'joy', 'neutral']
+    var emo = typeof s.dominant_emotion === 'string' ? s.dominant_emotion.toLowerCase().trim() : null
+    if (emo && ALLOWED.indexOf(emo) === -1) emo = null
+    if (!isNaN(v) && !isNaN(ar)) {
+      if (v < -1) v = -1
+      if (v > 1) v = 1
+      if (ar < 0) ar = 0
+      if (ar > 1) ar = 1
+      updateData.sentiment_valence = Math.round(v * 1000) / 1000
+      updateData.sentiment_arousal = Math.round(ar * 1000) / 1000
+      if (emo) updateData.sentiment_dominant_emotion = emo
+      updateData.sentiment_computed_at = new Date().toISOString()
+    }
   }
 
   var { error: updateError } = await (supabase.from('reports') as any)

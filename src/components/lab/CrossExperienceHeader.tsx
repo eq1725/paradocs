@@ -1,9 +1,16 @@
 'use client'
 
+// V11.17.74 — Sentiment + endpoints (Tier 3D wire-up)
 // V11.17.69 - Tier 2B
 //
 // CrossExperienceHeader — the n≥2 aggregated header strip per
 // LAB_PANEL_REVIEW_V2 §2 and V3 §3.
+//
+// V11.17.74 — Tier 3D: when the user is authenticated, fetch the real
+// Haiku-synthesized body-of-work sentence from /api/lab/synthesized-paragraph
+// and render it in place of the deterministic client-side fallback.
+// The client-side fallback continues to render until the network call
+// settles, so the surface is never empty.
 //
 // Renders ONLY when the user has 2+ submitted experiences. Surfaces a
 // short documentary-voice summary of the BODY OF WORK (not the most
@@ -30,7 +37,7 @@
 //     weekly.
 //   - Pro: + lens bar with filter affordances at n≥15.
 
-import React, { useMemo } from 'react'
+import React, { useMemo, useEffect, useState } from 'react'
 import { Layers } from 'lucide-react'
 
 interface ExperienceLite {
@@ -53,6 +60,14 @@ interface CrossExperienceHeaderProps {
    * to Tier 3 — Pro Dossier filter affordance.
    */
   onOpenLensBar?: () => void
+  /**
+   * V11.17.74 — Tier 3D. Optional bearer token. When provided, the
+   * component fetches a real Haiku-synthesized body-of-work sentence
+   * from /api/lab/synthesized-paragraph and renders it above the
+   * deterministic body-of-work sentences. Omit (or leave null) and
+   * the component falls back to the prior client-side synthesis.
+   */
+  authToken?: string | null
 }
 
 function yearOf(iso: string | null | undefined): number | null {
@@ -164,6 +179,47 @@ export default function CrossExperienceHeader(props: CrossExperienceHeaderProps)
   var bodySentences = useMemo(function () { return buildBodyOfWorkSentence(props.experiences) }, [props.experiences])
   var n = props.experiences.length
 
+  // V11.17.74 — Tier 3D. Haiku-synthesized body-of-work sentence. Note:
+  // hooks must run unconditionally (Rules of Hooks); the early-return
+  // for n < 2 below sits AFTER all hook calls.
+  var [synthParagraph, setSynthParagraph] = useState<string | null>(null)
+  var experienceKey = useMemo(function () {
+    return props.experiences.map(function (e) {
+      return (e.id || '') + '@' + (e.event_date || '')
+    }).sort().join(',')
+  }, [props.experiences])
+
+  useEffect(function () {
+    if (!props.authToken) { setSynthParagraph(null); return }
+    if (props.experiences.length < 2) { setSynthParagraph(null); return }
+    var cancelled = false
+    var payload = {
+      userExperiences: props.experiences.map(function (e) {
+        return {
+          id: e.id,
+          phen_family: e.category,
+          event_date: e.event_date,
+          location: [e.city, e.state_province].filter(Boolean).join(', ') || e.country || null,
+        }
+      }),
+    }
+    fetch('/api/lab/synthesized-paragraph', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + props.authToken,
+      },
+      body: JSON.stringify(payload),
+    }).then(function (r) { return r.ok ? r.json() : null }).then(function (d) {
+      if (cancelled) return
+      if (d && typeof d.paragraph === 'string' && d.paragraph.trim().length > 0) {
+        setSynthParagraph(d.paragraph)
+      }
+    }).catch(function () { /* keep fallback */ })
+    return function () { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [experienceKey, props.authToken])
+
   if (n < 2) return null
 
   // n=15+ surfaces the filter/lens bar affordance per V3 §2.
@@ -187,6 +243,16 @@ export default function CrossExperienceHeader(props: CrossExperienceHeaderProps)
       </div>
 
       <div className="space-y-1.5">
+        {/* V11.17.74 — Tier 3D. Haiku-synthesized lead sentence renders
+            above the deterministic body-of-work clauses when the
+            endpoint has returned. While the request is in flight (or
+            offline), the deterministic clauses below carry the surface
+            on their own. */}
+        {synthParagraph && (
+          <p className="text-sm text-gray-100 leading-relaxed font-medium">
+            {synthParagraph}
+          </p>
+        )}
         {bodySentences.length > 0 ? (
           bodySentences.map(function (s, i) {
             return (
@@ -196,11 +262,13 @@ export default function CrossExperienceHeader(props: CrossExperienceHeaderProps)
             )
           })
         ) : (
-          <p className="text-sm text-gray-300 leading-relaxed">
-            {n} experiences in your record. As you add details (location,
-            time of day, phenomenon family), this strip will surface the
-            patterns across them.
-          </p>
+          !synthParagraph && (
+            <p className="text-sm text-gray-300 leading-relaxed">
+              {n} experiences in your record. As you add details (location,
+              time of day, phenomenon family), this strip will surface the
+              patterns across them.
+            </p>
+          )
         )}
       </div>
 
