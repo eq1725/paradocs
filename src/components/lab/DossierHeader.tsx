@@ -177,9 +177,19 @@ function statusVisual(status?: string | null): StatusVisual | null {
       className: 'bg-amber-500/10 border-amber-500/40 text-amber-300',
     }
   }
-  if (s === 'archived' || s === 'rejected') {
+  // V11.17.79 — split rejected from archived per founder decision.
+  // Rejected is actionable (user may want to edit + resubmit) and
+  // deserves a louder pill than the quiet archived/withdrawn state.
+  // Red-subtle, not full-saturation neon — stays in documentary palette.
+  if (s === 'rejected') {
     return {
-      label: s === 'rejected' ? 'Archived' : 'Archived',
+      label: 'Rejected',
+      className: 'bg-red-500/10 border-red-500/40 text-red-300',
+    }
+  }
+  if (s === 'archived') {
+    return {
+      label: 'Archived',
       className: 'bg-gray-500/10 border-gray-500/40 text-gray-300',
     }
   }
