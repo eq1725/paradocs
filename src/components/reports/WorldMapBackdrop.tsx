@@ -1,13 +1,22 @@
 'use client'
 
 /**
- * WorldMapBackdrop — V11.17.41 (rev 3)
+ * WorldMapBackdrop — V11.17.88 (rev 11)
  *
  * Renders the same MapTiler dataviz-dark map used on located report
  * pages, zoomed to a full world view with no pin / marker / halo. The
  * "Location · Not on record" copy sits inside a backdrop-blurred,
  * brand-purple-bordered card so the text reads cleanly while the map
  * behind it remains clearly visible.
+ *
+ * V11.17.88 (rev 11): unified on dataviz-dark with located reports
+ * per founder Option B. The rev-9 streets-v2-dark experiment is
+ * reverted — clean Colombia/Kansas aesthetic wins. Continent
+ * visibility at global zoom is now handled by paint layers added
+ * in addAdminBorderOverlays(): a brand-purple background-type land
+ * tint inserted BELOW the water fill (so water masks it on ocean
+ * tiles, continents pick up a subtle purple cast) plus the
+ * existing thicker, brighter admin0/admin1 lines.
  *
  * V11.17.41 rev-3 (operator iteration — "I want to see the map"):
  *   Rev-2 dropped the heavy vignette so the map COULD be visible, but
@@ -43,18 +52,24 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
 const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY || ''
-// V11.17.41 rev-9 — Switched WorldMapBackdrop's style from dataviz-dark
-// to streets-v2-dark. dataviz-dark renders land and ocean in nearly
-// identical dark shades (the style is intentionally subdued for use
-// as a base under data overlays — markers, pins, heatmaps). For the
-// "no-location" backdrop we have nothing to overlay, so the map read
-// as a uniform dark surface and the operator legitimately couldn't
-// see continents. streets-v2-dark keeps the same overall dark
-// register but paints land in a distinctly lighter gray-blue against
-// the ocean. Located report pages keep dataviz-dark — pins + halos
-// provide their own contrast there.
+// V11.17.88 — unify on dataviz-dark + global visibility paint.
+// History:
+//   - rev-9 (V11.17.41) switched WorldMapBackdrop from dataviz-dark
+//     to streets-v2-dark because dataviz-dark rendered as a uniform
+//     dark slab at world zoom — continents weren't visible against
+//     the ocean.
+//   - V11.17.87 then switched ReportLocationMap (located reports)
+//     from dataviz-dark → streets-v2-dark too, to match the
+//     no-location header.
+//   - V11.17.88 (this rev) — founder Option B: revert both to
+//     dataviz-dark for the clean Colombia/Kansas aesthetic, and
+//     solve the "continents invisible at global zoom" problem here
+//     in WorldMapBackdrop with custom paint layers (brand-purple
+//     land tint that fades as the viewer notionally zooms in, plus
+//     the existing brighter admin-border overlays).
+// See addGlobalVisibilityPaint() below for the visibility layers.
 const MAP_STYLE = MAPTILER_KEY
-  ? 'https://api.maptiler.com/maps/streets-v2-dark/style.json?key=' + MAPTILER_KEY
+  ? 'https://api.maptiler.com/maps/dataviz-dark/style.json?key=' + MAPTILER_KEY
   : ''
 
 function whenMapReady(map: maplibregl.Map, fn: () => void): () => void {
@@ -77,14 +92,79 @@ function whenMapReady(map: maplibregl.Map, fn: () => void): () => void {
 }
 
 function addAdminBorderOverlays(map: maplibregl.Map) {
-  // V11.17.41 rev-7 — Borders thickened + opacity bumped at world zoom
-  // levels (1-3). Without this, dataviz-dark at zoom 1.1 paints continents
-  // in colors nearly identical to the ocean — the operator saw the band
-  // as a flat dark surface even though tiles were loading fine. Brighter,
-  // thicker country lines give the eye edges to lock onto.
+  // V11.17.88 — Renamed conceptually to "global-visibility paint."
+  // This function now stamps both:
+  //   1. A brand-purple LAND TINT inserted BELOW the dataviz-dark
+  //      water layer, so the water layer paints over it on ocean
+  //      tiles but the tint shows through on continents at global
+  //      zoom (the only way to make continents read against
+  //      dataviz-dark's near-uniform dark register without
+  //      switching the base style).
+  //   2. The brighter admin0/admin1 border overlays from rev-7
+  //      (kept; they still earn their visual weight at all zooms).
+  //
+  // The cyan ocean labels that prompted the V11.17.87 → streets-v2-
+  // dark switch don't exist in dataviz-dark — that style is built
+  // for use as a base under data overlays, so it ships without
+  // place_label name labels by default. No water_label hide needed.
   try {
     const style = map.getStyle()
-    const firstSymbolId = style?.layers?.find((L: any) => L.type === 'symbol')?.id
+    const layers = style?.layers || []
+    const firstSymbolId = layers.find((L: any) => L.type === 'symbol')?.id
+    // Find the first water layer so we can insert the land tint BENEATH it.
+    // dataviz-dark's water polygon layer is named 'Water' or 'water' depending
+    // on the rev — match case-insensitively against either the id or the
+    // source-layer field.
+    const waterLayer = layers.find((L: any) => {
+      if (L.type !== 'fill' && L.type !== 'background') return false
+      const id = (L.id || '').toLowerCase()
+      const srcLayer = (L['source-layer'] || '').toLowerCase()
+      return id.includes('water') || srcLayer === 'water'
+    })
+    const beforeWaterId: string | undefined = waterLayer?.id
+
+    // ── 1. Brand-purple land tint ─────────────────────────────
+    //
+    // Strategy: a `background` layer at low opacity placed BELOW
+    // the water fill. The dark dataviz-dark base + dark ocean
+    // paint cover this on ocean tiles; on land tiles the tint
+    // bleeds through and gives continents a subtle purple cast
+    // the eye can lock onto.
+    //
+    // The 'background' type ignores source/source-layer (it paints
+    // every visible pixel), so there's no risk of a missing
+    // source-layer name. The water layer above it does the
+    // masking work for free.
+    //
+    // Opacity is held flat — global view is zoom 1.1; the
+    // located-report header (which uses the same style now but
+    // never invokes this fn) renders at zoom 3-9 where the tint
+    // is a non-issue because the located map starts on land and
+    // is dominated by the pin/halo anyway.
+    if (!map.getLayer('paradocs-global-land-fill')) {
+      map.addLayer({
+        id: 'paradocs-global-land-fill',
+        type: 'background',
+        paint: {
+          'background-color': '#9000F0',  // brand purple
+          // 0.12 at global zoom is enough to see continents against
+          // dataviz-dark's near-black ocean without overpowering the
+          // backdrop-blurred "Not on record" card. Tested in code
+          // review: at 0.08 the continents are barely there; at
+          // 0.20 the map starts to read as purple. 0.12 sits in
+          // the readable-but-not-prominent band.
+          'background-opacity': [
+            'interpolate', ['linear'], ['zoom'],
+            0, 0.14,
+            2, 0.12,
+            4, 0.06,
+            6, 0.0,
+          ],
+        },
+      }, beforeWaterId)
+    }
+
+    // ── 2. Admin borders (existing — bumped at world zooms in rev-7).
     if (!map.getLayer('paradocs-admin1-overlay')) {
       map.addLayer({
         id: 'paradocs-admin1-overlay',
@@ -291,7 +371,9 @@ export default function WorldMapBackdrop() {
       // chrome surface rather than a void.
       style={{ background: '#0d1c2e' }}
     >
-      {/* Real map — streets-v2-dark. V11.17.41 rev-10: positioning
+      {/* Real map — dataviz-dark (V11.17.88, reverted from the
+          rev-9 streets-v2-dark experiment per founder Option B).
+          V11.17.41 rev-10: positioning
           moved from Tailwind className to inline style. When maplibre
           attaches to this div it adds a `maplibregl-map` class that
           (from maplibre-gl.css) sets `position: relative`. Tied

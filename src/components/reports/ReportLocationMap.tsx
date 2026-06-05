@@ -40,6 +40,21 @@ import { MapPin } from 'lucide-react'
 import { getSyntheticFitZoom, getPrecisionFitBounds, type BoundsTuple } from '@/lib/ingestion/utils/location-zoom'
 
 const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY || ''
+// V11.17.88 - unify on dataviz-dark + global visibility paint
+// REVERT of V11.17.87. V11.17.87 unified both report headers on
+// streets-v2-dark because dataviz-dark rendered as a uniform dark
+// surface at world zoom in the no-location WorldMapBackdrop.
+// Founder rejected streets-v2-dark: it paints cyan ocean labels
+// and a brighter base that fights the clean Colombia/Kansas
+// aesthetic the located-report headers had pre-V11.17.87. Per
+// founder Option B: revert located reports to dataviz-dark
+// (clean, subdued, lets the brand-purple pin/halo dominate) AND
+// switch WorldMapBackdrop to dataviz-dark too — visibility there
+// is now solved with custom paint layers (brand-purple land tint
+// + admin borders) instead of switching the base style.
+// The maptiler_planet vector source used by the admin-border
+// overlays below exists in dataviz-dark, so no layer-level
+// adjustments are needed here.
 const MAP_STYLE = MAPTILER_KEY
   ? `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}`
   : ''
@@ -285,11 +300,13 @@ export default function ReportLocationMap({
     // see whenMapReady for details).
     whenMapReady(map, () => {
       try { map.resize() } catch (_e) { /* ignore */ }
-      // V10.8.M — bolder admin-border overlay. The dataviz-dark style
-      // already loads admin0/admin1 boundary geometry (source
-      // maptiler_planet, source-layer boundary) but paints them in
-      // hsl(2, 0%, 28%) — invisible on the dark background, especially
-      // on mobile where viewport gamma is harsher. Add two line
+      // V10.8.M — bolder admin-border overlay. The base MapTiler style
+      // (V11.17.88: dataviz-dark, reverted from the V11.17.87 streets-
+      // v2-dark experiment) already loads admin0/admin1 boundary
+      // geometry (source maptiler_planet,
+      // source-layer boundary) but paints them too subtly to read on
+      // dark UI, especially on mobile where viewport gamma is harsher.
+      // Add two line
       // layers using the same vector source: one for state/province
       // borders (admin_level 3-10), one for country borders (level 2),
       // both painted in a desaturated brand-purple tinted gray with

@@ -44,8 +44,11 @@ import dynamic from 'next/dynamic'
 import { type LocationPrecision } from './ReportLocationMap'
 const ReportLocationMap = dynamic(() => import('./ReportLocationMap'), { ssr: false })
 // V11.17.39 — null-location header backdrop. Real maplibre map (same
-// dataviz-dark style as ReportLocationMap), so dynamic-import to keep
-// SSR clean and share the same load-once pattern.
+// dataviz-dark style as ReportLocationMap per V11.17.88 unify — the
+// V11.17.87 streets-v2-dark experiment was reverted; WorldMapBackdrop
+// now adds custom paint layers to make continents visible at global
+// zoom against dataviz-dark's near-uniform dark base), so dynamic-
+// import to keep SSR clean and share the same load-once pattern.
 const WorldMapBackdrop = dynamic(() => import('./WorldMapBackdrop'), { ssr: false })
 import ReportMeta from './ReportMeta'
 // V11.11 — IngestedBadge header variant removed (was redundant with
