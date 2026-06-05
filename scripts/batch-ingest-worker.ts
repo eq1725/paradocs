@@ -228,6 +228,19 @@ function buildBatchRequest(report: any): BatchRequest {
 }
 
 async function submitBatch(requests: BatchRequest[]): Promise<{ batch_id: string } | { error: string }> {
+  // V11.17.80 — belt + suspenders Unicode sanitization.
+  // V11.17.77's per-field sanitizer in sanitizeReportForBatch covers the
+  // known string columns, but orphan surrogate halves can leak through
+  // via any other field path (metadata JSONB, source_url, prompt template,
+  // future fields we add). Strip the entire serialized JSON of orphan
+  // halves before submission. Cost: one extra pass over a ~30 MB string
+  // (~50ms). Benefit: no future Unicode bug can ever kill a whole 5000-
+  // report batch again, regardless of which field carried the bad char.
+  var bodyStr = JSON.stringify({ requests: requests })
+  bodyStr = bodyStr
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')
+    .replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '')
+
   var resp = await fetch(BATCH_API_URL, {
     method: 'POST',
     headers: {
@@ -236,7 +249,7 @@ async function submitBatch(requests: BatchRequest[]): Promise<{ batch_id: string
       'anthropic-version': '2023-06-01',
       'anthropic-beta': 'message-batches-2024-09-24',
     },
-    body: JSON.stringify({ requests: requests }),
+    body: bodyStr,
   })
 
   if (!resp.ok) {
