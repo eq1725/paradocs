@@ -1,5 +1,16 @@
 'use client'
 
+// V11.17.78 - submission card upgrade
+//
+// Tier 1 of the My Record submission display upgrade per
+// docs/MY_RECORD_SUBMISSIONS_PANEL.md. The loadReports() query now
+// selects the columns the new DossierHeader card needs (has_video,
+// has_photo_video, status, discoverable, created_at), and after the
+// reports come back we POST the video-bearing ids to
+// /api/lab/sign-user-videos to attach signed playback + poster URLs
+// + duration to those rows. Reports without video render the same
+// prose-only dossier as before — no regression for non-media users.
+//
 // V11.17.75 — Tier 3E cleanup
 //
 // Resolves the long-flagged duplication between RadarSurface (the
@@ -121,6 +132,21 @@ interface UserReportRow {
   event_time?: string | null
   created_at?: string | null
   phenomenon_type?: { name?: string } | null
+  // V11.17.78 — submission card upgrade. Extra columns surfaced by
+  // loadReports so DossierHeader can render the new media + ownership
+  // chrome. Every field is optional / nullable; missing columns
+  // degrade to "no video" + "Pending review" on the card.
+  has_video?: boolean | null
+  has_photo_video?: boolean | null
+  status?: string | null
+  discoverable?: boolean | null
+  // Attached client-side after /api/lab/sign-user-videos returns.
+  video?: {
+    videoUrl: string | null
+    posterUrl: string | null
+    durationSec: number | null
+    segments: unknown[] | null
+  } | null
 }
 
 interface NearbyReportShape {
@@ -255,6 +281,7 @@ export default function LabPage() {
           id, title, slug, category, description, summary,
           location_description, city, state_province, country,
           latitude, longitude, event_date, event_date_raw, event_time, created_at,
+          has_video, has_photo_video, status, discoverable,
           phenomenon_type:phenomenon_types(name)
         `)
         .eq('submitted_by', session.user.id)
@@ -264,14 +291,39 @@ export default function LabPage() {
         .limit(50)
         .then(function (r: any) {
           if (r.data) {
-            setReports(r.data as UserReportRow[])
+            var rows = r.data as UserReportRow[]
+            setReports(rows)
             // Honor ?focus= deep link.
             var focusFromUrl = router.query.focus as string | undefined
             if (focusFromUrl) {
-              var idx = (r.data as UserReportRow[]).findIndex(function (row) { return row.id === focusFromUrl })
+              var idx = rows.findIndex(function (row) { return row.id === focusFromUrl })
               if (idx >= 0) setFocusedIdx(idx)
             } else {
               setFocusedIdx(0)
+            }
+            // V11.17.78 — submission card upgrade. Sign poster +
+            // playback URLs for any video-bearing rows via the
+            // service-role endpoint. Fire-and-forget; a signing
+            // failure leaves the card in its prose-only fallback.
+            var videoIds = rows.filter(function (row) { return !!row.has_video }).map(function (row) { return row.id })
+            if (videoIds.length > 0 && session) {
+              fetch('/api/lab/sign-user-videos', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: 'Bearer ' + session.access_token,
+                },
+                body: JSON.stringify({ report_ids: videoIds }),
+              }).then(function (resp) { return resp.ok ? resp.json() : null }).then(function (data) {
+                if (!data || !data.videos) return
+                setReports(function (prev) {
+                  return prev.map(function (row) {
+                    var v = data.videos[row.id]
+                    if (!v) return row
+                    return Object.assign({}, row, { video: v })
+                  })
+                })
+              }).catch(function () { /* keep prose-only fallback */ })
             }
           }
           setLoading(false)
@@ -441,6 +493,18 @@ export default function LabPage() {
         description: r.description || null,
         summary: r.summary || null,
         resolved_year: resolveYear(r),
+        // V11.17.78 — submission card upgrade. Pass the new fields
+        // through so DossierHeader can render the video poster, the
+        // ownership eyebrow, the status pill, and the "Read the full
+        // report" CTA. All are defensive: missing values render the
+        // legacy prose-only layout.
+        slug: r.slug || null,
+        status: r.status || null,
+        created_at: r.created_at || null,
+        has_video: !!r.has_video,
+        has_photo_video: !!r.has_photo_video,
+        discoverable: typeof r.discoverable === 'boolean' ? r.discoverable : null,
+        video: r.video || null,
       }
     })
   }, [reports])
