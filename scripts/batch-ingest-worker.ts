@@ -227,19 +227,82 @@ function buildBatchRequest(report: any): BatchRequest {
   }
 }
 
+// V11.17.81 — orphan-surrogate strippers used by submitBatch().
+//
+// stripOrphanSurrogatesString: walks a string's UTF-16 code units, drops
+// any orphan high (D800-DBFF) or low (DC00-DFFF) surrogate, preserves
+// well-formed pairs intact.
+function stripOrphanSurrogatesString(s: string): string {
+  var out = ''
+  for (var i = 0; i < s.length; i++) {
+    var code = s.charCodeAt(i)
+    // high surrogate
+    if (code >= 0xD800 && code <= 0xDBFF) {
+      var next = i + 1 < s.length ? s.charCodeAt(i + 1) : 0
+      if (next >= 0xDC00 && next <= 0xDFFF) {
+        out += s[i] + s[i + 1]
+        i++
+      }
+      // else: orphan high — drop
+    } else if (code >= 0xDC00 && code <= 0xDFFF) {
+      // orphan low — drop
+    } else {
+      out += s[i]
+    }
+  }
+  return out
+}
+
+// deepStripOrphanSurrogates: recursively walks any JSON-serializable value
+// and sanitizes every string. Arrays / plain objects are cloned with
+// sanitized children. Other values pass through unchanged.
+function deepStripOrphanSurrogates(v: any): any {
+  if (v == null) return v
+  if (typeof v === 'string') return stripOrphanSurrogatesString(v)
+  if (Array.isArray(v)) return v.map(deepStripOrphanSurrogates)
+  if (typeof v === 'object') {
+    var out: any = {}
+    for (var k in v) {
+      if (Object.prototype.hasOwnProperty.call(v, k)) {
+        out[k] = deepStripOrphanSurrogates(v[k])
+      }
+    }
+    return out
+  }
+  return v
+}
+
+// stripOrphanSurrogateEscapes: defensive second pass on the serialized
+// JSON text. JSON.stringify emits orphan surrogates as literal "\uXXXX"
+// escape sequences. Strip orphan high-surrogate escapes (not followed by
+// a low-surrogate escape) and orphan low-surrogate escapes (not preceded
+// by a high-surrogate escape).
+function stripOrphanSurrogateEscapes(json: string): string {
+  return json
+    .replace(/\\u[dD][89aAbB][0-9a-fA-F]{2}(?!\\u[dD][cCdDeEfF][0-9a-fA-F]{2})/g, '')
+    .replace(/(?<!\\u[dD][89aAbB][0-9a-fA-F]{2})\\u[dD][cCdDeEfF][0-9a-fA-F]{2}/g, '')
+}
+
 async function submitBatch(requests: BatchRequest[]): Promise<{ batch_id: string } | { error: string }> {
-  // V11.17.80 — belt + suspenders Unicode sanitization.
-  // V11.17.77's per-field sanitizer in sanitizeReportForBatch covers the
-  // known string columns, but orphan surrogate halves can leak through
-  // via any other field path (metadata JSONB, source_url, prompt template,
-  // future fields we add). Strip the entire serialized JSON of orphan
-  // halves before submission. Cost: one extra pass over a ~30 MB string
-  // (~50ms). Benefit: no future Unicode bug can ever kill a whole 5000-
-  // report batch again, regardless of which field carried the bad char.
-  var bodyStr = JSON.stringify({ requests: requests })
-  bodyStr = bodyStr
-    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')
-    .replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '')
+  // V11.17.81 — Unicode sanitization, finally correct.
+  //
+  // What I got wrong in V11.17.80:
+  //   JSON.stringify SERIALIZES orphan surrogates as ASCII escape sequences
+  //   (literal text "\uD800") in the output, NOT as raw UTF-16 code units.
+  //   So my prior regex that looked for code-unit surrogates in the post-
+  //   stringify string never matched. Same column number error every run
+  //   because the orphan slipped through unscathed.
+  //
+  // Two-layer fix that's actually correct:
+  //   1. Deep-sanitize EVERY string value in the request tree before
+  //      JSON.stringify. Recursive walk, regardless of field name. This
+  //      catches orphans before they have a chance to be escaped.
+  //   2. Post-stringify, also strip any remaining orphan ESCAPE SEQUENCES
+  //      (literal "\uXXXX" text) — defensive coverage in case a string
+  //      somehow gets reinterpreted between sanitize and stringify.
+  var cleanRequests = deepStripOrphanSurrogates(requests)
+  var bodyStr = JSON.stringify({ requests: cleanRequests })
+  bodyStr = stripOrphanSurrogateEscapes(bodyStr)
 
   var resp = await fetch(BATCH_API_URL, {
     method: 'POST',
