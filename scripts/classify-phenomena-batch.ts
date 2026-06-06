@@ -2,6 +2,7 @@
 /**
  * V11.15.2 — Haiku-batch phenomenon classifier (Option B: many-to-many).
  * V11.17.90 — classifier cost optimizations.
+ * V11.17.91 — prompt-cache hit-rate fix.
  *
  * For each approved report not yet linked to a phenomenon, asks Haiku
  * 4.5 (via Anthropic Batch API) for a primary + up to 2 secondary
@@ -29,6 +30,19 @@
  *      (~3 sync Haiku calls per report × $0.0005 = $0.0015/report).
  *   E. Already-implemented — the script filters out reports with ANY
  *      existing junction row before classifying (see existingLinks).
+ *
+ * V11.17.91 — prompt-cache fix:
+ *   - Sync Haiku call right before each batch chunk submission, with
+ *     the same system block + cache_control marker, to PREWARM
+ *     Anthropic's prompt cache. Without this, parallel batch requests
+ *     racing into a cold cache each incur cache_creation cost
+ *     (~$0.00135/req for a 6k-token sys prompt) — the V11.17.90
+ *     measured $0.00236/report vs projected $0.00125 gap matches that
+ *     pattern. Prewarm fixed cost (~$0.004/chunk) amortizes to
+ *     $0.000001/report over a 4000-req chunk.
+ *   - phenomena query now `.order('slug')` and aliases now sorted in
+ *     buildSystemPrompt — guarantees byte-stable system prompt across
+ *     re-runs (cache key is prefix hash; any byte shift busts cache).
  *
  * Projected per-report cost:
  *   classifier-primary (batched, cached): ~$0.00015
@@ -178,8 +192,12 @@ function buildSystemPrompt(category: string, phenomena: Phenomenon[]): string {
   lines.push('====================================================================')
   lines.push('')
   for (const p of phenomena) {
+    // V11.17.91 — sort aliases for byte-stable serialization. Postgres
+    // text[] column doesn't guarantee element order across reads, and
+    // any element-order shift busts the prompt cache. .slice() before
+    // sort to avoid mutating the original row in the slugLookup map.
     const aliasStr = (p.aliases && p.aliases.length > 0)
-      ? ' [aka: ' + p.aliases.slice(0, 6).join(', ') + ']'
+      ? ' [aka: ' + p.aliases.slice().sort().slice(0, 6).join(', ') + ']'
       : ''
     const summary = (p.ai_summary || '').replace(/\n/g, ' ').substring(0, 140)
     lines.push('- ' + p.slug + ' | ' + p.name + aliasStr)
@@ -204,6 +222,69 @@ function buildUserPrompt(report: any): string {
     lines.push(desc)
   }
   return lines.join('\n')
+}
+
+// V11.17.91 — Prompt-cache prewarm.
+//
+// Why this exists: Anthropic's Batch API processes the requests inside
+// one submission IN PARALLEL. With prompt caching, the cache key for a
+// prefix is only written the first time it's seen. When 4000 requests
+// fire simultaneously sharing the same system prompt, several can hit
+// Anthropic's servers BEFORE the cache has been populated — each of
+// those gets billed full input price (not cache_read price). The cost
+// model assumes "one write, N-1 reads", but reality is "M writes, N-M
+// reads" where M depends on parallelism inside Anthropic's queue.
+//
+// Fix: send ONE synchronous (non-batch) Haiku call with the exact same
+// system block + cache_control marker, with a tiny user message, right
+// before submitting the batch chunk. That sync call pays the cache
+// write cost (~$0.004 for a 6k-token system prompt + tiny output) and
+// populates the cache. When the batch fires immediately after, every
+// one of its 4000 requests is a guaranteed cache_read — no
+// parallel-write races, no cold-cache stragglers.
+//
+// Amortized prewarm cost across a 4000-req chunk: $0.004 / 4000 =
+// $0.000001 per report. Worth it vs the per-call $0.00135 cache miss
+// risk we were observing in V11.17.90.
+//
+// TTL: Anthropic ephemeral cache lasts 5 min after last hit. The
+// batch chunk's first parallel wave hits within seconds of the
+// prewarm — well inside TTL.
+//
+// Returns the cost of the prewarm so the caller can attribute it.
+async function prewarmCache(systemPrompt: string): Promise<{ cost: number; error?: string }> {
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY!,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: HAIKU_MODEL,
+      max_tokens: 1,
+      system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
+      messages: [{ role: 'user', content: 'ping' }],
+      temperature: 0,
+    }),
+  })
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '')
+    return { cost: 0, error: 'prewarm ' + resp.status + ': ' + txt.substring(0, 200) }
+  }
+  const data = await resp.json()
+  const u = data.usage || {}
+  // Sync (non-batch) pricing for the prewarm — full Haiku rates.
+  // The prewarm is a write so cache_creation dominates. input/output
+  // are tiny (the ping user message + 1-token reply).
+  const HAIKU_INPUT_SYNC = 1.0
+  const HAIKU_OUTPUT_SYNC = 5.0
+  const HAIKU_CACHE_WRITE_SYNC = 1.25
+  const cost =
+    (u.input_tokens || 0) / 1e6 * HAIKU_INPUT_SYNC +
+    (u.cache_creation_input_tokens || 0) / 1e6 * HAIKU_CACHE_WRITE_SYNC +
+    (u.output_tokens || 0) / 1e6 * HAIKU_OUTPUT_SYNC
+  return { cost }
 }
 
 async function submitBatch(requests: any[]): Promise<{ batch_id: string } | { error: string }> {
@@ -548,11 +629,19 @@ async function classifyCategory(
   console.log('CATEGORY: ' + category)
   console.log('══════════════════════════════════════════════════════════')
 
+  // V11.17.91 — explicit ORDER BY slug for deterministic system-prompt
+  // ordering. Without this, Postgres returns rows in arbitrary order;
+  // re-runs on different days (or by different parallel workers) would
+  // emit byte-different system prompts, busting Anthropic's prompt cache
+  // (cache key is the SHA of the prefix — any whitespace/order shift
+  // breaks it). Sorting by slug pins the catalog to a stable byte
+  // representation across all runs.
   const phenomena = await fetchAllRows<Phenomenon>(
     sb.from('phenomena')
       .select('id, slug, name, aliases, ai_summary, category')
       .eq('status', 'active')
       .eq('category', category)
+      .order('slug', { ascending: true })
   )
   console.log('Phenomena in this category: ' + phenomena.length)
   if (phenomena.length === 0) {
@@ -674,6 +763,23 @@ async function classifyCategory(
   for (let ci = 0; ci < chunks.length; ci++) {
     const chunk = chunks[ci]
     console.log('\nChunk ' + (ci + 1) + '/' + chunks.length + ': submitting ' + chunk.length + ' requests...')
+
+    // V11.17.91 — Cache prewarm. Send a synchronous Haiku call with the
+    // exact same system block right before the batch fires. Guarantees
+    // Anthropic's prompt cache is populated when the batch's parallel
+    // requests hit. Sees a ~$0.004 fixed cost per chunk vs saving
+    // ~$0.00135 per batched request that would otherwise miss the
+    // cache — break-even at 3 batched requests, gross win at 4000.
+    const warm = await prewarmCache(systemPrompt)
+    if (warm.error) {
+      // Non-fatal: chunk will still run, just with the V11.17.90 cache
+      // hit rate (sometimes-hits). Log and continue.
+      console.warn('  prewarm failed (' + warm.error + ') — proceeding without warm cache')
+    } else {
+      stats.cost += warm.cost
+      console.log('  prewarm OK (sync cost: $' + warm.cost.toFixed(5) + ')')
+    }
+
     const sub = await submitBatch(chunk)
     if ('error' in sub) {
       console.error('  submit failed: ' + sub.error)
@@ -908,7 +1014,7 @@ async function main() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  console.log('=== Phenomenon classifier — V11.17.90 (Batch API + confidence-gate skip) ===')
+  console.log('=== Phenomenon classifier — V11.17.91 (Batch API + confidence-gate skip + cache prewarm) ===')
   console.log('Dry run:        ' + args.dryRun)
   console.log('Per-cat limit:  ' + (args.limit > 0 ? args.limit : 'no limit'))
 
