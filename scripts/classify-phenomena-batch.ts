@@ -908,7 +908,7 @@ async function main() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  console.log('=== Phenomenon classifier — V11.15.2 + V11.17.54 tag-verification gate ===')
+  console.log('=== Phenomenon classifier — V11.17.90 (Batch API + confidence-gate skip) ===')
   console.log('Dry run:        ' + args.dryRun)
   console.log('Per-cat limit:  ' + (args.limit > 0 ? args.limit : 'no limit'))
 
