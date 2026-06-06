@@ -4,6 +4,9 @@
  * V11.17.90 — classifier cost optimizations.
  * V11.17.91 — prompt-cache hit-rate fix.
  * V11.17.92 — serial-batch cache hit maximization.
+ * V11.17.95 — filter fix: default "skip any report with ANY existing
+ *             phen tag" (1+ tag floor). Cross-category enrichment is
+ *             now an explicit opt-in via --cross-category-enrichment.
  *
  * For each approved report not yet linked to a phenomenon, asks Haiku
  * 4.5 (via Anthropic Batch API) for a primary + up to 2 secondary
@@ -134,6 +137,13 @@ interface CliArgs {
   // V11.17.90 — disable confidence-gate verify-skip. Defensive flag for
   // first-run validation on new phen categories. Default false (gate ON).
   noVerifySkip: boolean
+  // V11.17.95 — opt-in cross-category enrichment. When true, the
+  // "already-covered" filter skips ONLY reports tagged in the current
+  // category — reports tagged in other categories are re-classified
+  // here, allowing secondary tags from another category to be added.
+  // Default false: skip any report with at least one existing tag
+  // (mode used to guarantee 1+ tag minimum coverage of the corpus).
+  crossCategoryEnrichment: boolean
 }
 
 function parseArgs(): CliArgs {
@@ -145,6 +155,7 @@ function parseArgs(): CliArgs {
     pollIntervalSec: 30,
     maxWaitSec: 5400,
     noVerifySkip: false,
+    crossCategoryEnrichment: false,
   }
   const argv = process.argv
   for (let i = 2; i < argv.length; i++) {
@@ -156,8 +167,9 @@ function parseArgs(): CliArgs {
     else if (a === '--poll-interval') { args.pollIntervalSec = parseInt(argv[++i], 10) || 30 }
     else if (a === '--max-wait') { args.maxWaitSec = parseInt(argv[++i], 10) || 5400 }
     else if (a === '--no-verify-skip') { args.noVerifySkip = true }
+    else if (a === '--cross-category-enrichment') { args.crossCategoryEnrichment = true }
     else if (a === '--help' || a === '-h') {
-      console.log('Usage: tsx scripts/classify-phenomena-batch.ts [--category X | --all] [--limit N] [--dry-run] [--no-verify-skip]')
+      console.log('Usage: tsx scripts/classify-phenomena-batch.ts [--category X | --all] [--limit N] [--dry-run] [--no-verify-skip] [--cross-category-enrichment]')
       process.exit(0)
     }
   }
@@ -696,16 +708,39 @@ async function classifyCategory(
     : await fetchAllRows<any>(repQuery)
   console.log('  loaded ' + reports.length + ' approved reports')
 
-  // Filter to reports without ANY existing junction row.
+  // V11.17.95 — filter fix.
+  // Default mode (no --cross-category-enrichment): skip any report
+  //   that already has AT LEAST ONE phen tag in ANY category. Goal: a
+  //   floor of 1+ tag per approved report across the corpus. Avoids
+  //   ~98% wasted classifier calls on reports already tagged in a
+  //   different category (those produce no new tags here because the
+  //   verify gate correctly rejects out-of-category candidates).
+  // Cross-category mode (--cross-category-enrichment): skip only
+  //   reports tagged within the CURRENT category. Useful as a future
+  //   opt-in enrichment pass that adds secondary tags from other
+  //   categories once every report has its primary.
+  //
+  // Implementation: one paged scan of report_phenomena restricted to
+  // the loaded approved report IDs. In cross-category mode we also
+  // restrict by the current category's phenomenon IDs.
   // PostgREST builds URL with the IDs inline; 1000 UUIDs at ~37 chars
   // each = 37k char URL, beyond practical limits. Chunk at 100.
-  console.log('Filtering to reports without existing phenomenon links...')
+  const phenIdsInCategory = phenomena.map((p: Phenomenon) => p.id)
+  if (args.crossCategoryEnrichment) {
+    console.log('Filtering to reports without existing links in this category (cross-category-enrichment mode)...')
+  } else {
+    console.log('Filtering to reports without any existing phenomenon link...')
+  }
   const existingLinks = new Set<string>()
   const reportIds = reports.map((r: any) => r.id)
   const LINK_CHECK_CHUNK = 100
   for (let i = 0; i < reportIds.length; i += LINK_CHECK_CHUNK) {
     const chunk = reportIds.slice(i, i + LINK_CHECK_CHUNK)
-    const res = await sb.from('report_phenomena').select('report_id').in('report_id', chunk)
+    let q = sb.from('report_phenomena').select('report_id').in('report_id', chunk)
+    if (args.crossCategoryEnrichment) {
+      q = q.in('phenomenon_id', phenIdsInCategory)
+    }
+    const res = await q
     if (res.error) {
       console.error('  link-check error: ' + res.error.message)
       continue
@@ -713,7 +748,12 @@ async function classifyCategory(
     for (const r of (res.data || [])) existingLinks.add(r.report_id)
   }
   const toClassify = reports.filter((r: any) => !existingLinks.has(r.id))
-  console.log('  ' + toClassify.length + ' reports to classify (excluding ' + (reports.length - toClassify.length) + ' already-linked)')
+  const excluded = reports.length - toClassify.length
+  if (args.crossCategoryEnrichment) {
+    console.log('  ' + toClassify.length + ' reports to classify (excluding ' + excluded + ' already-linked in ' + category + ')')
+  } else {
+    console.log('  ' + toClassify.length + ' reports to classify (excluding ' + excluded + ' with at least one existing phen tag)')
+  }
   if (toClassify.length === 0) {
     return { matched: 0, primaryOnly: 0, primaryPlusSecondaries: 0, nullMatched: 0, hallucinatedSlugs: 0, verifierDropped: 0, verifySkipped: 0, verifyBatched: 0, cost: 0, junctionWrites: 0, reportsUpdated: 0 }
   }

@@ -1,0 +1,68 @@
+# V11.17.93 - daily classifier cron (GitHub Actions backup).
+#
+# Why a backup option:
+#   - launchd only fires if the laptop is awake at 04:00 local time.
+#   - On travel days / lid-closed days, the catch-up queue silently
+#     grows. This workflow guarantees a daily run regardless.
+#
+# Pick ONE of the two paths (laptop launchd OR this workflow). Running
+# both is harmless — the second to start finds an empty queue and
+# exits in seconds — but it doubles your prompt-cache fragmentation
+# and isn't worth it.
+#
+# Schedule: 09:00 UTC = 04:00 CST = 03:00 CDT. Same off-peak window as
+# the laptop plist so behavior is consistent regardless of host.
+#
+# Runner limit is 6h — V11.17.92's 10-30 min/run leaves enormous
+# headroom even if the queue grows 10x.
+
+name: Daily Classifier Catch-Up
+
+on:
+  schedule:
+    # 09:00 UTC daily (04:00 CST / 03:00 CDT).
+    - cron: '0 9 * * *'
+  # Allow manual triggering from the Actions tab UI.
+  workflow_dispatch:
+
+# Don't stack runs — if yesterday's is still going, skip today.
+concurrency:
+  group: classifier-daily
+  cancel-in-progress: false
+
+jobs:
+  classify:
+    runs-on: ubuntu-latest
+    # 5h cap. Normal run is 10-30 min; this is purely a safety ceiling.
+    timeout-minutes: 300
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run classifier catch-up
+        env:
+          # Mirror .env.local naming via repo Secrets. Add these at
+          # https://github.com/eq1725/paradocs/settings/secrets/actions
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npx tsx scripts/classify-phenomena-batch.ts --all
+
+      - name: Upload run log
+        if: always()  # capture log even on failure
+        uses: actions/upload-artifact@v4
+        with:
+          name: classifier-cron-log-${{ github.run_id }}
+          path: |
+            outputs/classifier-cron-*.log
+          if-no-files-found: ignore
+          retention-days: 14
