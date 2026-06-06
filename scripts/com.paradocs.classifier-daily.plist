@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  V11.17.93 - daily classifier cron (launchd LaunchAgent).
+
+  Fires scripts/classify-daily-catchup.sh once per day at 04:00 local
+  time. 04:00 is chosen because:
+    - Anthropic Batch API + Supabase are off-peak (faster turnaround).
+    - Founder's laptop is typically idle and plugged in.
+    - Runs complete before founder wakes, so morning DB state reflects
+      yesterday's full catch-up.
+
+  This file is a TEMPLATE. Before installing, replace USER_HOME with
+  the actual home directory (e.g. /Users/chase). launchd does NOT
+  expand $HOME inside plist files, so the path must be literal.
+
+  Install:
+    sed "s|USER_HOME|$HOME|g" scripts/com.paradocs.classifier-daily.plist \
+      > ~/Library/LaunchAgents/com.paradocs.classifier-daily.plist
+    launchctl load ~/Library/LaunchAgents/com.paradocs.classifier-daily.plist
+    launchctl list | grep paradocs    # verify
+
+  Uninstall:
+    launchctl unload ~/Library/LaunchAgents/com.paradocs.classifier-daily.plist
+    rm ~/Library/LaunchAgents/com.paradocs.classifier-daily.plist
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.paradocs.classifier-daily</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>USER_HOME/paradocs/scripts/classify-daily-catchup.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>USER_HOME/paradocs</string>
+
+  <!-- 04:00 local time, every day. Omitting Weekday/Day means "any". -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>4</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <!-- launchd captures the wrapper's own stdout/stderr here, in
+       addition to the dated log the wrapper writes itself. -->
+  <key>StandardOutPath</key>
+  <string>USER_HOME/paradocs/outputs/launchd-classifier.log</string>
+  <key>StandardErrorPath</key>
+  <string>USER_HOME/paradocs/outputs/launchd-classifier.err</string>
+
+  <!-- Don't fire immediately on `launchctl load`; wait for next 04:00. -->
+  <key>RunAtLoad</key>
+  <false/>
+
+  <!-- One-shot job. We do NOT want launchd to relaunch on exit. -->
+  <key>KeepAlive</key>
+  <false/>
+
+  <!-- V11.17.94 — PATH for nvm-installed Node.
+       Founder uses nvm (node v20.18.1). launchd doesn't source ~/.zshrc
+       or ~/.bash_profile, so the nvm bin path must be explicit here.
+       Update the version if you ever upgrade Node via nvm. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>USER_HOME/.nvm/versions/node/v20.18.1/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+</dict>
+</plist>
