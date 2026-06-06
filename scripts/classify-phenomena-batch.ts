@@ -18,6 +18,16 @@
  *             (use after taxonomy changes). Graceful fallback to
  *             V11.17.95 behavior when columns missing (so code can
  *             ship before migration is applied).
+ * V11.17.97 — bulk RPC for classifier_attempts. V11.17.96 used N
+ *             parallel UPDATE round-trips per chunk (4000 reports =
+ *             4000 round-trips). At 10k+ reports/day that's 20-80s of
+ *             pure network latency wasted per chunk. Replaced with a
+ *             single bump_classifier_attempts(uuid[]) RPC + a single
+ *             mark_classifier_skip_for_capped(uuid[], int) RPC — both
+ *             defined in 20260606_v111797_bump_classifier_attempts_fn.sql.
+ *             Probe once at startup; if RPCs missing, fall back to
+ *             V11.17.96 per-row UPDATE path (so code can ship before
+ *             migration is applied).
  *
  * For each approved report not yet linked to a phenomenon, asks Haiku
  * 4.5 (via Anthropic Batch API) for a primary + up to 2 secondary
@@ -434,6 +444,39 @@ async function detectAttemptsColumns(sb: any): Promise<boolean> {
   return true
 }
 
+// V11.17.97 - bulk RPC
+// Probe whether the two bulk-RPC functions from migration
+// 20260606_v111797_bump_classifier_attempts_fn.sql are present. If
+// they are, use a single rpc('bump_classifier_attempts', ...) call
+// per chunk instead of V11.17.96's N parallel UPDATE round-trips.
+// If they are not (migration not yet applied), fall back to the
+// V11.17.96 per-row read-modify-write path so the script still works
+// end-to-end before the founder pastes the SQL.
+//
+// One probe per process: cached in `bulkRpcAvailable`. We pass an
+// empty UUID array — Postgres still runs the function (UPDATE matches
+// nothing, returns void), so a clean response means "function exists".
+// PostgREST surfaces missing functions as a 404 with a body matching
+// "Could not find the function" / "function ... does not exist".
+var bulkRpcAvailable: boolean | null = null
+async function detectBulkRpc(sb: any): Promise<boolean> {
+  if (bulkRpcAvailable !== null) return bulkRpcAvailable
+  const probe = await sb.rpc('bump_classifier_attempts', { report_ids: [] })
+  if (probe.error) {
+    const msg = String(probe.error.message || '')
+    // PostgREST "function not found" patterns. Anything else (a real
+    // RLS / permissions / arg-type failure) should also fall back —
+    // we'd rather degrade gracefully than spam errors per chunk.
+    console.warn('V11.17.97 bulk-RPC functions not detected ('
+      + msg + ') — falling back to V11.17.96 per-row UPDATE path.')
+    console.warn('  Run supabase/migrations/20260606_v111797_bump_classifier_attempts_fn.sql to enable.')
+    bulkRpcAvailable = false
+    return false
+  }
+  bulkRpcAvailable = true
+  return true
+}
+
 async function fetchAllRows<T = any>(query: any, pageSize = 1000): Promise<T[]> {
   const all: T[] = []
   let offset = 0
@@ -718,6 +761,65 @@ async function runVerifyBatch(
   }
 }
 
+// V11.17.97 - bulk RPC
+// V11.17.96 fallback path. Identical to the original V11.17.96 inline
+// bump+skip logic, kept here so the script still works when the
+// V11.17.97 RPC migration hasn't been applied yet (or if the RPC
+// itself errors at runtime). Read-modify-write per row + per-100
+// phen-count probes. Scales O(N) on round-trips; this is what
+// V11.17.97 exists to replace at the 10k+/day scale.
+async function bumpAttemptsFallback(sb: any, chunkReportIds: string[]): Promise<void> {
+  const curRes = await sb.from('reports')
+    .select('id, classifier_attempts')
+    .in('id', chunkReportIds)
+  if (curRes.error) {
+    console.warn('  attempts bump (fallback): read failed (' + curRes.error.message + '), skipping')
+    return
+  }
+  const current = (curRes.data || []) as Array<{ id: string; classifier_attempts: number }>
+  // Bump every report by 1, in parallel.
+  await Promise.all(current.map(function(r) {
+    return sb.from('reports')
+      .update({ classifier_attempts: (r.classifier_attempts || 0) + 1 })
+      .eq('id', r.id)
+  }))
+
+  // Reports that just hit the cap. For these, we need to check
+  // report_phenomena to see if they still have zero junction rows —
+  // if so, flip classifier_skip to TRUE.
+  const cappedIds = current
+    .filter(function(r) { return (r.classifier_attempts || 0) + 1 >= MAX_CLASSIFIER_ATTEMPTS })
+    .map(function(r) { return r.id })
+  if (cappedIds.length > 0) {
+    const stillEmpty: string[] = []
+    const PHEN_CHECK_CHUNK = 100
+    for (let pi = 0; pi < cappedIds.length; pi += PHEN_CHECK_CHUNK) {
+      const pchunk = cappedIds.slice(pi, pi + PHEN_CHECK_CHUNK)
+      const phenRes = await sb.from('report_phenomena')
+        .select('report_id')
+        .in('report_id', pchunk)
+      if (phenRes.error) {
+        console.warn('  attempts bump (fallback): phen-check failed (' + phenRes.error.message + '), not marking skip')
+        continue
+      }
+      const tagged = new Set<string>((phenRes.data || []).map(function(r: any) { return r.report_id }))
+      for (const id of pchunk) if (!tagged.has(id)) stillEmpty.push(id)
+    }
+    if (stillEmpty.length > 0) {
+      const skipRes = await sb.from('reports')
+        .update({ classifier_skip: true })
+        .in('id', stillEmpty)
+      if (skipRes.error) {
+        console.warn('  attempts bump (fallback): skip-flag write failed (' + skipRes.error.message + ')')
+      } else {
+        console.log('  classifier_skip=TRUE for ' + stillEmpty.length + ' reports (hit cap of '
+          + MAX_CLASSIFIER_ATTEMPTS + ' attempts with 0 tags)')
+      }
+    }
+  }
+  console.log('  classifier_attempts +1 for ' + current.length + ' reports (V11.17.96 fallback path)')
+}
+
 async function classifyCategory(
   sb: any,
   category: string,
@@ -761,6 +863,13 @@ async function classifyCategory(
   // Detect attempt-tracking columns once per process. If absent we
   // fall back to V11.17.95 behavior — log a warning and continue.
   const hasAttemptCols = await detectAttemptsColumns(sb)
+
+  // V11.17.97 - bulk RPC
+  // Detect the V11.17.97 bulk-RPC functions once per process. Only
+  // probed when V11.17.96 columns are present (the RPCs do nothing
+  // useful without them). If absent we fall back to V11.17.96's
+  // per-row UPDATE path further below.
+  const hasBulkRpc = hasAttemptCols ? await detectBulkRpc(sb) : false
 
   // V11.17.96 - classifier attempts tracking
   // --retry-failed reset: before loading reports, clear the
@@ -1177,17 +1286,20 @@ async function classifyCategory(
         // The encyclopedia page now reads from report_phenomena.
 
         // V11.17.96 - classifier attempts tracking
+        // V11.17.97 - bulk RPC
         // Bump classifier_attempts +1 for every report the classifier
         // touched this chunk (including reports the model returned
         // null on — those count as failed attempts). Then mark
         // classifier_skip=TRUE for any report that hit the cap AND
         // STILL has zero junction rows after this run.
         //
-        // We do the bump in code (read attempts, +1 in JS, write
-        // back) because supabase-js doesn't expose a `raw()` builder
-        // for `classifier_attempts + 1` on update. Promise.all keeps
-        // it fast for 4000-report chunks: ~50ms per write × 4000 in
-        // parallel = ~2-3s, well inside batch poll cadence.
+        // V11.17.97 preferred path: two RPC calls per chunk
+        //   bump_classifier_attempts(uuid[])             — 1 round-trip
+        //   mark_classifier_skip_for_capped(uuid[], int) — 1 round-trip
+        // total 2 round-trips per chunk, independent of chunk size.
+        // V11.17.96 fallback: read-modify-write per row + per-100
+        // phen-count probes + bulk skip UPDATE. Scales O(N) on round-
+        // trips — at 10k reports/day that's 10k+ network hops.
         //
         // Each report in `chunk` is a batch request object keyed by
         // custom_id = report id. We use that, not classifierProcessed,
@@ -1197,62 +1309,38 @@ async function classifyCategory(
         if (hasAttemptCols) {
           const chunkReportIds: string[] = chunk.map(function(r: any) { return r.custom_id })
           try {
-            // Read-modify-write the attempts column. We need the
-            // current value to compute (current+1) AND to know which
-            // reports cross the cap with this bump.
-            const curRes = await sb.from('reports')
-              .select('id, classifier_attempts')
-              .in('id', chunkReportIds)
-            if (curRes.error) {
-              console.warn('  attempts bump: read failed (' + curRes.error.message + '), skipping')
-            } else {
-              const current = (curRes.data || []) as Array<{ id: string; classifier_attempts: number }>
-              // Bump every report by 1, in parallel.
-              await Promise.all(current.map(function(r) {
-                return sb.from('reports')
-                  .update({ classifier_attempts: (r.classifier_attempts || 0) + 1 })
-                  .eq('id', r.id)
-              }))
-
-              // Reports that just hit the cap. For these, we need to
-              // check report_phenomena to see if they still have zero
-              // junction rows — if so, flip classifier_skip to TRUE.
-              const cappedIds = current
-                .filter(function(r) { return (r.classifier_attempts || 0) + 1 >= MAX_CLASSIFIER_ATTEMPTS })
-                .map(function(r) { return r.id })
-              if (cappedIds.length > 0) {
-                // Fresh phen-count probe — links the classifier just
-                // wrote ARE counted here because the upsert above
-                // already committed.
-                const stillEmpty: string[] = []
-                // Same 100-id chunking pattern as the existing
-                // existingLinks loop above (PostgREST URL length cap).
-                const PHEN_CHECK_CHUNK = 100
-                for (let pi = 0; pi < cappedIds.length; pi += PHEN_CHECK_CHUNK) {
-                  const pchunk = cappedIds.slice(pi, pi + PHEN_CHECK_CHUNK)
-                  const phenRes = await sb.from('report_phenomena')
-                    .select('report_id')
-                    .in('report_id', pchunk)
-                  if (phenRes.error) {
-                    console.warn('  attempts bump: phen-check failed (' + phenRes.error.message + '), not marking skip')
-                    continue
-                  }
-                  const tagged = new Set<string>((phenRes.data || []).map(function(r: any) { return r.report_id }))
-                  for (const id of pchunk) if (!tagged.has(id)) stillEmpty.push(id)
-                }
-                if (stillEmpty.length > 0) {
-                  const skipRes = await sb.from('reports')
-                    .update({ classifier_skip: true })
-                    .in('id', stillEmpty)
-                  if (skipRes.error) {
-                    console.warn('  attempts bump: skip-flag write failed (' + skipRes.error.message + ')')
-                  } else {
-                    console.log('  classifier_skip=TRUE for ' + stillEmpty.length + ' reports (hit cap of '
-                      + MAX_CLASSIFIER_ATTEMPTS + ' attempts with 0 tags)')
-                  }
-                }
+            if (hasBulkRpc) {
+              // V11.17.97 — bulk increment via single RPC round-trip.
+              const { error: bumpErr } = await sb.rpc('bump_classifier_attempts', {
+                report_ids: chunkReportIds,
+              })
+              if (bumpErr) {
+                console.warn('  ! bump_classifier_attempts RPC failed: ' + bumpErr.message)
+                // V11.17.96 fallback: read-modify-write per row
+                await bumpAttemptsFallback(sb, chunkReportIds)
+              } else {
+                console.log('  classifier_attempts +1 for ' + chunkReportIds.length + ' reports (bulk RPC)')
               }
-              console.log('  classifier_attempts +1 for ' + current.length + ' reports')
+
+              // V11.17.97 — mark skip-flag in one RPC. Returns the
+              // count of newly-skipped rows. Must run AFTER the bump
+              // (so attempts have already been incremented) and AFTER
+              // the junction upserts above (so the NOT EXISTS check
+              // sees freshly-written links).
+              const { data: skipResult, error: skipErr } = await sb.rpc('mark_classifier_skip_for_capped', {
+                report_ids: chunkReportIds,
+                cap: MAX_CLASSIFIER_ATTEMPTS,
+              })
+              if (skipErr) {
+                console.warn('  ! mark_classifier_skip_for_capped RPC failed: ' + skipErr.message)
+              } else if (skipResult && skipResult.length > 0) {
+                const skipped = skipResult[0].skipped_count
+                if (skipped > 0) console.log('  ↓ marked ' + skipped + ' reports as classifier_skip (cap hit, no tags)')
+              }
+            } else {
+              // V11.17.96 fallback path — used when RPC migration
+              // hasn't been applied yet. Same behavior as V11.17.96.
+              await bumpAttemptsFallback(sb, chunkReportIds)
             }
           } catch (e: any) {
             console.warn('  attempts bump: unexpected error (' + (e?.message || e) + '), continuing')
@@ -1286,7 +1374,7 @@ async function main() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  console.log('=== Phenomenon classifier — V11.17.96 (attempts tracking + filter v95 + Batch API + confidence-gate skip) ===')
+  console.log('=== Phenomenon classifier — V11.17.97 (bulk RPC attempts bump + attempts tracking + filter v95 + Batch API + confidence-gate skip) ===')
   console.log('Dry run:        ' + args.dryRun)
   console.log('Per-cat limit:  ' + (args.limit > 0 ? args.limit : 'no limit'))
 
