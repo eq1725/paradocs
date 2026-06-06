@@ -60,6 +60,17 @@ export interface VerificationResult {
   reasoning: string
 }
 
+/**
+ * V11.17.90 — Exported so the batched classify path (scripts/classify-
+ * phenomena-batch.ts) can construct verify prompts for Anthropic Batch
+ * API submission. Sync verifyTag() still uses this internally; this
+ * export just lets callers reuse the exact same prompt shape outside
+ * the sync wrapper.
+ */
+export function buildVerifyPrompt(phen: PhenContext, report: ReportContext): string {
+  return buildPrompt(phen, report)
+}
+
 function buildPrompt(phen: PhenContext, report: ReportContext): string {
   var loc = [report.city, report.state_province, report.country].filter(Boolean).join(', ') || 'unspecified'
   var summary = (phen.ai_summary || '').trim()
