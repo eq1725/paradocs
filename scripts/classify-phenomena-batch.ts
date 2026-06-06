@@ -7,6 +7,17 @@
  * V11.17.95 — filter fix: default "skip any report with ANY existing
  *             phen tag" (1+ tag floor). Cross-category enrichment is
  *             now an explicit opt-in via --cross-category-enrichment.
+ * V11.17.96 — classifier attempts tracking. The daily launchd cron
+ *             previously re-processed reports that couldn't be tagged
+ *             every single day (~$9/day wasted on vague/ambiguous
+ *             reports the model legitimately can't classify). New
+ *             columns reports.classifier_attempts (INT, bumped each
+ *             pass) and reports.classifier_skip (BOOL, set when
+ *             attempts hits cap AND report still has 0 tags) gate the
+ *             "already-covered" filter. Cap reset by --retry-failed
+ *             (use after taxonomy changes). Graceful fallback to
+ *             V11.17.95 behavior when columns missing (so code can
+ *             ship before migration is applied).
  *
  * For each approved report not yet linked to a phenomenon, asks Haiku
  * 4.5 (via Anthropic Batch API) for a primary + up to 2 secondary
@@ -98,6 +109,22 @@ import { logAiUsage } from '../src/lib/services/ai-cost-logger'
 // (false-positive rate stayed under 2% of skipped candidates).
 var VERIFY_SKIP_CONFIDENCE = 0.92
 
+// V11.17.96 - classifier attempts tracking
+// Max number of times the classifier will re-try a report that keeps
+// returning 0 phen tags. After this many failed attempts the report
+// is permanently marked classifier_skip=TRUE and excluded from the
+// daily cron's load. Cleared via --retry-failed when the taxonomy
+// gains new phens that might now match previously-untaggable reports.
+//
+// 3 is a balance:
+//   - Day 1 attempt: catches the common case.
+//   - Day 2: catches transient Anthropic failures / batch drops.
+//   - Day 3: catches anything missed by the prompt cache being cold
+//     or a single bad chunk.
+// After 3 strikes the report almost certainly can't be tagged by the
+// current taxonomy — re-running it daily just burns money.
+var MAX_CLASSIFIER_ATTEMPTS = 3
+
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
 if (!ANTHROPIC_API_KEY) {
   console.error('ANTHROPIC_API_KEY missing from env')
@@ -144,6 +171,12 @@ interface CliArgs {
   // Default false: skip any report with at least one existing tag
   // (mode used to guarantee 1+ tag minimum coverage of the corpus).
   crossCategoryEnrichment: boolean
+  // V11.17.96 - classifier attempts tracking
+  // When true, reset classifier_attempts=0 and classifier_skip=FALSE
+  // for the reports in the categories being processed BEFORE running
+  // normally. Use case: founder added new phens to the taxonomy and
+  // wants to give previously-unclassifiable reports another shot.
+  retryFailed: boolean
 }
 
 function parseArgs(): CliArgs {
@@ -156,6 +189,7 @@ function parseArgs(): CliArgs {
     maxWaitSec: 5400,
     noVerifySkip: false,
     crossCategoryEnrichment: false,
+    retryFailed: false,
   }
   const argv = process.argv
   for (let i = 2; i < argv.length; i++) {
@@ -168,8 +202,9 @@ function parseArgs(): CliArgs {
     else if (a === '--max-wait') { args.maxWaitSec = parseInt(argv[++i], 10) || 5400 }
     else if (a === '--no-verify-skip') { args.noVerifySkip = true }
     else if (a === '--cross-category-enrichment') { args.crossCategoryEnrichment = true }
+    else if (a === '--retry-failed') { args.retryFailed = true }
     else if (a === '--help' || a === '-h') {
-      console.log('Usage: tsx scripts/classify-phenomena-batch.ts [--category X | --all] [--limit N] [--dry-run] [--no-verify-skip] [--cross-category-enrichment]')
+      console.log('Usage: tsx scripts/classify-phenomena-batch.ts [--category X | --all] [--limit N] [--dry-run] [--no-verify-skip] [--cross-category-enrichment] [--retry-failed]')
       process.exit(0)
     }
   }
@@ -367,6 +402,36 @@ async function fetchBatchResults(url: string): Promise<any[]> {
     try { rows.push(JSON.parse(trimmed)) } catch (_e) {}
   }
   return rows
+}
+
+// V11.17.96 - classifier attempts tracking
+// Probe the reports table for the V11.17.96 columns. If the migration
+// (supabase/migrations/20260606_v111796_classifier_attempts.sql) hasn't
+// been applied yet, this returns false and the caller falls back to
+// V11.17.95 behavior — no attempt tracking, no skip flag, no filter
+// extension. This means the founder can deploy the code BEFORE running
+// the migration without breaking the daily cron.
+//
+// One probe per process: cached in `attemptsColumnsPresent` after first
+// call so we don't re-query for every category.
+var attemptsColumnsPresent: boolean | null = null
+async function detectAttemptsColumns(sb: any): Promise<boolean> {
+  if (attemptsColumnsPresent !== null) return attemptsColumnsPresent
+  // Cheapest probe: SELECT the new columns with limit 1. If the
+  // columns don't exist, PostgREST returns a 400 "column does not
+  // exist" error and we treat that as "migration not applied".
+  const probe = await sb.from('reports')
+    .select('classifier_attempts, classifier_skip')
+    .limit(1)
+  if (probe.error) {
+    console.warn('V11.17.96 attempt-tracking columns not detected ('
+      + (probe.error.message || 'unknown error') + ') — falling back to V11.17.95 behavior.')
+    console.warn('  Run supabase/migrations/20260606_v111796_classifier_attempts.sql to enable.')
+    attemptsColumnsPresent = false
+    return false
+  }
+  attemptsColumnsPresent = true
+  return true
 }
 
 async function fetchAllRows<T = any>(query: any, pageSize = 1000): Promise<T[]> {
@@ -692,21 +757,63 @@ async function classifyCategory(
     slugLookup.set(p.slug, { phenomenonId: p.id, phen: p })
   }
 
+  // V11.17.96 - classifier attempts tracking
+  // Detect attempt-tracking columns once per process. If absent we
+  // fall back to V11.17.95 behavior — log a warning and continue.
+  const hasAttemptCols = await detectAttemptsColumns(sb)
+
+  // V11.17.96 - classifier attempts tracking
+  // --retry-failed reset: before loading reports, clear the
+  // classifier_skip / classifier_attempts fields for approved reports
+  // in this category. This way reports that hit the cap on the prior
+  // taxonomy get their 3 tries back against the new one.
+  if (args.retryFailed && hasAttemptCols && !args.dryRun) {
+    console.log('--retry-failed: resetting classifier_attempts=0 / classifier_skip=FALSE for ' + category + '...')
+    const resetRes = await sb.from('reports')
+      .update({ classifier_attempts: 0, classifier_skip: false })
+      .eq('status', 'approved')
+      .eq('category', category)
+      .or('classifier_skip.eq.true,classifier_attempts.gt.0')
+    if (resetRes.error) {
+      console.warn('  retry-failed reset error: ' + resetRes.error.message + ' — continuing anyway')
+    } else {
+      console.log('  retry-failed reset OK')
+    }
+  } else if (args.retryFailed && !hasAttemptCols) {
+    console.warn('--retry-failed ignored: V11.17.96 columns not present.')
+  }
+
   // Load approved reports needing classification — reports that DON'T
   // already have any row in report_phenomena (so we don't re-classify).
   // Easiest implementation: fetch all approved reports in this category,
   // then filter out ones with existing junction rows.
+  //
+  // V11.17.96 - classifier attempts tracking
+  // When columns are present, exclude reports already marked
+  // classifier_skip=TRUE or that have hit the attempts cap (≥
+  // MAX_CLASSIFIER_ATTEMPTS). The partial index
+  // idx_reports_classifier_skip_attempts makes the
+  // classifier_skip=FALSE filter cheap; the attempts comparison
+  // walks the same index.
   console.log('Loading approved reports in category...')
   let repQuery = sb.from('reports')
-    .select('id, title, summary, feed_hook, description')
+    .select(hasAttemptCols
+      ? 'id, title, summary, feed_hook, description, classifier_attempts'
+      : 'id, title, summary, feed_hook, description')
     .eq('status', 'approved')
     .eq('category', category)
     .order('created_at', { ascending: true })
+  if (hasAttemptCols) {
+    repQuery = repQuery
+      .eq('classifier_skip', false)
+      .lt('classifier_attempts', MAX_CLASSIFIER_ATTEMPTS)
+  }
   if (args.limit > 0) repQuery = repQuery.limit(args.limit)
   const reports = args.limit > 0
     ? (await repQuery).data || []
     : await fetchAllRows<any>(repQuery)
-  console.log('  loaded ' + reports.length + ' approved reports')
+  console.log('  loaded ' + reports.length + ' approved reports'
+    + (hasAttemptCols ? ' (attempts<' + MAX_CLASSIFIER_ATTEMPTS + ', not classifier_skip)' : ''))
 
   // V11.17.95 — filter fix.
   // Default mode (no --cross-category-enrichment): skip any report
@@ -1068,6 +1175,89 @@ async function classifyCategory(
         // targets phenomenon_types.id (a separate legacy table) and
         // most phenomena rows don't have a phenomenon_type_id mapping.
         // The encyclopedia page now reads from report_phenomena.
+
+        // V11.17.96 - classifier attempts tracking
+        // Bump classifier_attempts +1 for every report the classifier
+        // touched this chunk (including reports the model returned
+        // null on — those count as failed attempts). Then mark
+        // classifier_skip=TRUE for any report that hit the cap AND
+        // STILL has zero junction rows after this run.
+        //
+        // We do the bump in code (read attempts, +1 in JS, write
+        // back) because supabase-js doesn't expose a `raw()` builder
+        // for `classifier_attempts + 1` on update. Promise.all keeps
+        // it fast for 4000-report chunks: ~50ms per write × 4000 in
+        // parallel = ~2-3s, well inside batch poll cadence.
+        //
+        // Each report in `chunk` is a batch request object keyed by
+        // custom_id = report id. We use that, not classifierProcessed,
+        // because chunks may include reports whose result row never
+        // arrived (Anthropic drop) — those should ALSO get an attempt
+        // bump (the cron just tried them and got nothing back).
+        if (hasAttemptCols) {
+          const chunkReportIds: string[] = chunk.map(function(r: any) { return r.custom_id })
+          try {
+            // Read-modify-write the attempts column. We need the
+            // current value to compute (current+1) AND to know which
+            // reports cross the cap with this bump.
+            const curRes = await sb.from('reports')
+              .select('id, classifier_attempts')
+              .in('id', chunkReportIds)
+            if (curRes.error) {
+              console.warn('  attempts bump: read failed (' + curRes.error.message + '), skipping')
+            } else {
+              const current = (curRes.data || []) as Array<{ id: string; classifier_attempts: number }>
+              // Bump every report by 1, in parallel.
+              await Promise.all(current.map(function(r) {
+                return sb.from('reports')
+                  .update({ classifier_attempts: (r.classifier_attempts || 0) + 1 })
+                  .eq('id', r.id)
+              }))
+
+              // Reports that just hit the cap. For these, we need to
+              // check report_phenomena to see if they still have zero
+              // junction rows — if so, flip classifier_skip to TRUE.
+              const cappedIds = current
+                .filter(function(r) { return (r.classifier_attempts || 0) + 1 >= MAX_CLASSIFIER_ATTEMPTS })
+                .map(function(r) { return r.id })
+              if (cappedIds.length > 0) {
+                // Fresh phen-count probe — links the classifier just
+                // wrote ARE counted here because the upsert above
+                // already committed.
+                const stillEmpty: string[] = []
+                // Same 100-id chunking pattern as the existing
+                // existingLinks loop above (PostgREST URL length cap).
+                const PHEN_CHECK_CHUNK = 100
+                for (let pi = 0; pi < cappedIds.length; pi += PHEN_CHECK_CHUNK) {
+                  const pchunk = cappedIds.slice(pi, pi + PHEN_CHECK_CHUNK)
+                  const phenRes = await sb.from('report_phenomena')
+                    .select('report_id')
+                    .in('report_id', pchunk)
+                  if (phenRes.error) {
+                    console.warn('  attempts bump: phen-check failed (' + phenRes.error.message + '), not marking skip')
+                    continue
+                  }
+                  const tagged = new Set<string>((phenRes.data || []).map(function(r: any) { return r.report_id }))
+                  for (const id of pchunk) if (!tagged.has(id)) stillEmpty.push(id)
+                }
+                if (stillEmpty.length > 0) {
+                  const skipRes = await sb.from('reports')
+                    .update({ classifier_skip: true })
+                    .in('id', stillEmpty)
+                  if (skipRes.error) {
+                    console.warn('  attempts bump: skip-flag write failed (' + skipRes.error.message + ')')
+                  } else {
+                    console.log('  classifier_skip=TRUE for ' + stillEmpty.length + ' reports (hit cap of '
+                      + MAX_CLASSIFIER_ATTEMPTS + ' attempts with 0 tags)')
+                  }
+                }
+              }
+              console.log('  classifier_attempts +1 for ' + current.length + ' reports')
+            }
+          } catch (e: any) {
+            console.warn('  attempts bump: unexpected error (' + (e?.message || e) + '), continuing')
+          }
+        }
         break
       }
     }
@@ -1096,7 +1286,7 @@ async function main() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  console.log('=== Phenomenon classifier — V11.17.92 (Batch API + confidence-gate skip + first-chunk-only prewarm) ===')
+  console.log('=== Phenomenon classifier — V11.17.96 (attempts tracking + filter v95 + Batch API + confidence-gate skip) ===')
   console.log('Dry run:        ' + args.dryRun)
   console.log('Per-cat limit:  ' + (args.limit > 0 ? args.limit : 'no limit'))
 
