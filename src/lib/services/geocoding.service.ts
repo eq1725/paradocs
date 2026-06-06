@@ -285,6 +285,72 @@ export function buildLocationQuery(components: {
   return parts.join(', ');
 }
 
+// V11.17.99 — prepositional-prefix geocode handler
+// =============================================================================
+// NUFORC submitters often write the "city" field as a prepositional phrase
+// describing where they were when they saw something — "Over Toledo bend lake",
+// "Near Cortez", "South of Portland Oregon", "Between Ennis and Norris". The
+// raw geocoder can't parse these; MapTiler either returns a far-away fuzzy
+// match (the founder's flagged Toledo Bend Lake report pinned at Beaumont) or
+// the wrong half of a "Between A and B" pair.
+//
+// This regex pulls off the leading preposition and returns the cleaned phrase
+// + a flag telling the caller "this was approximate to begin with — if the
+// cleaned phrase still doesn't geocode precisely, prefer the state centroid
+// over inventing coordinates".
+//
+// Match list is anchored at start, case-insensitive, and consumes one trailing
+// space so the cleaned phrase starts at the actual landmark.
+//   Over X        Above X       Near X         Outside X
+//   Just outside X   Just north/south/east/west of X
+//   South/North/East/West of X
+//   Between X (and Y)  — we keep the first place after "Between"
+var PREPOSITIONAL_PREFIX_RE = /^\s*(over|above|near|outside|just\s+outside|just\s+(?:north|south|east|west)\s+of|south\s+of|north\s+of|east\s+of|west\s+of|between)\s+/i;
+
+export interface PrepositionalStripResult {
+  /** True when a prefix was detected and stripped. */
+  stripped: boolean;
+  /** The original location string. */
+  original: string;
+  /** The cleaned string with the prefix removed. Empty when no prefix matched. */
+  cleaned: string;
+  /** The preposition that was stripped (lowercased), e.g. "over", "between". */
+  preposition: string | null;
+}
+
+/**
+ * Detect and strip a leading prepositional phrase from a location string.
+ *
+ * Pure function — no I/O. Used by geocodeStructuredLocation before calling
+ * the live geocoder, and by scripts/backfill-prepositional-locations.ts.
+ *
+ * Examples:
+ *   "Over Toledo bend lake, Texas"     -> "Toledo bend lake, Texas"
+ *   "Near Cortez, Colorado"            -> "Cortez, Colorado"
+ *   "Between Ennis and Norris, MT"     -> "Ennis and Norris, MT"
+ *   "Just outside Erie, Colorado"      -> "Erie, Colorado"
+ *   "Cortez, Colorado"                 -> stripped=false
+ */
+export function stripPrepositionalPrefix(location: string): PrepositionalStripResult {
+  if (!location || typeof location !== 'string') {
+    return { stripped: false, original: location || '', cleaned: '', preposition: null };
+  }
+  var m = location.match(PREPOSITIONAL_PREFIX_RE);
+  if (!m) {
+    return { stripped: false, original: location, cleaned: location, preposition: null };
+  }
+  // Replace the matched prefix with an empty string; preserve the rest verbatim.
+  var cleaned = location.replace(PREPOSITIONAL_PREFIX_RE, '').trim();
+  // Collapse internal whitespace from the original match (e.g. "just  outside").
+  var preposition = m[1].toLowerCase().replace(/\s+/g, ' ');
+  return {
+    stripped: true,
+    original: location,
+    cleaned: cleaned,
+    preposition: preposition,
+  };
+}
+
 /**
  * Geocode multiple reports in batch (respecting rate limits).
  * Uses in-memory cache so duplicate locations (same city) only hit the API once.
@@ -458,11 +524,33 @@ export async function geocodeStructuredLocation(
   var countryCode = resolveCountryCode(input.country)
   var stateCentroid = resolveStateCentroid(countryCode, input.state || null)
 
+  // V11.17.99 — prepositional-prefix geocode handler.
+  //
+  // Submitters write "Over Toledo bend lake" or "Near Cortez" or
+  // "South of Portland Oregon" in the city slot. MapTiler/Nominatim
+  // can't parse "Over X" — it either returns a fuzzy match for a
+  // similarly-named feature far from the user's intent (the founder's
+  // flagged Toledo Bend report pinned at Beaumont, 150mi south of the
+  // actual lake), or it returns the wrong half of a "Between A and B"
+  // pair. Strategy:
+  //   1. Detect a leading preposition in city/location_name.
+  //   2. Strip it before building the query (so we geocode the actual
+  //      landmark, not the prepositional phrase).
+  //   3. After geocoding, distrust the result if it's not a 'locality'
+  //      or finer match — fall back to state centroid instead of
+  //      writing potentially wrong specific coords. The user said
+  //      "near/over/south of" so a region-level pin is honest.
+  var cityStrip = stripPrepositionalPrefix(input.city || '')
+  var locNameStrip = stripPrepositionalPrefix(input.location_name || '')
+  var hadPrefix = cityStrip.stripped || locNameStrip.stripped
+  var cleanedCity = cityStrip.stripped ? cityStrip.cleaned : (input.city || undefined)
+  var cleanedLocName = locNameStrip.stripped ? locNameStrip.cleaned : (input.location_name || undefined)
+
   var query = buildLocationQuery({
-    city: input.city || undefined,
+    city: cleanedCity || undefined,
     state: input.state || undefined,
     country: input.country || undefined,
-    location_name: input.location_name || undefined,
+    location_name: cleanedLocName || undefined,
   })
 
   if (!query || query.length < 3) {
@@ -486,20 +574,40 @@ export async function geocodeStructuredLocation(
   if (geocoded) {
     var acc = geocoded.accuracy
     var degraded = acc === 'country' && (hasCity || hasState)
-    if (!degraded) {
+
+    // V11.17.99 — when a preposition was stripped, distrust 'address'
+    // and 'street' precision. The user wasn't AT 123 Main St; they
+    // were "over the lake" or "near the town". An overly-precise
+    // geocoder hit on a coincidentally-named street is exactly the
+    // failure mode that produced the Toledo Bend pin near Beaumont
+    // (MapTiler matched "Toledo Bend Drive, Denton, TX" at locality
+    // precision for the cleaned phrase; the prefix version had matched
+    // a "major_landform" type at a wrong centroid). Locality/region
+    // precision is the honest level for a prepositional location —
+    // anything finer is fabricated specificity.
+    var overspecified = hadPrefix && (acc === 'address' || acc === 'street')
+
+    if (!degraded && !overspecified) {
       return {
         latitude: geocoded.latitude,
         longitude: geocoded.longitude,
         accuracy: acc,
         synthetic: false,
-        source: query,
+        source: hadPrefix ? (query + ' (prefix stripped)') : query,
       }
     }
-    // Else: silently degrade-to-centroid (logged below).
-    console.log(
-      '[Geocoding] V11.17.83 — geocoder returned country precision for "' + query +
-      '"; falling back to state centroid (' + (stateCentroid?.name || '(none)') + ')',
-    )
+    if (degraded) {
+      console.log(
+        '[Geocoding] V11.17.83 — geocoder returned country precision for "' + query +
+        '"; falling back to state centroid (' + (stateCentroid?.name || '(none)') + ')',
+      )
+    } else if (overspecified) {
+      console.log(
+        '[Geocoding] V11.17.99 — prepositional query "' + query +
+        '" got over-specific (' + acc + ') hit; falling back to state centroid (' +
+        (stateCentroid?.name || '(none)') + ')',
+      )
+    }
   }
 
   if (stateCentroid) {

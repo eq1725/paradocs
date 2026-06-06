@@ -138,38 +138,106 @@ CONSOLIDATED_SYSTEM_PROMPT = [
   '  these collapse the mystery into a known mechanism. Don\'t.',
   '',
   '====================================================================',
-  'ANOMALY GATE (V11.17.41 — required on every response):',
+  'ANOMALY GATE (V11.17.100 — required on every response):',
   '====================================================================',
   '- The final field "anomalous_content_check" is a self-audit. After',
   '  drafting the other fields, look back at the SOURCE TEXT (not your',
   '  rewrite of it) and ask: does this account actually describe an',
   '  anomalous / paranormal / unexplained personal experience that',
   '  Paradocs should archive?',
-  '- KEEP (anomalous="yes") — first-hand or close-witness accounts of:',
-  '  UFO sightings, encounters with non-human entities, missing time,',
-  '  apparitions, hauntings, poltergeist activity, witnessed phenomena,',
-  '  precognitive dreams that came true, telepathy, OBE, NDE, sleep',
-  '  paralysis with sensed presence, cryptid sightings, witness sketches,',
-  '  shared synchronicity, manifestation experiences, and similar.',
-  '- ARCHIVE (anomalous="no") — accounts that are NOT actually anomalous',
-  '  even when fluent narrative makes them sound like reports:',
-  '   - mundane hiking, navigation, dehydration, or outdoor misadventure',
-  '     stories (the witness got lost, got dehydrated, took a wrong turn)',
-  '   - wildlife encounters where the danger is the animal, not anything',
-  '     unexplained (charged by an elephant, snake-bit, swarmed by bees)',
-  '   - perceptual-quirk explainers — describing normal optics or',
-  '     spatial perception ("trails become invisible from the side") as',
-  '     if they were anomalous',
-  '   - platform / algorithm / media-bias complaints (YouTube',
-  '     recommendations, channel demonetization, debunking narratives)',
-  '   - opinion pieces, theory posts, news summaries, advice requests',
-  '   - product reviews, equipment troubleshooting, how-to questions',
-  '   - personal psychological/emotional change narratives with no',
-  '     anomalous element',
-  '- Be STRICT. False negatives are recoverable (admin can re-approve',
-  '  from pending_review); false positives clutter the live archive.',
-  '- If unsure, set anomalous="yes" with confidence <0.7 so the gate',
-  '  does NOT fire — uncertainty is not grounds for rejection.',
+  '',
+  'JUDGMENT, NOT KEYWORDS. Many phrases that LOOK anomalous on the',
+  'surface are mundane, and many phrases that LOOK mundane are anomalous',
+  'in context. Read the WHOLE account before deciding. The criterion is',
+  'always: does the witness describe a FIRST-PERSON sensory experience',
+  'with an UNEXPLAINED element that no ordinary cause accounts for?',
+  '',
+  'KEEP (anomalous="yes") — first-hand or close-witness accounts of:',
+  '  - UFO sightings, encounters with non-human entities',
+  '  - missing time / lost hours with no recall — even when the surface',
+  '    phrase is mundane ("I lost an hour driving home"), if the account',
+  '    points at a gap with no ordinary explanation, KEEP',
+  '  - apparitions, hauntings, poltergeist activity — even subtle ones.',
+  '    "Felt a chill" PAIRED with shadow figure / unexplained sound /',
+  '    object moving / sensed presence is a documented haunting indicator',
+  '  - witnessed phenomena, precognitive dreams that came true, telepathy',
+  '  - OBE, NDE, sleep paralysis WITH sensed presence / entity / auditory',
+  '    hallucination (the paralysis alone is mundane; the encounter is not)',
+  '  - cryptid sightings, witness sketches, shared synchronicity',
+  '  - manifestation experiences, energy / kundalini events with somatic',
+  '    aftermath',
+  '  - "saw a light that hovered silently then split into three" — the',
+  '    BEHAVIOR is what makes it anomalous, not the word "light"',
+  '  - mundane-sounding events with a documented anomalous frame the',
+  '    witness experienced (e.g. Mandela-effect personal item that',
+  '    reappeared after a year — the witness is reporting an anomaly)',
+  '',
+  'ARCHIVE (anomalous="no") — accounts that are NOT actually anomalous',
+  'even when fluent narrative makes them sound like reports:',
+  '  - a single loud boom / bang / vibration with NO other anomalous',
+  '    element. A boom alone is a mundane physical event (seismic,',
+  '    industrial, mechanical). Only KEEP if paired with something else',
+  '    unexplained (lights, entity, missing time, physical traces).',
+  '  - "saw a light" or "saw a strange-looking person" with no behavior,',
+  '    no anomaly, no encounter — just visual oddity without consequence',
+  '  - "felt a chill" attributable to drafty room / open window / AC',
+  '    with no paired phenomenon',
+  '  - vivid dream / nightmare alone (dreams without precognitive payoff',
+  '    or external corroboration are not documented experiences)',
+  '  - mundane hiking, navigation, dehydration, or outdoor misadventure',
+  '    stories (the witness got lost, got dehydrated, took a wrong turn)',
+  '  - wildlife encounters where the danger is the animal, not anything',
+  '    unexplained (charged by an elephant, snake-bit, swarmed by bees)',
+  '  - perceptual-quirk explainers — describing normal optics or',
+  '    spatial perception ("trails become invisible from the side") as',
+  '    if they were anomalous',
+  '  - third-person commentary on someone else\'s experience (YouTube',
+  '    comment reacting to a video, news summary of a UFO sighting, etc.)',
+  '    — Paradocs archives FIRST-PERSON accounts. A reaction is not a',
+  '    report.',
+  '  - Wikipedia-style summaries of phenomena ("Bigfoot is a cryptid said',
+  '    to inhabit...") — not personal testimony',
+  '  - platform / algorithm / media-bias complaints (YouTube',
+  '    recommendations, channel demonetization, debunking narratives)',
+  '  - opinion pieces, theory posts, news summaries, advice requests',
+  '  - product reviews, equipment troubleshooting, how-to questions',
+  '  - personal psychological/emotional change narratives with no',
+  '    anomalous element',
+  '  - promotional content, advertisements, single-word reactions',
+  '    ("wow", "creepy", "lol"), link-drops',
+  '',
+  'WORKED EXAMPLES (apply this reasoning):',
+  '  Source: "Heard a loud boom that shook the hotel. Asked a neighbor;',
+  '    he said not a bomb. Maybe underground." → anomalous="no" conf 0.9.',
+  '    A single loud sound the witness themselves frames with mundane',
+  '    hypotheses (bomb, underground) is not a documented anomaly.',
+  '  Source: "Heard a boom, then saw a glowing object lift off the ridge',
+  '    and disappear silently." → anomalous="yes" conf 0.9. The boom is',
+  '    secondary; the silent glowing object is the anomaly.',
+  '  Source: "Driving home from work I lost an hour with no memory of',
+  '    the road between exit 23 and exit 30." → anomalous="yes" conf 0.85.',
+  '    Missing-time accounts are documented abduction/anomaly phenomena',
+  '    even when the surface reads as mundane fatigue.',
+  '  Source: "Felt a chill in the basement after we moved in. Probably',
+  '    drafty." → anomalous="no" conf 0.85. Witness offers the mundane',
+  '    explanation themselves; no other indicator.',
+  '  Source: "Felt a chill, then saw a shadow figure at the foot of the',
+  '    bed every night for a week." → anomalous="yes" conf 0.95.',
+  '',
+  'CONFIDENCE CALIBRATION:',
+  '  - 0.95-1.0: unambiguous. A clear UFO sighting OR a clear opinion',
+  '    post with zero experiential content.',
+  '  - 0.80-0.94: confident but not certain. The Sedona-boom case (no',
+  '    other anomaly, witness offers mundane frame) belongs here at ~0.85.',
+  '  - 0.70-0.79: leaning one way but a reasonable read could go the',
+  '    other direction. Use this band sparingly.',
+  '  - <0.70: genuinely uncertain. Default to anomalous="yes" so the',
+  '    gate does NOT fire — uncertainty respects the witness.',
+  '',
+  'Be STRICT but FAIR. False negatives are recoverable (admin can',
+  're-approve from pending_review); false positives clutter the live',
+  'archive. When the witness themselves offers a mundane explanation',
+  'AND no other anomalous element appears, archive with confidence.',
   '',
   '====================================================================',
   'STRUCTURE — Return ONLY valid JSON (no markdown fences, no commentary):',
@@ -514,6 +582,55 @@ export function isSentimentInclusionEnabled(): boolean {
   var raw = process.env.INCLUDE_SENTIMENT
   if (!raw) return false
   return String(raw).toLowerCase() === 'true' || raw === '1'
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// SLUG HELPERS (V11.17.98)
+// ─────────────────────────────────────────────────────────────────────
+// Extracted so the live ingestion path (persistConsolidatedResult below)
+// AND the V11.17.98 backfill script can share ONE source of truth for
+// how a Haiku-rewritten title becomes a slug. The two MUST stay in sync:
+// if the backfill computes a different slug shape than the live path,
+// freshly ingested rows would drift away from backfilled rows.
+
+/**
+ * V11.17.98 — Build the slug "prefix" (everything before the 8-char
+ * hash suffix) from a title. Lowercase, alphanumerics+hyphen, max 60
+ * chars. Mirrors the inline logic in persistConsolidatedResult that
+ * the live ingestion path uses on every Haiku rewrite.
+ */
+export function buildSlugPrefixFromTitle(title: string): string {
+  return String(title || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .substring(0, 60)
+}
+
+/**
+ * V11.17.98 — Split an existing slug into [prefix, suffix]. The suffix
+ * is the trailing 4-8 char alphanumeric hash engine.ts appends at INSERT
+ * time (`-xxxxxxxx`). When the slug has no suffix, returns [slug, ''].
+ */
+export function splitSlugSuffix(slug: string): { prefix: string; suffix: string } {
+  var s = String(slug || '')
+  var m = s.match(/-([a-z0-9]{4,8})$/)
+  if (!m) return { prefix: s, suffix: '' }
+  return { prefix: s.slice(0, -1 - m[1].length), suffix: m[1] }
+}
+
+/**
+ * V11.17.98 — Given a current slug and a (potentially new) title,
+ * return the slug we WOULD generate now. Returns null when the title
+ * is empty / would produce an empty prefix. The 8-char hash suffix is
+ * preserved so report identity (and analytics, embeds, etc.) is stable
+ * across the rename.
+ */
+export function computeRefreshedSlug(currentSlug: string, title: string): string | null {
+  var newPrefix = buildSlugPrefixFromTitle(title)
+  if (!newPrefix) return null
+  var split = splitSlugSuffix(currentSlug)
+  return split.suffix ? newPrefix + '-' + split.suffix : newPrefix
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -907,6 +1024,45 @@ export async function persistConsolidatedResult(
     paradocs_analysis_generated_at: new Date().toISOString(),
     paradocs_analysis_model: HAIKU_MODEL + ' (' + (modelMarker || 'consolidated') + ')',
     feed_hook_generated_at: new Date().toISOString(),
+  }
+
+  // V11.17.98 — Slug refresh gate. Engine.ts generates the slug at INSERT
+  // time from the raw adapter title (often a chopped first-sentence narrative
+  // like "Christmas 2017 I was visiting family in Sedona and we were p"),
+  // then Haiku rewrites the title to a clean headline ("Massive Underground
+  // Boom Shakes Sedona Hotel Room") in this UPDATE. Previously the slug
+  // never got regenerated, so the URL kept leaking the raw conversational
+  // fragment as the smoking gun of an internal pipeline state.
+  //
+  // Fix: when Haiku produced a new title, recompute the slug prefix from
+  // it while PRESERVING the original 8-char hash suffix so existing inbound
+  // URLs / cached links / search index entries can be 301'd by a slug_alias
+  // table in the future. For now we just rewrite the prefix so the public
+  // URL matches the displayed headline. The suffix preserves report identity.
+  if (p.title && typeof p.title === 'string') {
+    try {
+      var { data: existing } = await supabase
+        .from('reports')
+        .select('slug')
+        .eq('id', reportId)
+        .maybeSingle()
+      var existingSlug: string = existing && existing.slug ? String(existing.slug) : ''
+      // V11.17.98 — shared helper so the backfill script (and any future
+      // slug-refresh path) produces an identical slug for the same title.
+      var split = splitSlugSuffix(existingSlug)
+      var newPrefix = buildSlugPrefixFromTitle(p.title)
+      // Only update the slug when the prefix actually changed AND the new
+      // prefix is non-empty (defensive — Haiku title is required to be 4-9
+      // words so this is virtually always true).
+      if (newPrefix && newPrefix !== split.prefix) {
+        updateData.slug = split.suffix ? newPrefix + '-' + split.suffix : newPrefix
+      }
+    } catch (slugErr) {
+      // Slug refresh is best-effort. A DB error here should NOT block the
+      // primary AI-field persistence — the slug stays stale until the next
+      // pass, but the report still gets its title + analysis updated.
+      console.warn('[ConsolidatedAI] slug refresh skipped for ' + reportId + ': ' + (slugErr as any)?.message)
+    }
   }
 
   // V11.17.74 — Sentiment + endpoints (Tier 3D).

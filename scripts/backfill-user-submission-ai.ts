@@ -119,8 +119,10 @@ async function runOne(sb: SupabaseClient, r: StuckReport): Promise<keyof Outcome
     acConfidence = typeof ac.confidence === 'number' ? ac.confidence : 0
     acGenre = typeof ac.genre === 'string' ? ac.genre : ''
   }
-  const autoArchive = acAnomalous === 'no' && acConfidence >= 0.9
-  const pending = acAnomalous === 'no' && acConfidence >= 0.7 && acConfidence < 0.9
+  // V11.17.100 — auto-archive cutoff lowered 0.9 → 0.75 to match sharper
+  // V11.17.100 ANOMALY GATE prompt calibration (Sedona-boom-style at ~0.85).
+  const autoArchive = acAnomalous === 'no' && acConfidence >= 0.75
+  const pending = acAnomalous === 'no' && acConfidence >= 0.7 && acConfidence < 0.75
   let target: 'pending_review' | 'archived' | null = null
   let reason = ''
   if (!aiOk) { target = 'pending_review'; reason = 'AI generation failed' }

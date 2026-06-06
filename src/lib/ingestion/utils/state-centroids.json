@@ -217,5 +217,9 @@
     "TAS": { "name": "Tasmania", "lat": -41.4545, "lng": 145.9707 },
     "ACT": { "name": "Australian Capital Territory", "lat": -35.4735, "lng": 149.0124 },
     "NT":  { "name": "Northern Territory", "lat": -19.4914, "lng": 132.5510 }
+  },
+
+  "AQ": {
+    "AQ": { "name": "Antarctica", "lat": -82.8628, "lng": 135.0000, "aliases": ["Antarctica", "Antarctic", "Antarctic Continent", "South Pole"] }
   }
 }

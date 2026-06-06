@@ -476,18 +476,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         acConfidence = typeof ac.confidence === 'number' ? ac.confidence : 0
         acGenre = typeof ac.genre === 'string' ? ac.genre : ''
       }
-      var anomalyAutoArchive = acAnomalous === 'no' && acConfidence >= 0.9
-      var anomalyPending = acAnomalous === 'no' && acConfidence >= 0.7 && acConfidence < 0.9
+      // V11.17.100 — anomaly gate tightening. Auto-archive cutoff
+      // lowered 0.9 → 0.75 to match the sharper V11.17.100 Haiku
+      // prompt calibration (Sedona-boom-style clear-mundane cases
+      // now land at ~0.85 and were getting pending-reviewed forever).
+      var anomalyAutoArchive = acAnomalous === 'no' && acConfidence >= 0.75
+      var anomalyPending = acAnomalous === 'no' && acConfidence >= 0.7 && acConfidence < 0.75
       var demoteTarget: 'pending_review' | 'archived' = 'pending_review'
       if (!aiOk) demoteReason = 'AI generation failed during submit'
       else if (!hasNarrative) demoteReason = 'paradocs_narrative empty after generation'
       else if (!hasPullQuote) demoteReason = 'pull_quote empty after generation'
       else if (anomalyAutoArchive) {
-        demoteReason = 'Haiku anomaly gate — auto-archived (V11.17.41) — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2)
+        demoteReason = 'Haiku anomaly gate — auto-archived (V11.17.100) — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2)
         demoteTarget = 'archived'
       }
       else if (anomalyPending) {
-        demoteReason = 'Haiku anomaly gate — pending (V11.17.41) — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2)
+        demoteReason = 'Haiku anomaly gate — pending (V11.17.100) — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2)
         demoteTarget = 'pending_review'
       }
       if (demoteReason) {

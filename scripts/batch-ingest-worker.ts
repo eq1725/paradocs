@@ -668,21 +668,26 @@ async function main() {
             var acAnomalous = typeof acRaw.anomalous === 'string' ? acRaw.anomalous : null
             var acConfidence = typeof acRaw.confidence === 'number' ? acRaw.confidence : 0
             var acGenre = typeof acRaw.genre === 'string' ? acRaw.genre : ''
-            if (acAnomalous === 'no' && acConfidence >= 0.9) {
+            // V11.17.100 — anomaly gate tightening. Auto-archive cutoff
+            // lowered 0.9 → 0.75 to match the sharper V11.17.100 Haiku
+            // prompt calibration (clear-mundane cases now land at
+            // 0.80-0.95 with worked examples covering loud-boom alone,
+            // missing-time keepers, paired-chill keepers).
+            if (acAnomalous === 'no' && acConfidence >= 0.75) {
               anomalyAutoArchive = true
               try {
                 var archiveRes = await (supabase.from('reports') as any)
                   .update({ status: 'archived', updated_at: new Date().toISOString() })
                   .eq('id', reportId)
                 if (!archiveRes.error) {
-                  console.log('  ↓ ' + reportId + ' auto-archived (V11.17.46 anomaly gate — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2) + ')')
+                  console.log('  ↓ ' + reportId + ' auto-archived (V11.17.100 anomaly gate — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2) + ')')
                 }
               } catch (archiveErr: any) {
                 console.warn('  ! ' + reportId + ' anomaly auto-archive failed: ' + (archiveErr?.message || archiveErr))
               }
-            } else if (acAnomalous === 'no' && acConfidence >= 0.7 && acConfidence < 0.9) {
+            } else if (acAnomalous === 'no' && acConfidence >= 0.7 && acConfidence < 0.75) {
               anomalyKeepPending = true
-              console.log('  • ' + reportId + ' kept at pending_review (V11.17.46 anomaly gate — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2) + ')')
+              console.log('  • ' + reportId + ' kept at pending_review (V11.17.100 anomaly gate — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2) + ')')
             }
           }
         } catch (anomalyErr: any) {

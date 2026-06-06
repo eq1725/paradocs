@@ -168,6 +168,40 @@ export async function getStaticProps({ params }: { params: { slug: string } }) {
       .single()
 
     if (reportError || !reportData) {
+      // V11.17.98 — Before 404-ing, check whether this slug is a known
+      // historical alias (a slug refreshed by the live ingestion path
+      // or by the slug-refresh backfill script). If so, 301 to the
+      // current canonical slug. Keeps shared links / push notifications
+      // / SEO index entries working across the V11.17.98 rename pass.
+      try {
+        const { data: aliasRow } = await (sb
+          .from('report_slug_aliases') as any)
+          .select('report_id')
+          .eq('old_slug', params.slug)
+          .maybeSingle()
+        if (aliasRow && (aliasRow as any).report_id) {
+          const { data: currentRow } = await sb
+            .from('reports')
+            .select('slug')
+            .eq('id', (aliasRow as any).report_id)
+            .eq('status', 'approved')
+            .maybeSingle()
+          const currentSlug = currentRow && (currentRow as any).slug
+          if (currentSlug && currentSlug !== params.slug) {
+            return {
+              redirect: {
+                destination: '/report/' + currentSlug,
+                permanent: true,
+              },
+              revalidate: 300,
+            } as any
+          }
+        }
+      } catch {
+        // Best-effort. If the alias lookup fails for any reason, fall
+        // through to the normal 404 path.
+      }
+
       // V11.12 — Include `revalidate` on the notFound branch so Vercel
       // doesn't cache the 404 indefinitely. When a report is later
       // admin-approved (status pending_review → approved), the cached
