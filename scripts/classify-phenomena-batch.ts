@@ -3,6 +3,7 @@
  * V11.15.2 — Haiku-batch phenomenon classifier (Option B: many-to-many).
  * V11.17.90 — classifier cost optimizations.
  * V11.17.91 — prompt-cache hit-rate fix.
+ * V11.17.92 — serial-batch cache hit maximization.
  *
  * For each approved report not yet linked to a phenomenon, asks Haiku
  * 4.5 (via Anthropic Batch API) for a primary + up to 2 secondary
@@ -43,6 +44,26 @@
  *   - phenomena query now `.order('slug')` and aliases now sorted in
  *     buildSystemPrompt — guarantees byte-stable system prompt across
  *     re-runs (cache key is prefix hash; any byte shift busts cache).
+ *
+ * V11.17.92 — serial-batch cache hit maximization:
+ *   - V11.17.91's prewarm fired BEFORE EVERY chunk. Observed: ~30% of
+ *     in-batch calls still paid cache_creation, because the prewarm is
+ *     a single sync write that hasn't fully propagated across all of
+ *     Anthropic's parallel batch workers by the time the chunk fires.
+ *     The first chunk's own batch DOES populate the cache solidly
+ *     (4000 succeeded writes), so subsequent chunks in the same
+ *     category arrive at a confirmed-warm cache and don't need their
+ *     own prewarm.
+ *   - Fix: prewarm fires only on chunk 0 of each category. Chunks 1+
+ *     skip prewarm entirely and rely on cache persistence from the
+ *     PREVIOUS COMPLETED batch (Anthropic ephemeral TTL is 5 min after
+ *     last hit; sequential batches keep refreshing the TTL).
+ *   - Submission is already serial via the `for (ci of chunks)` await
+ *     loop — no parallelism change needed.
+ *   - Expected: cache_creation tokens drop from ~1 per chunk to ~1 per
+ *     category. On a 9-chunk ufos_aliens run that's a 9× reduction in
+ *     cache_create overhead AND eliminates the within-batch race for
+ *     chunks 2-N (the dominant overcharge source).
  *
  * Projected per-report cost:
  *   classifier-primary (batched, cached): ~$0.00015
@@ -760,24 +781,45 @@ async function classifyCategory(
     cost: 0, junctionWrites: 0, reportsUpdated: 0,
   }
 
+  // V11.17.92 - serial-batch cache hit maximization
   for (let ci = 0; ci < chunks.length; ci++) {
     const chunk = chunks[ci]
     console.log('\nChunk ' + (ci + 1) + '/' + chunks.length + ': submitting ' + chunk.length + ' requests...')
 
-    // V11.17.91 — Cache prewarm. Send a synchronous Haiku call with the
-    // exact same system block right before the batch fires. Guarantees
-    // Anthropic's prompt cache is populated when the batch's parallel
-    // requests hit. Sees a ~$0.004 fixed cost per chunk vs saving
-    // ~$0.00135 per batched request that would otherwise miss the
-    // cache — break-even at 3 batched requests, gross win at 4000.
-    const warm = await prewarmCache(systemPrompt)
-    if (warm.error) {
-      // Non-fatal: chunk will still run, just with the V11.17.90 cache
-      // hit rate (sometimes-hits). Log and continue.
-      console.warn('  prewarm failed (' + warm.error + ') — proceeding without warm cache')
+    // V11.17.92 — Cache prewarm only on the FIRST chunk of each
+    // category. Chunks 1+ rely on the previous chunk's batch having
+    // populated Anthropic's prompt cache (4000 successful cache writes
+    // is a vastly stronger warm-up than the V11.17.91 single sync
+    // prewarm — eliminates the within-batch parallel-write race that
+    // was still leaking ~30% cache_creation on V11.17.91).
+    //
+    // The previous chunk's batch poll-to-completion (in the while
+    // loop below) finishes BEFORE we enter the next iteration. So
+    // by the time chunk N+1 submits, Anthropic has confirmed-warm
+    // cache from chunk N's results. Anthropic ephemeral TTL is 5 min
+    // after last hit, and back-to-back batch submissions refresh it.
+    //
+    // First-chunk prewarm cost (~$0.004) amortizes across the entire
+    // category, not just one chunk — e.g. 35k ufos_aliens reports →
+    // $0.004/35000 = $0.0000001/report. V11.17.91 paid this cost
+    // 9× over (one per chunk). V11.17.92 pays it once.
+    if (ci === 0) {
+      // V11.17.91 — Cache prewarm. Sync Haiku call with the exact
+      // same system block right before the FIRST batch fires.
+      // Primes Anthropic's prompt cache so the first 4000 parallel
+      // requests don't race to write it.
+      const warm = await prewarmCache(systemPrompt)
+      if (warm.error) {
+        // Non-fatal: chunk will still run, just with the V11.17.90
+        // cache hit rate (sometimes-hits). Log and continue.
+        console.warn('  prewarm failed (' + warm.error + ') — proceeding without warm cache')
+      } else {
+        stats.cost += warm.cost
+        console.log('  prewarm OK (sync cost: $' + warm.cost.toFixed(5) + ')')
+      }
     } else {
-      stats.cost += warm.cost
-      console.log('  prewarm OK (sync cost: $' + warm.cost.toFixed(5) + ')')
+      // Chunks 2+ skip prewarm — cache is warm from prior batch.
+      console.log('  prewarm skipped (cache warmed by chunk ' + ci + ')')
     }
 
     const sub = await submitBatch(chunk)
@@ -1014,7 +1056,7 @@ async function main() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  console.log('=== Phenomenon classifier — V11.17.91 (Batch API + confidence-gate skip + cache prewarm) ===')
+  console.log('=== Phenomenon classifier — V11.17.92 (Batch API + confidence-gate skip + first-chunk-only prewarm) ===')
   console.log('Dry run:        ' + args.dryRun)
   console.log('Per-cat limit:  ' + (args.limit > 0 ? args.limit : 'no limit'))
 
