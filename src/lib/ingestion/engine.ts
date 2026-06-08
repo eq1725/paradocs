@@ -1,6 +1,7 @@
 // Ingestion Engine - orchestrates the scraping pipeline
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import * as crypto from 'crypto';
 import { DataSource, IngestionJob, ScrapedReport } from './types';
 import { getAdapter } from './adapters';
 import {
@@ -76,6 +77,41 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
       setTimeout(function () { reject(new Error('Timed out after ' + ms + 'ms: ' + label)); }, ms);
     }),
   ]);
+}
+
+// V11.17.x — copyright Sprint 2: cap stored description at 2,000 chars + snapshot hash.
+//
+// Cap stored description at 2,000 chars (Option A in DESCRIPTION_BACKFILL_SCOPE.md
+// §4) and persist a SHA-256 of the original (pre-truncation) body to
+// reports.source_body_sha256. The hash is the audit-trail snapshot for
+// future IP-counsel verification (we can prove a narrative was derived
+// from a specific source body without retaining the body forever). The
+// truncation marker is byte-identical to the one in
+// scripts/backfill-description-truncate-v1.ts so live ingests + historical
+// backfills produce identical text.
+//
+// Returns { description, source_body_sha256 } for direct spreading into
+// the insert/update payload. When the input is null/empty, returns the
+// input unchanged and a null hash (no audit-trail signal needed for
+// rows that never had a body).
+var COPYRIGHT_TRUNCATE_THRESHOLD = 2000;
+var COPYRIGHT_TRUNCATE_SUFFIX = '… [truncated by Paradocs at 2000 chars; see source URL for full original]';
+
+function capDescriptionForStorage(raw: string | null | undefined): {
+  description: string | null;
+  source_body_sha256: string | null;
+} {
+  if (raw == null || raw === '') {
+    return { description: raw == null ? null : '', source_body_sha256: null };
+  }
+  var hash = crypto.createHash('sha256').update(raw, 'utf8').digest('hex');
+  if (raw.length > COPYRIGHT_TRUNCATE_THRESHOLD) {
+    return {
+      description: raw.substring(0, COPYRIGHT_TRUNCATE_THRESHOLD) + COPYRIGHT_TRUNCATE_SUFFIX,
+      source_body_sha256: hash,
+    };
+  }
+  return { description: raw, source_body_sha256: hash };
 }
 
 // Get phenomena patterns with caching
@@ -808,13 +844,20 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
           .single();
 
         if (existing) {
+          // V11.17.x — copyright Sprint 2: cap stored description at 2,000 chars + snapshot hash.
+          // Same cap+hash on the re-ingest UPDATE path. Idempotent: a row
+          // re-fetched from the same source produces the same SHA-256 and
+          // the same truncated body, so this is a no-op rewrite after the
+          // first ingest.
+          var cappedUpdate = capDescriptionForStorage(report.description);
           // Exact source match — update existing report
           const { error: updateError } = await supabase
             .from('reports')
             .update({
               title: finalTitle,
               summary: report.summary,
-              description: report.description,
+              description: cappedUpdate.description,
+              source_body_sha256: cappedUpdate.source_body_sha256,
               location_name: report.location_name,
               city: report.city || null,
               state_province: report.state_province || null,
@@ -1079,12 +1122,20 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
             }
           }
 
+          // V11.17.x — copyright Sprint 2: cap stored description at 2,000 chars + snapshot hash.
+          // The hash is computed over the FULL pre-truncation body so the
+          // audit trail captures the actual content Haiku saw at ingest.
+          // capped.description is what gets persisted (truncated when
+          // length > 2000); capped.source_body_sha256 backs the future
+          // IP-counsel verification path.
+          var capped = capDescriptionForStorage(report.description);
           // Build insert data with optional structured fields
           const insertData: Record<string, any> = {
               title: finalTitle,
               slug: slug,
               summary: report.summary,
-              description: report.description,
+              description: capped.description,
+              source_body_sha256: capped.source_body_sha256,
               category: report.category,
               location_name: locName,
               // V11.8 — country stays null when the adapter/enricher couldn't
