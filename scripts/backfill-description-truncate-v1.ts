@@ -67,6 +67,38 @@
  *   defense-in-depth: even if someone changes the truncate threshold
  *   later, user submissions stay intact.
  *
+ * DEFERS TRUNCATION when paradocs_narrative IS NULL (founder Option B):
+ *   ReportPageV2.tsx:1136-1140 has a fallback that renders raw
+ *   reports.description as the user-facing "What happened" body whenever
+ *   paradocs_narrative is NULL. The fallback is intentional for
+ *   user-submitted video reports (Whisper transcript → description, no
+ *   need for Paradocs editorial narrative). It also catches ~29k NUFORC
+ *   rows currently awaiting Haiku classification — they show source text
+ *   until the daily classifier-cron processes them and writes a
+ *   paradocs_narrative, at which point the description silently stops
+ *   rendering.
+ *
+ *   If we truncate those NUFORC fallbacks now, the truncation marker
+ *   "… [truncated by Paradocs at 2000 chars; see source URL for full
+ *   original]" would appear in the public-facing "What happened" body
+ *   for ~2-3 weeks until the classifier catches up. Founder elected to
+ *   defer truncation on rows without a narrative (Option B per the chat
+ *   thread) so the user-facing rendering stays clean during the
+ *   transitional window.
+ *
+ *   Behavior on those rows:
+ *     - HASH source_body_sha256 anyway (the audit trail is independent
+ *       of whether the body is truncated; it captures the body Haiku
+ *       saw at ingest time).
+ *     - DO NOT truncate description.
+ *     - Count them in a separate totalDeferredTruncation bucket so the
+ *       operator can see how many remain.
+ *
+ *   Re-running this script after the classifier-drain catches up will
+ *   pick those rows back up (they'll have source_body_sha256 set but
+ *   description still > 2,000 chars and now paradocs_narrative set) —
+ *   the second-pass filter at row inspection time catches them.
+ *
  * Usage:
  *   set -a; source .env.local; set +a
  *   npx tsx scripts/backfill-description-truncate-v1.ts              # dry-run (no writes)
@@ -104,6 +136,10 @@ interface ReportRow {
   source_body_sha256: string | null
   source_type: string | null
   created_at: string
+  // Option B founder directive: defer truncation when fallback renders
+  // raw description as the user-facing "What happened" body. See header
+  // docstring DEFERS TRUNCATION section.
+  paradocs_narrative: string | null
 }
 
 function sha256Hex(input: string): string {
@@ -154,10 +190,12 @@ async function main(): Promise<void> {
   var totalHashed = 0
   var totalTruncated = 0
   var totalAlreadyClean = 0
+  var totalDeferredTruncation = 0  // Option B: needs truncation but no narrative yet
   var totalSkippedUserSubmission = 0
   var totalSkippedNoDesc = 0
   var totalErrors = 0
   var totalCharsFreed = 0
+  var totalCharsDeferred = 0
   var pageIdx = 0
 
   // Keyset-style pagination via .range() + ORDER BY created_at.
@@ -176,7 +214,7 @@ async function main(): Promise<void> {
   while (pageIdx < MAX_PAGES) {
     var q = sb
       .from('reports')
-      .select('id, description, source_body_sha256, source_type, created_at')
+      .select('id, description, source_body_sha256, source_type, created_at, paradocs_narrative')
       .is('source_body_sha256', null)
       .neq('source_type', 'user_submission')
       .order('created_at', { ascending: true })
@@ -222,14 +260,27 @@ async function main(): Promise<void> {
       var fullHash = sha256Hex(fullDesc)
       var needsTruncate = fullDesc.length > TRUNCATE_THRESHOLD
 
+      // Option B founder directive: defer truncation when no narrative.
+      // ReportPageV2.tsx fallback would otherwise render the truncation
+      // marker in the public-facing "What happened" body. Once Haiku
+      // writes a paradocs_narrative for this row (via daily classifier-
+      // cron), the fallback stops triggering and a future re-run of
+      // this script will pick the row up and truncate then.
+      var hasNarrative = row.paradocs_narrative !== null && row.paradocs_narrative !== ''
+      var truncateNow = needsTruncate && hasNarrative
+      var truncateDeferred = needsTruncate && !hasNarrative
+
       if (!needsTruncate) totalAlreadyClean++
 
       if (dryRun) {
         // Count what we WOULD do, but never write.
         pageHashed++
-        if (needsTruncate) {
+        if (truncateNow) {
           pageTruncated++
           totalCharsFreed += (fullDesc.length - TRUNCATE_THRESHOLD)
+        } else if (truncateDeferred) {
+          totalDeferredTruncation++
+          totalCharsDeferred += (fullDesc.length - TRUNCATE_THRESHOLD)
         }
         continue
       }
@@ -239,9 +290,13 @@ async function main(): Promise<void> {
       var update: { source_body_sha256: string; description?: string } = {
         source_body_sha256: fullHash,
       }
-      if (needsTruncate) {
+      if (truncateNow) {
         update.description = truncateDescription(fullDesc)
         totalCharsFreed += (fullDesc.length - TRUNCATE_THRESHOLD)
+      } else if (truncateDeferred) {
+        totalDeferredTruncation++
+        totalCharsDeferred += (fullDesc.length - TRUNCATE_THRESHOLD)
+        // Hash gets written; description left intact.
       }
 
       var upd = await sb
@@ -259,7 +314,7 @@ async function main(): Promise<void> {
         totalErrors++
       } else {
         pageHashed++
-        if (needsTruncate) pageTruncated++
+        if (truncateNow) pageTruncated++
       }
     }
 
@@ -293,18 +348,21 @@ async function main(): Promise<void> {
   // a rough on-disk savings number.
   var mbRawFreed = totalCharsFreed / (1024 * 1024)
   var mbOnDiskFreedApprox = mbRawFreed * 0.7
+  var mbDeferred = totalCharsDeferred / (1024 * 1024)
 
   console.log('')
   console.log('=== Summary ===')
-  console.log('Scanned (rows considered):            ' + totalScanned)
-  console.log('Skipped — user_submission excluded:   (filtered server-side; verified 4 rows)')
-  console.log('Skipped — description null/empty:     ' + totalSkippedNoDesc)
-  console.log('Hashed (source_body_sha256 written):  ' + totalHashed)
-  console.log('Truncated (description > 2000 chars): ' + totalTruncated)
-  console.log('Already ≤ 2000 chars (hash-only):     ' + (totalAlreadyClean - totalTruncated))
-  console.log('Errors:                               ' + totalErrors)
-  console.log('Storage freed (raw chars):            ~' + mbRawFreed.toFixed(2) + ' MB')
-  console.log('Storage freed (approx. on disk):      ~' + mbOnDiskFreedApprox.toFixed(2) + ' MB')
+  console.log('Scanned (rows considered):                  ' + totalScanned)
+  console.log('Skipped — user_submission excluded:         (filtered server-side; verified 4 rows)')
+  console.log('Skipped — description null/empty:           ' + totalSkippedNoDesc)
+  console.log('Hashed (source_body_sha256 written):        ' + totalHashed)
+  console.log('Truncated (description > 2000, narrative):  ' + totalTruncated)
+  console.log('Deferred (>2000 chars BUT no narrative yet): ' + totalDeferredTruncation)
+  console.log('Already ≤ 2000 chars (hash-only):           ' + (totalAlreadyClean))
+  console.log('Errors:                                     ' + totalErrors)
+  console.log('Storage freed now (raw chars):              ~' + mbRawFreed.toFixed(2) + ' MB')
+  console.log('Storage freed now (approx. on disk):        ~' + mbOnDiskFreedApprox.toFixed(2) + ' MB')
+  console.log('Storage WILL be freed (deferred):           ~' + mbDeferred.toFixed(2) + ' MB (after classifier-drain completes; re-run this script)')
   if (dryRun) {
     console.log('')
     console.log('DRY RUN — no changes written. Re-run with --apply to commit.')
