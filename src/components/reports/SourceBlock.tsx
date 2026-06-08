@@ -3,34 +3,38 @@
 /**
  * SourceBlock — V10.4 Phase 2.2
  *
+ * V11.17.x — Dropped Tier 2 excerpt + thumbnail rendering per
+ * copyright Sprint 1. Only iframe embeds (Tier 1) and text
+ * attribution (Tier 3) remain. Tier 2 sources (news, BFRO, OBERF)
+ * now render as text-only attribution to minimize fair-use surface.
+ * The previous Tier 2 OG-thumbnail + 500-char italicized excerpt
+ * card has been removed; for those sources the AttributionHeader
+ * (the badge + "Originally published at X" + "Read original" CTA)
+ * is now the entire SourceBlock render.
+ *
  * Single consolidated block at the bottom of the experience
  * description: source attribution + link to original + media.
  * Replaces the scattered MediaGallery / FeaturedMediaCard /
  * MediaMentionBanner / SourceAttribution / FurtherReading
  * components that previously rendered separately.
  *
- * Three rendering modes determined by oembed.resolveMediaTier:
+ * Two rendering modes determined by oembed.resolveMediaTier:
  *
  *   Tier 1 — sandboxed iframe under platform-sanctioned embed
  *     URL. YouTube player, Reddit thread, Vimeo, Imgur, etc.
  *     We render the source-attribution chrome ABOVE the iframe
  *     in our own UI so embeds without context can't mislead.
  *
- *   Tier 2 — OG thumbnail + first-paragraph excerpt attribution
- *     card. Fair-use treatment for news sites, BFRO, etc. The
- *     excerpt is the source's own metaDescription / first
- *     paragraph (data we already stored), quoted with explicit
- *     italics + quote marks. Bold "Read at [source] →" link.
- *
- *   Tier 3 — Text-only attribution. No thumbnail. Source name +
- *     title + outbound link.
+ *   Tier 3 (default for all non-iframe sources, including the
+ *     former Tier 2 set) — Text-only attribution header. No
+ *     thumbnail, no excerpt. Source name + outbound link.
  *
  * Privacy: we never proxy or cache source content. The user's
  * browser fetches embeds directly from the source.
  */
 
 import React, { useState } from 'react'
-import { ExternalLink, Link2, ShieldAlert } from 'lucide-react'
+import { ExternalLink, ShieldAlert } from 'lucide-react'
 import { resolveMediaTier, type OembedResult } from '@/lib/media/oembed'
 
 export interface SourceBlockProps {
@@ -38,9 +42,19 @@ export interface SourceBlockProps {
   sourceUrl: string | null | undefined
   /** Optional human-readable source label override ("BFRO Report #12345"). */
   sourceLabel?: string | null
-  /** Optional one-sentence excerpt to render in Tier-2 attribution cards. */
+  /**
+   * @deprecated V11.17.x — Tier 2 excerpt rendering was removed per
+   * copyright Sprint 1. The prop is retained on the interface so
+   * existing call sites keep type-checking, but the value is no
+   * longer rendered.
+   */
   excerpt?: string | null
-  /** Optional OG/preview thumbnail URL (Tier 2). */
+  /**
+   * @deprecated V11.17.x — Tier 2 thumbnail rendering was removed per
+   * copyright Sprint 1. The prop is retained on the interface so
+   * existing call sites keep type-checking, but the value is no
+   * longer rendered.
+   */
   thumbnailUrl?: string | null
   /** Additional uploaded media items (from report_media table) — rendered after the primary embed. */
   additionalMedia?: Array<{
@@ -54,7 +68,10 @@ export interface SourceBlockProps {
 }
 
 export default function SourceBlock(props: SourceBlockProps) {
-  const { sourceUrl, sourceLabel, excerpt, thumbnailUrl, additionalMedia, className } = props
+  // V11.17.x — `excerpt` and `thumbnailUrl` are accepted on the props
+  // interface for backward compatibility with existing callers but are
+  // no longer rendered. See header comment for the Sprint 1 rationale.
+  const { sourceUrl, sourceLabel, additionalMedia, className } = props
 
   if (!sourceUrl) return null
 
@@ -79,10 +96,10 @@ export default function SourceBlock(props: SourceBlockProps) {
         <EmbedFrame oembed={oembed} />
       )}
 
-      {/* Tier 2: OG thumbnail + excerpt fair-use card. */}
-      {oembed.tier === 2 && (
-        <Tier2Card oembed={oembed} thumbnailUrl={thumbnailUrl} excerpt={excerpt} />
-      )}
+      {/* Tier 2 (formerly OG thumbnail + excerpt fair-use card) was
+          removed in V11.17.x per copyright Sprint 1. Sources that
+          previously rendered as Tier 2 now fall through to the
+          text-only AttributionHeader above — no body content. */}
 
       {/* Tier 3: text-only attribution. The header chrome IS the
           render; nothing more to show. */}
@@ -167,51 +184,11 @@ function EmbedFrame(props: { oembed: OembedResult }) {
   )
 }
 
-function Tier2Card(props: {
-  oembed: OembedResult
-  thumbnailUrl?: string | null
-  excerpt?: string | null
-}) {
-  const { thumbnailUrl, excerpt } = props
-  // Tier 2 card: OG thumbnail (when available) + short quoted
-  // excerpt (when available). Fair-use treatment — both elements
-  // are explicitly attributed and not modified.
-  if (!thumbnailUrl && !excerpt) {
-    return (
-      <div className="p-4 flex items-center gap-2 text-xs text-gray-400">
-        <Link2 className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
-        <span>The full account is at the original source linked above.</span>
-      </div>
-    )
-  }
-  return (
-    <div className="flex flex-col sm:flex-row gap-3 p-3">
-      {thumbnailUrl && (
-        <div className="sm:w-40 flex-shrink-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={thumbnailUrl}
-            alt=""
-            className="w-full aspect-video sm:aspect-square object-cover rounded-md bg-gray-900"
-            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-            loading="lazy"
-          />
-        </div>
-      )}
-      <div className="flex-1 min-w-0">
-        {excerpt && (
-          <blockquote className="text-sm text-gray-300 italic leading-relaxed">
-            &ldquo;{excerpt}&rdquo;
-          </blockquote>
-        )}
-        <p className="text-[11px] text-gray-500 mt-2 leading-relaxed">
-          Excerpt and preview shown under fair use for commentary. The full
-          account is at the original source linked above.
-        </p>
-      </div>
-    </div>
-  )
-}
+// V11.17.x — Tier2Card removed per copyright Sprint 1. Previously
+// rendered an OG thumbnail + 500-char italicized excerpt + "fair use
+// for commentary" caption for non-iframe sources (news, BFRO, OBERF,
+// etc.). Those sources now render text-only attribution via
+// AttributionHeader only — no source-derived imagery or prose.
 
 function PlatformBadge(props: { platform: string; label: string }) {
   // Stylized platform badge — keeps source identity readable

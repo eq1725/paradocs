@@ -1,5 +1,16 @@
 /**
- * Consolidated AI Service — V11.17.74 - Sentiment + endpoints (Tier 3D)
+ * Consolidated AI Service — V11.17.102 - reasoning field rename (auditability fix)
+ *
+ * V11.17.102: the anomalous_content_check JSON sub-field was emitted as
+ * "reason" but every downstream auditor (inspect-borderline-sweep.ts,
+ * archive-gate-slips.ts, and the founder-facing audit UI) reads
+ * "reasoning". Result: founder couldn't see WHY Haiku archived a
+ * report — only the confidence number. Renamed the field to "reasoning"
+ * in the prompt, the normalizer, and the fallback paradocs-analysis
+ * service. A one-shot SQL migration aliases the historical `.reason`
+ * values into `.reasoning` (cheap — same string, no AI re-call needed).
+ *
+ * V11.17.74: sentiment + endpoints (Tier 3D).
  *
  * V11.17.74: optionally appends sentiment-scoring fields (valence,
  * arousal, dominant_emotion) to the consolidated JSON, persisting them
@@ -277,7 +288,13 @@ CONSOLIDATED_SYSTEM_PROMPT = [
   '  "anomalous_content_check": {',
   '    "anomalous": "yes|no",',
   '    "confidence": 0.0-1.0,',
-  '    "reason": "<one sentence — required even when anomalous=yes>",',
+  // V11.17.102 — renamed "reason" → "reasoning" so the field name matches
+  // every downstream auditor (inspect-borderline-sweep.ts line 129,
+  // archive-gate-slips.ts, founder review UI). REQUIRED on every
+  // response — including anomalous="yes" — so the founder can audit WHY
+  // Haiku judged the report mundane (or anomalous), not just the
+  // confidence number.
+  '    "reasoning": "<one sentence — REQUIRED on every response, whether anomalous=yes or no. Explain WHY in one sentence the witness account does or does not qualify as a documented first-person anomalous experience. Cite the deciding feature(s) from the source.>",',
   '    "genre": "<if anomalous=no, one of: hiking_misadventure | wildlife_encounter | perceptual_quirk | platform_complaint | opinion_theory | advice_request | product_review | news_summary | other_mundane | other; if anomalous=yes, the empty string>"',
   '  }',
   '}',
@@ -352,6 +369,30 @@ CONSOLIDATED_SYSTEM_PROMPT = [
   '- Capture specific observational details: heights, durations, distances,',
   '  sounds, colors, behaviors, smells — preserve as source recorded them.',
   '- THIRD-PERSON throughout. May use "they/them/their" when gender unset.',
+  '',
+  // V11.17.x — ported from paradocs-analysis.service.ts:609 per
+  // HAIKU_NARRATIVE_DERIVATIVE_AUDIT.md. The consolidated prompt
+  // previously lacked an explicit anti-paraphrase rule, which the
+  // sub-audit identified as the source of the 4/15 LIGHT-PARAPHRASE
+  // samples. Block is verbatim from the fallback path, lightly
+  // adapted for the consolidated prompt's bullet style + the
+  // attributed-quote exception R3 from the audit.
+  '====================================================================',
+  'GLOBAL ANTI-PARAPHRASE RULE (applies to analysis, hook, feed_hook, pull_quote — overrides everything else):',
+  '====================================================================',
+  '- NEVER copy, quote, paraphrase, or restructure ANY sentence from the',
+  '  witness text. Do not use the witness\'s phrasing even with minor word',
+  '  changes. Every sentence you write must be composed from scratch as',
+  '  original editorial analysis describing what the source reports.',
+  '- Echo source FACTS (date, location, shape, color, duration, sequence),',
+  '  never source LANGUAGE.',
+  '- The ONLY exception: a short witness phrase (max 12 words) may be',
+  '  reproduced inside quotation marks when it is a distinctive turn of',
+  '  phrase the analysis needs to discuss. Use sparingly — at most one',
+  '  such quote per narrative. Attribute inline: \'as the witness puts it,',
+  '  "X"\'. Never let a bare-parenthetical quote stand alone.',
+  '- If you find yourself echoing the witness\'s language or structure,',
+  '  stop and rewrite from the analyst\'s perspective instead.',
   '',
   '====================================================================',
   'FRAMES (CRITICAL — read carefully, this is where AI usually fails):',
@@ -928,8 +969,13 @@ export async function persistConsolidatedResult(
   // V11.17.41 — defensive: Haiku may return string variants ("Yes"/"YES"/"true"),
   // missing fields, or odd confidence formats. Normalize into a canonical
   // shape so engine.ts can read it deterministically.
-  function normalizeAnomalyCheck(raw: any): { anomalous: 'yes' | 'no' | 'unknown'; confidence: number; reason: string; genre: string } {
-    var def = { anomalous: 'unknown' as 'yes' | 'no' | 'unknown', confidence: 0, reason: '', genre: '' }
+  // V11.17.102 — Normalize to { reasoning } as the canonical field name.
+  // Accepts legacy "reason" emissions defensively (during the rollout window
+  // an older cached prompt may still be emitting "reason") so we never
+  // drop the explanation, then writes the canonical "reasoning" key
+  // downstream consumers read.
+  function normalizeAnomalyCheck(raw: any): { anomalous: 'yes' | 'no' | 'unknown'; confidence: number; reasoning: string; genre: string } {
+    var def = { anomalous: 'unknown' as 'yes' | 'no' | 'unknown', confidence: 0, reasoning: '', genre: '' }
     if (!raw || typeof raw !== 'object') return def
     var aRaw = String(raw.anomalous ?? '').toLowerCase().trim()
     var a: 'yes' | 'no' | 'unknown' = 'unknown'
@@ -939,9 +985,12 @@ export async function persistConsolidatedResult(
     if (isNaN(c)) c = 0
     if (c < 0) c = 0
     if (c > 1) c = 1
-    var reason = typeof raw.reason === 'string' ? raw.reason.slice(0, 500) : ''
+    // Prefer canonical "reasoning"; fall back to legacy "reason" so a
+    // mid-deploy cached response still lands the explanation.
+    var reasoningRaw = raw.reasoning ?? raw.reason
+    var reasoning = typeof reasoningRaw === 'string' ? reasoningRaw.slice(0, 500) : ''
     var genre = typeof raw.genre === 'string' ? raw.genre.slice(0, 60) : ''
-    return { anomalous: a, confidence: c, reason: reason, genre: genre }
+    return { anomalous: a, confidence: c, reasoning: reasoning, genre: genre }
   }
   function normalizeAgeRange(raw: any): string {
     if (typeof raw !== 'string') return 'unspecified'
