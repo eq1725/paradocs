@@ -71,13 +71,13 @@ export default function DmcaPage() {
               <p className="text-sm text-gray-400">
                 <span className="text-gray-500">Name: </span>
                 <span className="text-white font-medium">
-                  [TO BE REGISTERED &mdash; see operator runbook]
+                  Paradocs
                 </span>
               </p>
               <p className="text-sm text-gray-400">
                 <span className="text-gray-500">Address: </span>
                 <span className="text-white font-medium">
-                  [TO BE REGISTERED &mdash; see operator runbook]
+                  2232 Dell Range Blvd., Suite 245-3635, Cheyenne, WY 82009
                 </span>
               </p>
               <p className="text-sm text-gray-400">
@@ -92,7 +92,13 @@ export default function DmcaPage() {
               <p className="text-sm text-gray-400">
                 <span className="text-gray-500">Phone: </span>
                 <span className="text-white font-medium">
-                  [TO BE REGISTERED &mdash; see operator runbook]
+                  (409) 790-8842
+                </span>
+              </p>
+              <p className="text-sm text-gray-400">
+                <span className="text-gray-500">Copyright Office Registration: </span>
+                <span className="text-white font-medium">
+                  DMCA-1073927
                 </span>
               </p>
             </div>
@@ -210,7 +216,7 @@ export default function DmcaPage() {
               <p className="text-sm text-gray-400">
                 <span className="text-gray-500">Mail: </span>
                 <span className="text-white font-medium">
-                  [TO BE REGISTERED &mdash; see operator runbook]
+                  Paradocs &mdash; DMCA Agent, 2232 Dell Range Blvd., Suite 245-3635, Cheyenne, WY 82009
                 </span>
               </p>
             </div>
