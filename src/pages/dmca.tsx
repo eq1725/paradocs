@@ -92,7 +92,7 @@ export default function DmcaPage() {
               <p className="text-sm text-gray-400">
                 <span className="text-gray-500">Phone: </span>
                 <span className="text-white font-medium">
-                  (409) 790-8842
+                  (307) 509-0233
                 </span>
               </p>
               <p className="text-sm text-gray-400">
