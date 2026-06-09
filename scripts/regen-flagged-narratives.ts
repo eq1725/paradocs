@@ -424,29 +424,62 @@ async function main(): Promise<void> {
   }
   console.log('Built ' + requests.length + ' batch requests (' + missingPayload + ' missing-payload skips).')
 
-  // ── Submit ───────────────────────────────────────────────────
-  console.log('')
-  console.log('Submitting batch to Anthropic...')
-  var submitRes = await submitBatch(requests, apiKey!)
-  if ('error' in submitRes) {
-    console.error('Batch submission failed: ' + submitRes.error)
-    process.exit(1)
+  // ── Submit in CHUNKS ─────────────────────────────────────────
+  // V8 string length limit + Anthropic Batch API 256 MB payload cap
+  // forced a chunking refactor: a single JSON.stringify of all 34k+
+  // requests blows out V8's max-string-length (~512 MB on 64-bit) and
+  // would also exceed Anthropic's per-batch payload ceiling. 5,000
+  // requests per chunk keeps each batch's stringified JSON well under
+  // 50 MB while still being big enough to amortize the cache_write
+  // cost across the batch. The system prompt cache is global to the
+  // API key (not per-batch), so chunking doesn't hurt cache hit rate.
+  var CHUNK_SIZE = 5000
+  var chunks: BatchRequest[][] = []
+  for (var ci = 0; ci < requests.length; ci += CHUNK_SIZE) {
+    chunks.push(requests.slice(ci, ci + CHUNK_SIZE))
   }
-  var batchId = submitRes.batch_id
-  console.log('Submitted. batch_id: ' + batchId)
-  console.log('Resume polling later with: --resume ' + batchId)
+  console.log('')
+  console.log('Submitting ' + chunks.length + ' batch chunks of up to ' + CHUNK_SIZE + ' each...')
 
-  // Save run state so a crashed run can resume.
+  var batchIds: string[] = []
+  for (var bi = 0; bi < chunks.length; bi++) {
+    var chunk = chunks[bi]
+    console.log('  [chunk ' + (bi + 1) + '/' + chunks.length + '] submitting ' + chunk.length + ' requests...')
+    var submitRes = await submitBatch(chunk, apiKey!)
+    if ('error' in submitRes) {
+      console.error('Chunk ' + (bi + 1) + ' submission failed: ' + submitRes.error)
+      if (batchIds.length > 0) {
+        console.error('Previously-submitted batches (resume with --resume <id> for each):')
+        for (var pi = 0; pi < batchIds.length; pi++) console.error('  ' + batchIds[pi])
+      }
+      process.exit(1)
+    }
+    batchIds.push(submitRes.batch_id)
+    console.log('  [chunk ' + (bi + 1) + '/' + chunks.length + '] ✓ batch_id: ' + submitRes.batch_id)
+  }
+
+  console.log('')
+  console.log('All ' + batchIds.length + ' chunks submitted. batch_ids:')
+  for (var li = 0; li < batchIds.length; li++) console.log('  ' + batchIds[li])
+  console.log('')
+  console.log('Resume polling later with: --resume <batch_id>  (one per chunk)')
+
+  // Save run state so a crashed run can resume each chunk.
   fs.writeFileSync(RUN_STATE_PATH, JSON.stringify({
-    batch_id: batchId,
+    batch_ids: batchIds,
     submitted_at: new Date().toISOString(),
     pending_count: pending.length,
+    chunk_size: CHUNK_SIZE,
     flag_run_ts: flagRunTs,
   }, null, 2), 'utf8')
   console.log('Run state written: ' + RUN_STATE_PATH)
 
-  // ── Poll + persist ───────────────────────────────────────────
-  await pollAndPersist(sb, apiKey!, batchId)
+  // ── Poll + persist each chunk sequentially ───────────────────
+  for (var pi = 0; pi < batchIds.length; pi++) {
+    console.log('')
+    console.log('─── Polling batch ' + (pi + 1) + '/' + batchIds.length + ': ' + batchIds[pi] + ' ───')
+    await pollAndPersist(sb, apiKey!, batchIds[pi])
+  }
 }
 
 async function pollAndPersist(sb: any, apiKey: string, batchId: string): Promise<void> {
