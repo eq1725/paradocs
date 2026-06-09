@@ -4,17 +4,24 @@
 // Fetches /api/lab/hints on mount, displays up to 6 cards, logs
 // impressions on mount + on dismiss + on CTA click.
 //
+// V11.18.x — per UI_SHIPPING_ROADMAP_V2 Sprint 1A additions: each Hint
+// card now offers three resolve actions in the bottom-right —
+// Accept / Save / Not mine. Tap (mobile) or hover (desktop tooltip)
+// to act. Any resolution POSTs to /api/lab/hints/[id]/resolve and
+// removes the card from the rail locally; the server filters resolved
+// hints from subsequent fetches.
+//
 // Card design (per the build brief):
 //   - Title (Changa One brand font, bold, one line)
 //   - Body (1-2 sentences, regular weight)
 //   - CTA button using the existing brand-purple primary tokens
-//   - Dismiss X button (writes to /api/lab/hints/impression)
+//   - V11.18.x: Resolve trio in the bottom-right corner.
 //   - Category-color accent strip on the left edge (uses
 //     paranormal.<family> tokens already in tailwind.config.js)
 
 import React, { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/router'
-import { X } from 'lucide-react'
+import { Check, Bookmark, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
 interface RenderedHint {
@@ -130,7 +137,11 @@ export default function HintsRail(props: HintsRailProps) {
     return function () { cancelled = true }
   }, [])
 
-  var dismiss = useCallback(function (id: string) {
+  // V11.18.x — generalized resolve handler. Calls the new
+  // /api/lab/hints/[id]/resolve endpoint and hides the card locally.
+  // Best-effort: a failed POST still removes the card from the view
+  // so the user never sees a stuck card.
+  var resolveHint = useCallback(function (id: string, resolution: 'accept' | 'save' | 'dismiss') {
     setDismissed(function (prev) {
       var next: Record<string, boolean> = {}
       Object.keys(prev).forEach(function (k) { next[k] = prev[k] })
@@ -139,7 +150,24 @@ export default function HintsRail(props: HintsRailProps) {
     })
     supabase.auth.getSession().then(function (s) {
       var session = s.data.session
-      if (session) logImpression(id, 'dismissed', session.access_token)
+      if (!session) return
+      // Persist the resolution.
+      try {
+        fetch('/api/lab/hints/' + encodeURIComponent(id) + '/resolve', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer ' + session.access_token,
+          },
+          body: JSON.stringify({ resolution: resolution }),
+        }).catch(function () { /* fire-and-forget */ })
+      } catch (_e) { /* defensive */ }
+      // Continue to log the dismiss impression so existing analytics
+      // dashboards (which read lab_hint_impressions) still see the
+      // close action regardless of resolution kind.
+      if (resolution === 'dismiss') {
+        logImpression(id, 'dismissed', session.access_token)
+      }
     })
   }, [])
 
@@ -187,35 +215,68 @@ export default function HintsRail(props: HintsRailProps) {
                 style={{ width: 4, background: accent }}
               />
               <div className="flex-1 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <h4
-                    className="font-brand text-base sm:text-lg leading-tight text-white"
-                    style={{ fontFamily: "'Changa One', Changa, system-ui, sans-serif" }}
-                  >
-                    {h.title}
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={function () { dismiss(h.id) }}
-                    aria-label="Dismiss"
-                    className="shrink-0 -mt-1 -mr-1 p-1 rounded text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+                <h4
+                  className="font-brand text-base sm:text-lg leading-tight text-white"
+                  style={{ fontFamily: "'Changa One', Changa, system-ui, sans-serif" }}
+                >
+                  {h.title}
+                </h4>
                 <p className="mt-2 text-sm text-gray-300 leading-relaxed">{h.body}</p>
-                {h.cta.target.kind !== 'noop' && (
-                  <div className="mt-3">
+                {/* Footer row: CTA on the left, resolve trio on the right.
+                    V11.18.x — Accept / Save / Not mine actions per
+                    UI_SHIPPING_ROADMAP_V2 Sprint 1A. Mobile-first: each
+                    button is at least 32px tall, sits comfortably in the
+                    thumb zone. Desktop adds tooltips via the title attr. */}
+                <div className="mt-3 flex items-end justify-between gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    {h.cta.target.kind !== 'noop' && (
+                      <button
+                        type="button"
+                        onClick={function () { clickCta(h) }}
+                        disabled={!href && h.cta.target.kind !== 'mutual_match_invite'}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-white bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {h.cta.label}
+                      </button>
+                    )}
+                  </div>
+                  <div
+                    className="flex items-center gap-1 flex-shrink-0"
+                    role="group"
+                    aria-label="Resolve this hint"
+                  >
                     <button
                       type="button"
-                      onClick={function () { clickCta(h) }}
-                      disabled={!href && h.cta.target.kind !== 'mutual_match_invite'}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-white bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      onClick={function () { resolveHint(h.id, 'accept') }}
+                      title="Accept — this matches my record"
+                      aria-label="Accept"
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium text-gray-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors"
                     >
-                      {h.cta.label}
+                      <Check className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Accept</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={function () { resolveHint(h.id, 'save') }}
+                      title="Save for later"
+                      aria-label="Save"
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium text-gray-400 hover:text-amber-300 hover:bg-amber-500/10 transition-colors"
+                    >
+                      <Bookmark className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Save</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={function () { resolveHint(h.id, 'dismiss') }}
+                      title="Not mine — dismiss"
+                      aria-label="Not mine"
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Not mine</span>
                     </button>
                   </div>
-                )}
+                </div>
               </div>
             </div>
           )

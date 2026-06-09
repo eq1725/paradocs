@@ -30,6 +30,8 @@ import { supabase } from '@/lib/supabase'
 // V11.17.49 — embedded encyclopedia for Browse → Phenomena sub-tab
 // (Option C consolidation). Same component as /phenomena page.
 import { PhenomenaEncyclopedia } from './phenomena'
+// V11.18.x — 200K catalogued-accounts eyebrow per UI_SHIPPING_ROADMAP_V2 Sprint 1A additions.
+import { CorpusStatEyebrow } from '@/components/common/CorpusStatEyebrow'
 import { Report, PhenomenonType, PhenomenonCategory, CredibilityLevel, ContentType } from '@/lib/database.types'
 import { CATEGORY_CONFIG, CONTENT_TYPE_CONFIG, COUNTRIES } from '@/lib/constants'
 import { formatLocationLabel } from '@/lib/format/location-label'
@@ -1246,12 +1248,16 @@ function ExploreBrowseMode() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+      {/* V11.18.x — 200K catalogued-accounts eyebrow per
+          UI_SHIPPING_ROADMAP_V2 Sprint 1A additions. Sits above the
+          Browse tab strip. */}
+      <CorpusStatEyebrow />
       {/* V11.17.49 — Browse sub-tabs: [Categories | Phenomena].
           Renders for both categories view and the embedded
           encyclopedia. Hidden when drilled into a single category or
           when the user has navigated to filtered reports. */}
       {(browseView === 'categories' || browseView === 'phenomena') && !selectedCategoryForPhenomena && (
-        <div className="mb-6 flex items-center gap-1 bg-white/[0.03] border border-white/[0.06] rounded-full p-1 w-fit">
+        <div className="mt-2 mb-6 flex items-center gap-1 bg-white/[0.03] border border-white/[0.06] rounded-full p-1 w-fit">
           <button
             onClick={function() { selectBrowseSubTab('categories') }}
             className={classNames(

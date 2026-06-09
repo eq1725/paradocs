@@ -54,6 +54,13 @@ import { ClusteringCard } from '@/components/discover/ClusteringCard'
 import type { ClusterCardData } from '@/components/discover/ClusteringCard'
 import { OnThisDateCard } from '@/components/discover/OnThisDateCard'
 import type { OnThisDateData } from '@/components/discover/OnThisDateCard'
+// V11.18.1 — Sprint 1A-2. FindingCard special-card injection.
+// One Finding (rotated daily, deterministic for all users) lands at
+// position 4 of the Today feed per V2 roadmap §5.A5. Visually marked
+// with hairline purple top + bottom borders to distinguish it from
+// report cards. Third-person archival voice (NOT 2nd person).
+import FindingCard from '@/components/patterns/FindingCard'
+import type { Finding as FindingCardData } from '@/components/patterns/FindingCard'
 // V11.17.39 — Lab upsell card (replaces ResearchHubPromo).
 //   - Real production RadarVisualization w/ reveal animation
 //   - 5-variant headline ladder driven by /api/lab/footprint
@@ -73,7 +80,10 @@ import type { TodayLens } from '@/components/discover/TodayHeader'
 import { GestureTutorial, isGestureTutorialComplete, resetGestureTutorial } from '@/components/discover/GestureTutorial'
 import { EndOfFeedCard } from '@/components/discover/EndOfFeedCard'
 import { SkeletonCard } from '@/components/discover/SkeletonCard'
-import { TodayGridMode } from '@/components/discover/TodayGridMode'
+// V11.18.x — removed per UI_SHIPPING_ROADMAP_V2 Sprint 1A deletes
+//   TodayGridMode (desktop grid overlay) — the toggle + overlay are gone.
+// V11.18.x — 200K catalogued-accounts eyebrow per UI_SHIPPING_ROADMAP_V2 Sprint 1A additions.
+import { CorpusStatEyebrow } from '@/components/common/CorpusStatEyebrow'
 import { useFeedEvents } from '@/lib/hooks/useFeedEvents'
 import { useSessionContext } from '@/lib/hooks/useSessionContext'
 import { useGateStatus } from '@/lib/hooks/useGateStatus'
@@ -91,8 +101,14 @@ import { CATEGORY_CONFIG } from '@/lib/constants'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import type { PhenomenonCategory } from '@/lib/database.types'
 
+// V11.18.1 — Today feed Finding card wrapper. Carries the discriminator
+// `item_type: 'finding'` so applyLens + render branches can detect it.
+export interface FindingFeedItem extends FindingCardData {
+  item_type: 'finding'
+}
+
 // Extended feed item type that includes new card types
-type ExtendedFeedItem = FeedItemV2 | ClusterCardData | OnThisDateData | PromoCardData
+type ExtendedFeedItem = FeedItemV2 | ClusterCardData | OnThisDateData | PromoCardData | FindingFeedItem
 
 // Category color hex map (duplicated from cards for inline use)
 var CATEGORY_COLORS: Record<string, string> = {
@@ -125,6 +141,14 @@ function bumpPromoDismissals() {
   try { localStorage.setItem(PROMO_DISMISS_KEY, String(getPromoDismissals() + 1)) } catch (e) {}
 }
 
+// V11.18.1 — Day-of-year (1-366) for the daily-rotation Finding pick.
+// UTC so every user worldwide gets the same rotation on a given date.
+function dayOfYear(d: Date): number {
+  var start = Date.UTC(d.getUTCFullYear(), 0, 1)
+  var now = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+  return Math.floor((now - start) / 86400000) + 1
+}
+
 // V11.17.40 — how many promo slots to seed into the feed when
 // `should_show=true`. Server still enforces the 6/week hard cap;
 // this is just the client-side budget within a single session.
@@ -143,7 +167,7 @@ function applyLens(items: ExtendedFeedItem[], lens: TodayLens): ExtendedFeedItem
     // reports that either (a) have physical evidence OR (b) have media we
     // own locally (primary_media set from report_media table).
     return items.filter(function (it) {
-      if (it.item_type === 'cluster' || it.item_type === 'on_this_date' || it.item_type === 'promo') return true
+      if (it.item_type === 'cluster' || it.item_type === 'on_this_date' || it.item_type === 'promo' || it.item_type === 'finding') return true
       if (it.item_type === 'report') {
         var r = it as ReportItem
         return r.has_physical_evidence === true
@@ -472,8 +496,8 @@ export default function DiscoverPage() {
   }
   // searchQuery state lives near the top of the component (above displayItems)
 
-  // --- V5-next: grid mode (desktop) ---
-  var [gridOpen, setGridOpen] = useState(false)
+  // V11.18.x — removed per UI_SHIPPING_ROADMAP_V2 Sprint 1A deletes
+  // (TodayGridMode desktop grid overlay + toggle).
 
   // --- V5-next: pull-to-refresh ---
   var [pullDistance, setPullDistance] = useState(0)
@@ -498,23 +522,9 @@ export default function DiscoverPage() {
   var pendingSpecialCards = useRef<{ card: ExtendedFeedItem; position: number }[]>([])
   var specialCardsInjected = useRef(false)
 
-  // V7.0: lock body scroll on /discover so the sticky TodayHeader never
-  // gets promoted to its compositing layer (which renders above sibling
-  // chrome regardless of z-index). On iOS PWA, safe-area math can over-
-  // count viewport by ~17px causing slight body scroll → sticky activation
-  // → chrome cluster hidden behind header. Locking body scroll eliminates
-  // that path entirely.
-  useEffect(function () {
-    if (typeof document === 'undefined') return
-    var prevOverflow = document.body.style.overflow
-    var prevHtmlOverflow = document.documentElement.style.overflow
-    document.body.style.overflow = 'hidden'
-    document.documentElement.style.overflow = 'hidden'
-    return function () {
-      document.body.style.overflow = prevOverflow
-      document.documentElement.style.overflow = prevHtmlOverflow
-    }
-  }, [])
+  // V11.18.x — removed per UI_SHIPPING_ROADMAP_V2 Sprint 1A deletes
+  // (body scroll-lock on /discover was a chrome-stacking workaround for
+  // a problem fixed elsewhere). Mobile + desktop now scroll natively.
 
   // =========================================================================
   //  Auth + tier
@@ -747,6 +757,32 @@ export default function DiscoverPage() {
         })
         .catch(function () {})
     )
+
+    // V11.18.1 — Sprint 1A-2. Inject one Finding card at position 4.
+    // Rotation is deterministic by day-of-year mod N(published) so
+    // every user sees the same Finding on the same day (Helena rule —
+    // no personalization in Sprint 1; that's Sprint 2 B4).
+    // Suppress when a category filter is active (Findings are
+    // cross-category by construction; surfacing one inside a
+    // single-category lens would break the filter contract, same
+    // reasoning as cluster injection).
+    if (!categoryFilter) {
+      fetches.push(
+        fetch('/api/lab/patterns/list?limit=20')
+          .then(function (res) { return res.ok ? res.json() : null })
+          .then(function (data) {
+            if (data && Array.isArray(data.findings) && data.findings.length > 0) {
+              var available: any[] = data.findings
+              var doy = dayOfYear(new Date())
+              var pickIdx = doy % available.length
+              var f: any = available[pickIdx]
+              var findingCard: FindingFeedItem = Object.assign({}, f, { item_type: 'finding' as const })
+              pendingSpecialCards.current.push({ card: findingCard, position: 4 })
+            }
+          })
+          .catch(function () {})
+      )
+    }
 
     // Skip cluster injection when a category is active — clusters
     // intentionally cross categories and would break the topic-filter
@@ -1381,6 +1417,13 @@ export default function DiscoverPage() {
     if (card.item_type === 'cluster') return <ClusteringCard item={card as ClusterCardData} isActive={true} />
     if (card.item_type === 'on_this_date') return <OnThisDateCard item={card as OnThisDateData} isActive={true} />
     if (card.item_type === 'promo') return <LabPromo isActive={true} />
+    if (card.item_type === 'finding') {
+      // V11.18.1 — Sprint 1A-2. FindingCard as a Today special card.
+      // Third-person archival voice; hairline purple top + bottom
+      // borders distinguish it from report cards per V2 cross-surface
+      // decision. The card itself links to a representative report.
+      return <FindingCard finding={card as FindingCardData} variant="today_card" isActive={true} />
+    }
 
     if (card.item_type === 'report' && gateStatus.status.isViewGated) {
       var reportItem = card as ReportItem
@@ -1507,6 +1550,10 @@ export default function DiscoverPage() {
       )}
 
       <div className="flex flex-col" style={{ minHeight: 'calc(100vh - 4rem)' }}>
+        {/* V11.18.x — 200K catalogued-accounts eyebrow per
+            UI_SHIPPING_ROADMAP_V2 Sprint 1A additions. Sits above
+            the TodayHeader. */}
+        <CorpusStatEyebrow />
         {/* Today header — replaces the old counter strip */}
         <TodayHeader
           idx={idx}
@@ -1519,13 +1566,9 @@ export default function DiscoverPage() {
           showShortcutsToggle={true}
           onToggleShortcuts={function () { setShowShortcuts(function (v) { return !v }) }}
           streakDays={streakDays}
-          searchQuery={searchQuery}
-          onSearchQueryChange={function (q: string) {
-            setSearchQuery(q)
-            // Reset position so search results start at the top
-            if (idx !== 0) setIdx(0)
-          }}
-          onToggleGrid={function () { setGridOpen(function (v) { return !v }) }}
+          /* V11.18.x — removed per UI_SHIPPING_ROADMAP_V2 Sprint 1A deletes
+             (in-Today search overlay + desktop grid toggle). The header
+             search lives in the global chrome; in-Today search is gone. */
         />
 
         {/* Main content
@@ -1889,45 +1932,8 @@ export default function DiscoverPage() {
         </div>
       )}
 
-      {/* Grid mode overlay — desktop power-user feature (V5 #D8) */}
-      {gridOpen && (
-        <TodayGridMode
-          items={displayItems.map(function (it) {
-            var headline = ''
-            var hero: string | null = null
-            if (it.item_type === 'phenomenon') {
-              var p = it as PhenomenonItem
-              headline = p.feed_hook || p.ai_summary || p.name || 'Encyclopedia entry'
-              hero = p.primary_image_url || null
-            } else if (it.item_type === 'report') {
-              var r = it as ReportItem
-              headline = r.feed_hook || r.summary || r.title || 'Eyewitness report'
-              hero = (r.primary_media && (r.primary_media.thumbnail_url || r.primary_media.url)) || r.associated_image_url || null
-            } else if (it.item_type === 'on_this_date') {
-              var od = it as OnThisDateData
-              headline = od.name + ' — ' + od.event_year
-              hero = null
-            } else if (it.item_type === 'cluster') {
-              var cl = it as ClusterCardData
-              headline = cl.headline || 'Cluster pattern'
-              hero = null
-            } else {
-              headline = 'From Paradocs'
-              hero = null
-            }
-            return {
-              id: it.id,
-              item_type: it.item_type,
-              category: (it as any).category || 'psychological_experiences',
-              headline: headline,
-              hero: hero,
-            }
-          })}
-          currentIdx={idx}
-          onSelect={function (i) { setIdx(i); setExpanded(false); setGridOpen(false) }}
-          onClose={function () { setGridOpen(false) }}
-        />
-      )}
+      {/* V11.18.x — removed per UI_SHIPPING_ROADMAP_V2 Sprint 1A deletes
+          (TodayGridMode desktop grid overlay). */}
 
       {/* Save → Lab celebration toast (V2 panel review #20) */}
       {celebrationToast && (

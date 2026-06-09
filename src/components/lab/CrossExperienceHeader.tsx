@@ -1,5 +1,24 @@
 'use client'
 
+// V11.18.1 — DEPRECATED — Sprint 1A-2 retirement.
+//
+// This component is no longer mounted on /lab. Per UI_SHIPPING_ROADMAP_V2
+// §5.3 the "across your record" callout has been retired (founder
+// feedback: "too obvious"). The slot is now filled by `PatternsRail`
+// — corpus-grounded Finding Cards from `findings_catalogue`.
+//
+// The file is intentionally kept on disk (not deleted) so we can salvage:
+//   - the deterministic `buildBodyOfWorkSentence` logic (years span,
+//     dominant family, location anchor, night-time concentration) —
+//     useful as a feed into DossierHeader's eyebrow strip in a future
+//     PR per V2 §5.3 second bullet
+//   - the /api/lab/synthesized-paragraph wire-up pattern as a reference
+//
+// Do not re-mount this component without founder sign-off. The
+// `Patterns near your record` callout that V2 §5.3 / §4.5 describes is
+// a separate Sprint 2 build (B4 in V2 §6.2) that will live ON THE
+// Patterns surface, not on /lab itself.
+//
 // V11.17.74 — Sentiment + endpoints (Tier 3D wire-up)
 // V11.17.69 - Tier 2B
 //

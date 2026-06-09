@@ -1,0 +1,15 @@
+{
+  "batch_ids": [
+    "msgbatch_01BmLK8YRPQMLooLkKgbJXMB",
+    "msgbatch_01Es2gT6xcLFjYy2vFhZ6juV",
+    "msgbatch_01VXZHxunkN1wRqnaKjhTBek",
+    "msgbatch_019zxJF5GeAz5vXbhfk85urc",
+    "msgbatch_01Ji4xeJXy4rxCiqqwt5o6d2",
+    "msgbatch_01NtTRZkDiyADghr1i32TSkC",
+    "msgbatch_01FZDuqCvQrLzDPM4k4qifZE"
+  ],
+  "submitted_at": "2026-06-09T13:39:13.325Z",
+  "pending_count": 34889,
+  "chunk_size": 5000,
+  "flag_run_ts": "2026-06-09T13:24:03.423Z"
+}

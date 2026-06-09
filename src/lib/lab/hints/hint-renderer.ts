@@ -88,6 +88,12 @@ export async function renderHintsForContext(
   // Pull the user's recent impressions for the dedupe window.
   var recentlyShown = await loadRecentImpressions(ctx.user_id, svc)
 
+  // V11.18.x — also pull terminal resolutions (Accept / Save / Not mine)
+  // per UI_SHIPPING_ROADMAP_V2 Sprint 1A. Any resolved hint is hidden
+  // from the rail going forward, independent of the impression-dedupe
+  // window.
+  var resolvedHints = await loadResolvedHints(ctx.user_id, svc)
+
   // Evaluate each Hint in two passes — first eligibility (cheap), then
   // data_queries (expensive). Run data_queries in parallel across the
   // surviving Hints to keep wall-clock low.
@@ -95,6 +101,7 @@ export async function renderHintsForContext(
   for (var i = 0; i < SEED_HINTS.length; i++) {
     var h = SEED_HINTS[i]
     if (recentlyShown[h.id]) continue
+    if (resolvedHints[h.id]) continue
     var sig: EligibilitySignals = {
       nearby_count_within_miles:
         h.trigger_conditions.within_miles !== undefined
@@ -280,6 +287,33 @@ async function loadRecentImpressions(
       .eq('user_id', userId)
       .gte('shown_at', since)
       .limit(500)
+    var rows: any[] = (res.data as any[]) || []
+    var out: Record<string, boolean> = {}
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i] && rows[i].hint_id) out[rows[i].hint_id] = true
+    }
+    return out
+  } catch (_e) {
+    return {}
+  }
+}
+
+/**
+ * V11.18.x — load the terminal resolutions for the user from
+ * lab_hint_resolutions. ANY resolution (accept / save / dismiss)
+ * hides the hint from the rail going forward. Best-effort: any read
+ * failure returns the empty map so the rail degrades gracefully.
+ */
+async function loadResolvedHints(
+  userId: string,
+  svc: SupabaseClient,
+): Promise<Record<string, boolean>> {
+  try {
+    var res = await svc
+      .from('lab_hint_resolutions')
+      .select('hint_id')
+      .eq('user_id', userId)
+      .limit(2000)
     var rows: any[] = (res.data as any[]) || []
     var out: Record<string, boolean> = {}
     for (var i = 0; i < rows.length; i++) {

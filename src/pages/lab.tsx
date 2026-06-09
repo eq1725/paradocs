@@ -68,8 +68,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import {
-  Bell,
-  PlusCircle,
   Settings,
   Telescope,
   Lock,
@@ -82,12 +80,28 @@ import HintsRail from '@/components/lab/HintsRail'
 import { LabPaywallSurface } from '@/components/lab/LabPaywallSurface'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 
+// V11.18.x — 200K catalogued-accounts eyebrow per UI_SHIPPING_ROADMAP_V2 Sprint 1A
+import { CorpusStatEyebrow } from '@/components/common/CorpusStatEyebrow'
+
 // New Tier 2B components
 import DossierHeader from '@/components/lab/DossierHeader'
 import TemporalStrip from '@/components/lab/TemporalStrip'
 import GeographicSurface from '@/components/lab/GeographicSurface'
-import RadarSurface from '@/components/lab/RadarSurface'
-import CrossExperienceHeader from '@/components/lab/CrossExperienceHeader'
+// V11.18.x — removed per UI_SHIPPING_ROADMAP_V2 Sprint 1A deletes
+//   RadarSurface (the categorical lens) — replaced by Match Revelation in Sprint 1B.
+//   CrossExperienceHeader (standalone) — prose folds into DossierHeader eyebrow per V5 §5.3.
+
+// V11.18.1 — Sprint 1A-2. PatternsRail occupies the slot vacated by the
+// retired CrossExperienceHeader per V2 roadmap §5.A2 — a corpus-grounded
+// rail of FindingCards drawn from `findings_catalogue`. Renders nothing
+// when there are no published findings.
+import PatternsRail from '@/components/lab/PatternsRail'
+
+// V11.18.0 — Sprint 1A. Tier-aware /lab LabPromo (free_empty / free_active /
+// basic / pro=null). Distinct from the Today-feed LabPromo at
+// src/components/discover/LabPromo.tsx. Mounts between PatternsRail and
+// HintsRail as the natural conversion bridge.
+import LabPromo from '@/components/lab/LabPromo'
 
 // V11.17.71 - Pro Dossier (Tier 3A). Pro users see the live Dossier;
 // Free/Basic continue to see the LabPaywallSurface teaser below.
@@ -97,19 +111,15 @@ import ProDossier from '@/components/lab/ProDossier'
 // WatchlistsRail; Free/Basic continue to see the LabPaywallSurface teaser.
 import WatchlistsRail from '@/components/lab/WatchlistsRail'
 
-// V11.17.73 - Named-Match + Peer DM (Tier 3C). Basic+ users see live
-// offers + thread rails; Free continues to see the LabPaywallSurface
-// teaser anchored on the named-match copy.
-import NamedMatchOffersRail from '@/components/lab/NamedMatchOffersRail'
-import DMThreadsList from '@/components/lab/DMThreadsList'
-import DiscoverabilityToggle from '@/components/lab/DiscoverabilityToggle'
+// V11.18.x — removed per UI_SHIPPING_ROADMAP_V2 Sprint 1A deletes
+//   NamedMatchOffersRail / DMThreadsList / DiscoverabilityToggle (1:1 DM mechanic).
+//   The named-match-engine backend is retained for Sprint 2 comments work.
 
 // V11.17.75 — Tier 3E cleanup. MyRecordTab is gone; the two pieces
 // that were still load-bearing now live in /lab as standalone
-// components. The polished-radar dial that used to live alongside
-// these (and visually duplicated RadarSurface) was dropped per the
-// Tier 2B open question.
-import MatchList from '@/components/lab/MatchList'
+// components.
+// V11.18.x — MatchList inline 12-card body collapsed to a placeholder per
+// UI_SHIPPING_ROADMAP_V2 Sprint 1A deletes (the full thumb-row ships in Sprint 1B).
 import ManageSubmissionsPanel from '@/components/lab/ManageSubmissionsPanel'
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -537,19 +547,9 @@ export default function LabPage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <Link
-                href="/start"
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-primary-400 bg-primary-600/10 border border-primary-600/20 hover:bg-primary-600/20 transition-colors"
-              >
-                <PlusCircle className="w-4 h-4" />
-                <span className="hidden sm:inline">Submit Report</span>
-              </Link>
-              <button
-                className="relative p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
-                title="Notifications — coming soon"
-              >
-                <Bell className="w-5 h-5" />
-              </button>
+              {/* V11.18.x — removed per UI_SHIPPING_ROADMAP_V2 Sprint 1A deletes
+                  (in-lab "+ Submit" pill — moves to global chrome in Sprint 2)
+                  and the duplicate notification bell (kept only on global chrome). */}
               <Link
                 href="/profile"
                 className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
@@ -571,6 +571,10 @@ export default function LabPage() {
           </div>
         ) : (
           <div className="pb-20">
+            {/* V11.18.x — 200K catalogued-accounts eyebrow per
+                UI_SHIPPING_ROADMAP_V2 Sprint 1A additions. */}
+            <CorpusStatEyebrow />
+
             {/* ─── SECTION 1: Dossier header (the spine) ─────────────
                 n-aware: n=0 → ghosted EmptyDossier; n=1 → full-bleed
                 dossier; n≥2 → experience strip + focused dossier. */}
@@ -581,16 +585,29 @@ export default function LabPage() {
               synthesizedParagraph={focused ? synthesizedParagraph : null}
             />
 
-            {/* ─── SECTION 2: Cross-experience header (n≥2) ────────── */}
-            {reports.length >= 2 && (
-              <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-                <CrossExperienceHeader
-                  experiences={experiencesLite}
-                  tier={tier}
-                  authToken={authToken}
-                />
-              </div>
-            )}
+            {/* V11.18.x — removed per UI_SHIPPING_ROADMAP_V2 Sprint 1A deletes
+                (CrossExperienceHeader standalone — prose folds into DossierHeader
+                eyebrow per V5 §5.3). */}
+
+            {/* ─── SECTION 2: Patterns rail (V11.18.1) ───────────────
+                Sprint 1A-2 — corpus-grounded Finding Cards drawn from
+                `findings_catalogue`. Replaces the retired
+                CrossExperienceHeader slot per V2 roadmap §5.A2. */}
+            <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-2">
+              <PatternsRail />
+            </div>
+
+            {/* ─── SECTION 2.5: Tier-aware LabPromo conversion bridge ──
+                V11.18.0 Sprint 1A. Renders nothing for Pro users. For
+                Free/Basic, surfaces the next-tier value prop in austere
+                copy (no exhortation, no superlatives). Mount slot is
+                between PatternsRail (user just saw cross-phenomenon
+                signal) and HintsRail (user is about to see catalogue
+                observations on their record) — natural conversion
+                bridge without interrupting flow. */}
+            <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+              <LabPromo user={{ tier: tier, account_count: reports.length }} />
+            </div>
 
             {/* ─── SECTION 3: Hints rail ─────────────────────────────
                 Stays mounted between the dossier and the comparative
@@ -616,9 +633,7 @@ export default function LabPage() {
               </div>
             )}
 
-            {/* ─── SECTION 5: Geographic surface (real map) ──────────
-                Different job from RADAR. This is the spatial truth;
-                RADAR is the abstract / categorical lens. */}
+            {/* ─── SECTION 5: Geographic surface (real map) ────────── */}
             {focused && (
               <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
                 <GeographicSurface
@@ -634,93 +649,37 @@ export default function LabPage() {
               </div>
             )}
 
-            {/* ─── SECTION 6: Named-match paywall teaser ─────────────
-                Per V3 §3 step 6: "3 of these accounts came from users
-                who have opted in to be discovered. Subscribe to Basic
-                to see if any of them want to compare notes." Surfaced
-                inline (not a popup) on Free tier; suppressed for
-                Basic+. */}
-            {focused && tier === 'free' && nearbyReports && nearbyReports.length > 0 && (
-              <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-                <LabPaywallSurface
-                  kicker="Named-match introductions"
-                  body={
-                    'Some of these accounts came from contributors who have opted in to be discovered. ' +
-                    'Basic surfaces an introduction when signals align — mutual opt-in required, one offer per visit.'
-                  }
-                  surface="named_match"
-                  upgradeTo="basic"
-                />
-              </div>
-            )}
+            {/* V11.18.x — removed per UI_SHIPPING_ROADMAP_V2 Sprint 1A deletes
+                (Named-match paywall teaser, NamedMatchOffersRail, DMThreadsList,
+                DiscoverabilityToggle, RadarSurface). The named-match-engine
+                backend is retained for Sprint 2 comments work. */}
 
-            {/* ─── SECTION 6b: Named-Match rails (Basic+) ────────────
-                V11.17.73 — Tier 3C. Basic+ users see the live offers
-                rail + private-thread list. Free users do not reach
-                this slot (the paywall above is their slot). */}
-            {(tier === 'basic' || tier === 'pro') && (
-              <>
-                {focused && (
-                  <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-                    <div className="flex items-center justify-between mb-2 px-1">
-                      <p className="text-[10px] font-semibold tracking-widest uppercase text-gray-400">
-                        Discoverable on this experience
-                      </p>
-                      <DiscoverabilityToggle reportId={focused.id} />
-                    </div>
-                  </div>
-                )}
-                <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-                  <NamedMatchOffersRail />
+            {/* ─── Match revelation — thumb-row v0 ──────────────────
+                V11.18.x — placeholder per UI_SHIPPING_ROADMAP_V2 Sprint 1A.
+                The full Match Revelation canvas (one foregrounded match +
+                two secondary + signal-ribbon) ships in Sprint 1B with the
+                canvas. This placeholder retains the data-section anchor so
+                analytics dashboards continue to reference it. */}
+            {focused && (
+              <div
+                data-section="lab-constellation"
+                className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-6"
+              >
+                <div className="rounded-2xl border border-gray-800 bg-gray-900/30 p-5 sm:p-6">
+                  <p className="text-[10px] font-semibold tracking-[0.22em] uppercase text-gray-500 mb-2">
+                    The archive
+                  </p>
+                  <p className="text-sm text-gray-300 leading-relaxed">
+                    Match revelation coming in Sprint 1B.
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-2">
+                    The archive is still indexing your account against the wider catalogue. The
+                    comparison surface will appear here once the canvas ships.
+                  </p>
                 </div>
-                <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-                  <DMThreadsList />
-                </div>
-              </>
-            )}
-
-            {/* ─── SECTION 7: Categorical radar lens ─────────────────
-                Wrapped per V3 §5 with the eyebrow + tooltip + widen pill. */}
-            {focused && matches.length > 0 && (
-              <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-                <RadarSurface
-                  matches={matches}
-                  user={{ latitude: focused.latitude, longitude: focused.longitude }}
-                  anchorLabel={(resolveYear(focused) ? resolveYear(focused) + ' ' : '') + locationLabel(focused) + ' ' + phenFamilyLabel(focused.category)}
-                  phenFamily={focused.category || 'psychological_experiences'}
-                  totalRelated={totalDatabase}
-                  tier={tier}
-                />
               </div>
             )}
 
-            {/* ─── SECTION 8: Match list + manage submissions ────────
-                V11.17.75 — Tier 3E cleanup. The legacy MyRecordTab
-                wrapper is gone. The two pieces that were still load-
-                bearing are now standalone:
-                  - MatchList renders the rich, inline-expandable list
-                    of related-account cards (with filter chips, the
-                    witness-adjacency callout, the new-match alerts
-                    opt-in, per-dimension match bars, etc.).
-                  - ManageSubmissionsPanel surfaces the edit/delete
-                    panel as a small inline pill.
-                The polished radar dial that used to sit above the
-                match list is dropped — RadarSurface above is the
-                single canonical dial on the page. The legacy
-                data-section="lab-constellation" hook is retained on
-                the wrapper because analytics dashboards reference it. */}
-            {focused && matches.length > 0 && (
-              <div data-section="lab-constellation" className="pt-6">
-                <MatchList
-                  matches={matches}
-                  totalDatabase={totalDatabase}
-                  userLat={focused.latitude}
-                  userLng={focused.longitude}
-                  userEmail={userEmail}
-                  focusedReportId={focused.id}
-                />
-              </div>
-            )}
             {isLoggedIn && (
               <ManageSubmissionsPanel
                 onDeleted={function (deletedId) {

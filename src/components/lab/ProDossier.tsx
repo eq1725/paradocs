@@ -9,7 +9,9 @@
 //
 // UX:
 //   - Header strip with experience title + location + year + computed_at
-//     timestamp + actions (Refresh / Export PDF / Share).
+//     timestamp + actions (Refresh / "Export as image" placeholder / Share).
+//     V11.18.x — PDF export removed per UI_SHIPPING_ROADMAP_V2 Sprint 1A
+//     deletes; image export ships in Sprint 2.
 //   - 7 collapsible sections, OPEN BY DEFAULT (founder spec).
 //   - Skeleton placeholders while computing.
 //   - Brand-purple #9000F0 accents, Changa One section labels.
@@ -107,23 +109,11 @@ export function ProDossier(props: ProDossierProps) {
     }
   }, [props.experienceReportId])
 
-  var openExportPdf = useCallback(async function () {
-    if (!row) return
-    var sessionResp = await supabase.auth.getSession()
-    var session = sessionResp.data.session
-    if (!session) return
-    // Open in new tab; the response is HTML the browser can print/save as PDF.
-    var url = '/api/lab/dossier/' + row.id + '/export-pdf'
-    var resp = await fetch(url, {
-      method: 'POST',
-      headers: { Authorization: 'Bearer ' + session.access_token },
-    })
-    if (!resp.ok) return
-    var html = await resp.text()
-    var blob = new Blob([html], { type: 'text/html' })
-    var blobUrl = URL.createObjectURL(blob)
-    window.open(blobUrl, '_blank', 'noopener,noreferrer')
-  }, [row])
+  // V11.18.x — removed per UI_SHIPPING_ROADMAP_V2 Sprint 1A deletes.
+  // The PDF export pathway is retired in favor of the image share-card
+  // (already exported by /api/lab/dossier/[id]/share-card.png). The
+  // surface is replaced with a disabled "Export as image (coming Sprint 2)"
+  // placeholder so the user still sees the intended affordance.
 
   var toggleSection = useCallback(function (k: string) {
     setOpenSections(function (prev) {
@@ -205,14 +195,16 @@ export function ProDossier(props: ProDossierProps) {
               <RefreshCw className={'w-3.5 h-3.5 ' + (refreshing ? 'animate-spin' : '')} />
               Refresh
             </button>
+            {/* V11.18.x — removed per UI_SHIPPING_ROADMAP_V2 Sprint 1A deletes */}
             <button
               type="button"
-              onClick={openExportPdf}
-              title="Export as PDF"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-purple-200 bg-purple-600/15 border border-purple-500/40 hover:bg-purple-600/25 transition-colors"
+              disabled
+              aria-disabled="true"
+              title="Export as image — coming Sprint 2"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-gray-500 bg-gray-800/40 border border-gray-700/40 cursor-not-allowed opacity-60"
             >
               <Download className="w-3.5 h-3.5" />
-              PDF
+              Export as image (coming Sprint 2)
             </button>
             <button
               type="button"

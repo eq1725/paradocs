@@ -262,7 +262,10 @@ var SYSTEM_PROMPT = ANTI_FABRICATION_PREAMBLE
   + '  "anomalous_content_check": {\n'
   + '    "anomalous": "yes|no",\n'
   + '    "confidence": "0.0-1.0",\n'
-  + '    "reason": "<one sentence — required even when anomalous=yes>",\n'
+  // V11.17.102 — renamed "reason" → "reasoning" so downstream auditors
+  // (inspect-borderline-sweep.ts, archive-gate-slips.ts, founder review)
+  // can see WHY Haiku judged the report.
+  + '    "reasoning": "<one sentence — REQUIRED on every response, whether anomalous=yes or no. Explain WHY in one sentence the witness account does or does not qualify as a documented first-person anomalous experience. Cite the deciding feature(s) from the source.>",\n'
   + '    "genre": "<if anomalous=no, one of: hiking_misadventure | wildlife_encounter | perceptual_quirk | platform_complaint | opinion_theory | advice_request | product_review | news_summary | other_mundane | other; if anomalous=yes, empty string>"\n'
   + '  }\n'
   + '}\n\n'
@@ -1218,14 +1221,17 @@ function parseAnalysisJson(text: string): ParadocsAnalysisResult | null {
       var conf = typeof ac.confidence === 'number' ? ac.confidence : parseFloat(String(ac.confidence == null ? '' : ac.confidence))
       if (isNaN(conf) || conf < 0) conf = 0
       if (conf > 1) conf = 1
+      // V11.17.102 — canonical field is "reasoning"; accept legacy "reason"
+      // from any in-flight cached prompt response so we don't drop the explanation.
+      var reasoningRaw = ac.reasoning != null ? ac.reasoning : ac.reason
       parsed.anomalous_content_check = {
         anomalous: anomalous,
         confidence: conf,
-        reason: typeof ac.reason === 'string' ? ac.reason.slice(0, 500) : '',
+        reasoning: typeof reasoningRaw === 'string' ? reasoningRaw.slice(0, 500) : '',
         genre: typeof ac.genre === 'string' ? ac.genre.slice(0, 60) : '',
       }
     } else {
-      parsed.anomalous_content_check = { anomalous: 'unknown', confidence: 0, reason: '', genre: '' }
+      parsed.anomalous_content_check = { anomalous: 'unknown', confidence: 0, reasoning: '', genre: '' }
     }
 
     return parsed as ParadocsAnalysisResult
@@ -1616,7 +1622,7 @@ export async function generateAndSaveParadocsAnalysis(reportId: string): Promise
         // V11.17.41 — anomaly self-check stored verbatim so engine.ts
         // can demote and the admin pending-review queue can show the
         // reason + genre when a row gates out.
-        anomalous_content_check: (result as any).anomalous_content_check || { anomalous: 'unknown', confidence: 0, reason: '', genre: '' },
+        anomalous_content_check: (result as any).anomalous_content_check || { anomalous: 'unknown', confidence: 0, reasoning: '', genre: '' },
       }
       if (result.emotional_tone) {
         assessmentData.emotional_tone = result.emotional_tone
@@ -1959,7 +1965,7 @@ export async function generateAndSaveDirect(reportId: string): Promise<{ success
       mundane_explanations: result.mundane_explanations || [],
       similar_phenomena: result.similar_phenomena,
       // V11.17.41 — anomaly self-check; engine.ts demotes on this.
-      anomalous_content_check: (result as any).anomalous_content_check || { anomalous: 'unknown', confidence: 0, reason: '', genre: '' },
+      anomalous_content_check: (result as any).anomalous_content_check || { anomalous: 'unknown', confidence: 0, reasoning: '', genre: '' },
     }
     if (result.emotional_tone) assessmentData.emotional_tone = result.emotional_tone
     if (result.suggested_category) assessmentData.suggested_category = result.suggested_category

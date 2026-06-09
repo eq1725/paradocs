@@ -56,7 +56,8 @@ import Link from 'next/link'
 import { User as UserIcon, MapPin, Calendar, Plus, ChevronRight, Play } from 'lucide-react'
 import EmptyDossier from './EmptyDossier'
 import InlineVideoPlayer from '@/components/video/InlineVideoPlayer'
-import DiscoverabilityToggle from './DiscoverabilityToggle'
+// V11.18.x — removed per UI_SHIPPING_ROADMAP_V2 Sprint 1A deletes
+// (DiscoverabilityToggle was part of the 1:1 DM mechanic which is gone).
 
 interface ExperienceVideo {
   videoUrl: string | null
@@ -323,14 +324,8 @@ export default function DossierHeader(props: DossierHeaderProps) {
                 </span>
               )}
             </div>
-            {/* DiscoverabilityToggle (Tier 3C ships this) — mounted
-                next to the identity chrome. Hidden when no slug yet
-                (pending submissions can't be made discoverable). */}
-            {slug && (
-              <div className="mt-3">
-                <DiscoverabilityToggle reportId={focused.id} initialDiscoverable={focused.discoverable === true ? true : (focused.discoverable === false ? false : undefined)} />
-              </div>
-            )}
+            {/* V11.18.x — removed per UI_SHIPPING_ROADMAP_V2 Sprint 1A deletes
+                (DiscoverabilityToggle was part of the 1:1 DM mechanic which is gone). */}
           </div>
         </div>
 
