@@ -777,10 +777,27 @@ export default function DiscoverPage() {
     // cross-category by construction; surfacing one inside a
     // single-category lens would break the filter contract, same
     // reasoning as cluster injection).
+    //
+    // V11.18.3 — Sprint 1A polish round 2. Diagnostic logging added
+    // because the founder swiped through ~30 cards post-V11.18.2 and
+    // never saw the shadow_figure Finding. The live API returns 1
+    // published row (verified via curl), so the most likely culprits
+    // are (a) stale CDN/sw.js cache serving pre-V11.18.1 JS to the
+    // founder's browser, (b) the fetch failing silently, or (c) the
+    // injection landing but at a different idx than expected (the
+    // onThisDate position-1 splice pushes the finding from idx 4 to
+    // idx 5 — the 6th card swiped to). The first two surface here;
+    // (c) is documented in SPRINT_1A_POLISH_R2_NOTES.md.
     if (!categoryFilter) {
       fetches.push(
         fetch('/api/lab/patterns/list?limit=20')
-          .then(function (res) { return res.ok ? res.json() : null })
+          .then(function (res) {
+            if (!res.ok) {
+              console.warn('[Discover/FindingCard] patterns/list non-2xx:', res.status)
+              return null
+            }
+            return res.json()
+          })
           .then(function (data) {
             if (data && Array.isArray(data.findings) && data.findings.length > 0) {
               var available: any[] = data.findings
@@ -789,10 +806,27 @@ export default function DiscoverPage() {
               var f: any = available[pickIdx]
               var findingCard: FindingFeedItem = Object.assign({}, f, { item_type: 'finding' as const })
               pendingSpecialCards.current.push({ card: findingCard, position: 4 })
+              console.log('[Discover/FindingCard] injected', {
+                available_count: available.length,
+                doy: doy,
+                pickIdx: pickIdx,
+                slug: f && f.slug,
+                id: f && f.id,
+                position: 4,
+              })
+            } else {
+              console.warn('[Discover/FindingCard] patterns/list returned no findings', {
+                hasData: !!data,
+                findings: data && data.findings,
+              })
             }
           })
-          .catch(function () {})
+          .catch(function (err) {
+            console.warn('[Discover/FindingCard] patterns/list threw:', err && err.message)
+          })
       )
+    } else {
+      console.log('[Discover/FindingCard] suppressed — category filter active:', categoryFilter)
     }
 
     // Skip cluster injection when a category is active — clusters
@@ -894,15 +928,29 @@ export default function DiscoverPage() {
       // Sorted DESC by position so we splice tail-first without
       // invalidating earlier target indices in the same pass.
       var remaining: { card: ExtendedFeedItem; position: number }[] = []
+      var inserted: { type: string; position: number }[] = []
       pendingSpecialCards.current.forEach(function (entry) {
         if (entry.position <= arr.length) {
           arr.splice(entry.position, 0, entry.card)
+          inserted.push({ type: (entry.card as any).item_type || 'unknown', position: entry.position })
         } else {
           remaining.push(entry)
         }
       })
       pendingSpecialCards.current = remaining
       specialCardsInjected.current = (remaining.length === 0)
+      // V11.18.3 — Sprint 1A polish round 2 diagnostic. The founder
+      // reported the FindingCard never appearing; this log surfaces the
+      // injection outcome (inserted vs deferred) on each call so the
+      // operator can confirm via DevTools whether the finding entry
+      // actually lands in `inserted` on the initial loadFeed(0) tick.
+      console.log('[Discover/inject] tick', {
+        arr_in_len: arr.length - inserted.length,
+        arr_out_len: arr.length,
+        inserted: inserted,
+        deferred: remaining.map(function (r) { return { type: (r.card as any).item_type, position: r.position } }),
+        all_injected: specialCardsInjected.current,
+      })
       return arr
     })
   }

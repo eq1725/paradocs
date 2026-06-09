@@ -344,6 +344,11 @@ export default function Layout({ children }: LayoutProps) {
                 <li><Link href="/explore?category=ufo_uap" className="hover:text-white">UFO Sightings</Link></li>
                 <li><Link href="/explore?category=cryptid" className="hover:text-white">Cryptids</Link></li>
                 <li><Link href="/explore?category=ghost_haunting" className="hover:text-white">Ghosts</Link></li>
+                {/* V11.18.3 — Sprint 1A polish round 2. Discoverability
+                    link for the standalone /lab/patterns grid. Without
+                    this entry plus the PatternsRail header link, the
+                    grid is reachable only by typing the URL. */}
+                <li><Link href="/lab/patterns" className="hover:text-white">Patterns</Link></li>
                 <li><Link href="/map" className="hover:text-white">Map</Link></li>
                 <li><Link href="/explore?mode=search" className="hover:text-white">Search</Link></li>
               </ul>

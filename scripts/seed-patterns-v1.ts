@@ -78,11 +78,14 @@ interface SeedPayload {
 }
 
 // Helena banned words — checked against the generated interpretive sentence.
+// V11.18.3 — added 'remarkable' / 'striking' because Haiku reaches for them
+// when prompted for "interesting" framing, and they both editorialize.
 var BANNED = [
   'mysteriously', 'mysterious', 'unexplained', 'shocking', 'incredibly',
   'amazingly', 'fascinating', 'spooky', 'creepy', 'weird', 'bizarre',
   'eerie', 'chilling', 'haunting', 'strange', 'fun fact', 'did you know',
   'you might', 'you are', "you're", 'your record',
+  'remarkable', 'remarkably', 'striking', 'strikingly',
 ]
 
 function slugify(input: string): string {
@@ -120,17 +123,22 @@ function readCrossFamilyQuery(
 // roadmap V2 §9 R1 — superlative drift, comparative-claim hallucination
 // — is highest in headline text). Instead we build deterministically
 // from the descriptor + the resolved family labels.
+//
+// V11.18.3 — Sprint 1A polish round 2. Founder feedback: the V11.18.1
+// "X imagery recurs across A, B, and C accounts" form was too
+// taxonomic. New shape: "The same X appears in A, B, and C." Direct,
+// plain, intriguing — the user reads it and wonders why.
 function buildHeadline(descriptor: string, familyLabels: string[]): string {
-  var dLabel = humanizeDescriptor(descriptor)
+  var dLabel = humanizeDescriptorForHeadline(descriptor)
   var fams = familyLabels.slice()
   if (fams.length === 2) {
-    return capitalize(dLabel) + ' recurs across ' + fams[0] + ' and ' + fams[1] + ' accounts.'
+    return 'The same ' + dLabel + ' appears in ' + fams[0] + ' and ' + fams[1] + '.'
   }
   if (fams.length === 3) {
-    return capitalize(dLabel) + ' recurs across ' + fams[0] + ', ' + fams[1] + ', and ' + fams[2] + ' accounts.'
+    return 'The same ' + dLabel + ' appears in ' + fams[0] + ', ' + fams[1] + ', and ' + fams[2] + '.'
   }
   // Defensive — schema guarantees 2 or 3.
-  return capitalize(dLabel) + ' recurs across ' + fams.join(', ') + ' accounts.'
+  return 'The same ' + dLabel + ' appears in ' + fams.join(', ') + '.'
 }
 
 function capitalize(s: string): string {
@@ -149,20 +157,59 @@ function humanizeDescriptor(descriptor: string): string {
   }
 }
 
+// V11.18.3 — second humanizer for the new "The same X appears in…"
+// headline shape. The phrase needs to fit grammatically as a singular
+// noun ("the same shadow figure", not "the same shadow-figure
+// imagery"). Plain noun forms only.
+function humanizeDescriptorForHeadline(descriptor: string): string {
+  switch (descriptor) {
+    case 'shadow_figure': return 'shadow figure'
+    case 'electromagnetic_disturbance': return 'electromagnetic disturbance'
+    case 'tunnel_imagery': return 'tunnel'
+    case 'static_electricity': return 'static-electricity sensation'
+    case 'witness_drowsy': return 'drowsy witness state'
+    default: return descriptor.replace(/_/g, ' ')
+  }
+}
+
 // ─── Haiku call ───────────────────────────────────────────────────────
 
+// V11.18.3 — Sprint 1A polish round 2. Prompt rewrite per founder
+// feedback: the V11.18.1 sentence ("the descriptor cuts across
+// categories rather than belonging to any one") was academic and
+// failed the "why should I care" bar. The user should read the card
+// and think "huh, that's interesting" or "wait what?" not "okay,
+// that's a statistic."
+//
+// The new shape: lead with the cross-cutting comparison ("what A
+// describes matches what B describes"), then ground in the absolute
+// count to make scale concrete. Numbers are anchors, not the
+// headline. The Vallée-thesis "they're the same phenomenon" inference
+// stays unsaid — Helena rule O4 — but the sentence structure invites
+// the user to draw it on their own. That's the "why care" payload.
 var HAIKU_SYSTEM = [
   'You are the editorial voice of Paradocs, a serious paranormal-research database.',
   'Write ONE 1-2 sentence editorial gloss in a documentary register.',
   '',
+  'PURPOSE: Make the reader think "wait — that\'s interesting" within 5 seconds. They should',
+  'finish the sentence asking themselves a question, not nodding at a statistic.',
+  '',
+  'STRUCTURE (pick the shape that fits the data):',
+  '  - "What X witnesses describe (P%) matches what Y witnesses describe (Q%) — and shows up in Z% of [third]."',
+  '  - "Three [category] families describe the same [descriptor]: [A] at P%, [B] at Q%, [C] at R%."',
+  '  - "[Category A] (P%), [category B] (Q%), [category C] (R%): three different phenomenon families, one recurring [descriptor]."',
+  '  - Close with the absolute count to make scale concrete: "Across NNN,NNN documented accounts, [the descriptor] is the constant."',
+  '',
   'HARD RULES:',
-  '  - Begin the sentence with "The catalogue treats this as" or a clear structural equivalent ("The corpus tracks this as…", "The catalogue groups this under…").',
-  '  - Under 35 words total.',
+  '  - Lead with the cross-cutting comparison. Do NOT lead with the descriptor name.',
+  '  - Always include the absolute count (denominator_n) somewhere. Numbers anchor the claim.',
+  '  - Under 50 words total.',
   '  - Helena-style austere: no clickbait, no buzzwords, no exclamation marks.',
-  '  - BANNED words: mysteriously, mysterious, unexplained, shocking, incredibly, fascinating, spooky, eerie, chilling, strange, bizarre, weird, "did you know".',
+  '  - BANNED words: mysteriously, mysterious, unexplained, shocking, incredibly, fascinating, spooky, eerie, chilling, strange, bizarre, weird, "did you know", "remarkable", "striking".',
   '  - No second-person ("you", "your"). Third-person archival only.',
   '  - No superlatives unless the input explicitly says "most common" / "highest"; "most consistent" is BANNED.',
-  '  - Describe the corpus structure, not the experiencer.',
+  '  - Do NOT make the Vallée-style inference ("the same phenomenon", "the same entity", "evidence of"). State the structure; let the reader infer.',
+  '  - Describe what witnesses describe / report / see — not the corpus\'s internal structure ("the descriptor cuts across categories" is the OLD voice; we want plain English now).',
   '',
   'OUTPUT FORMAT: Return ONLY a JSON object: {"sentence": "<text>"}. No preamble, no markdown.',
 ].join('\n')
@@ -245,10 +292,15 @@ function parseSentence(raw: string): string | null {
 
 function validateInterpretive(text: string): { ok: boolean; reason?: string } {
   if (!text) return { ok: false, reason: 'empty' }
-  if (text.length > 360) return { ok: false, reason: 'too_long_chars' }
+  // V11.18.3 — limits relaxed from 35→50 words (prompt structure now
+  // requires the absolute count anchor + the cross-cutting comparison
+  // shape, both of which run longer than the V11.18.1 "catalogue
+  // treats this as…" template). 50-word ceiling matches the founder's
+  // brief.
+  if (text.length > 500) return { ok: false, reason: 'too_long_chars' }
   if (/!/.test(text)) return { ok: false, reason: 'exclamation' }
   var words = text.split(/\s+/).filter(Boolean)
-  if (words.length > 38) return { ok: false, reason: 'too_long_words' }
+  if (words.length > 55) return { ok: false, reason: 'too_long_words' }
   var lower = text.toLowerCase()
   for (var i = 0; i < BANNED.length; i++) {
     if (lower.indexOf(BANNED[i]) !== -1) {
@@ -258,9 +310,18 @@ function validateInterpretive(text: string): { ok: boolean; reason?: string } {
   return { ok: true }
 }
 
-function templatedInterpretive(descriptor: string, n: number): string {
-  return 'The catalogue treats this as a cross-family descriptor anchored across ' +
-    countWord(n) + ' phenomenon families rather than within any one.'
+// V11.18.3 — fallback when Haiku is unavailable or fails validation.
+// Old template ("The catalogue treats this as…") was the academic voice
+// the founder flagged; new template uses the "why care" structure and
+// includes the absolute count so it lands even without Haiku.
+function templatedInterpretive(descriptor: string, n: number, denom?: number): string {
+  var nWord = countWord(n)
+  var denomPhrase = denom && denom > 0
+    ? 'Across ' + denom.toLocaleString('en-US') + ' documented accounts, the same descriptor recurs.'
+    : 'The same descriptor recurs across all ' + nWord + ' families.'
+  return nWord.charAt(0).toUpperCase() + nWord.slice(1) +
+    ' different phenomenon families describe the same ' +
+    descriptor.replace(/_/g, ' ') + '. ' + denomPhrase
 }
 
 // ─── Representative report sampling ─────────────────────────────────
@@ -376,7 +437,7 @@ async function main() {
       descriptor: cf.descriptor_family,
       families: families,
     })
-    var interpretive = haikuOut || templatedInterpretive(cf.descriptor_family, families.length)
+    var interpretive = haikuOut || templatedInterpretive(cf.descriptor_family, families.length, totalAccounts)
 
     var repIds = await sampleRepresentativeReportIds(svc, cf.families)
 

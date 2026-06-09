@@ -412,13 +412,26 @@ function GridLayout(props: { finding: Finding; href: string }) {
 
         {overlay && <PersonalizedOverlay overlay={overlay} />}
 
-        <div className="pt-4 border-t border-white/[0.06] flex items-center justify-between gap-3">
-          <FooterCitation denominator_n={f.denominator_n} variant="grid" />
+        {/*
+          V11.18.3 — Sprint 1A polish round 2. Footer link copy shortened
+          from "See representative reports" to "See reports" because the
+          long string overflowed the right edge of grid cells on mobile
+          (founder screenshot). The cell is full-width at the smallest
+          break, but the FooterCitation on the left can be ~180-200px
+          and the long link plus its arrow ran past the card border.
+          The shorter copy fits cleanly at all breaks. The flex layout
+          keeps the citation flexible (min-w-0) and the link non-shrink
+          so the link wraps only if the citation overflows first.
+        */}
+        <div className="pt-4 border-t border-white/[0.06] flex items-center justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <FooterCitation denominator_n={f.denominator_n} variant="grid" />
+          </div>
           <Link
             href={props.href}
-            className="inline-flex items-center gap-1 min-h-[44px] -my-2 py-2 text-[12.5px] font-medium text-purple-300 hover:text-purple-200 transition-colors shrink-0"
+            className="inline-flex items-center gap-1 min-h-[44px] -my-2 py-2 text-[12.5px] font-medium text-purple-300 hover:text-purple-200 transition-colors shrink-0 whitespace-nowrap"
           >
-            See representative reports
+            See reports
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>

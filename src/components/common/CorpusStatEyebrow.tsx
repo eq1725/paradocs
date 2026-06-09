@@ -20,7 +20,6 @@
 // SWC: var + function() per repo convention.
 
 import React, { useEffect, useState } from 'react'
-import Link from 'next/link'
 
 interface CorpusStats {
   catalogued_accounts_display: string
@@ -56,19 +55,17 @@ export function CorpusStatEyebrow() {
 
   return (
     <div className="w-full">
-      <Link
-        href="/sources"
-        aria-label="Catalogue scale and methodology"
-        className={
-          'group block w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 ' +
-          'pt-3 pb-2.5 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500/30 rounded-sm'
-        }
+      {/* V11.18.3 — Founder feedback: eyebrow should not be a tap-target.
+          Sources/methodology link lives elsewhere (footer). The eyebrow is
+          a static documentary header, not interactive. */}
+      <div
+        className="block w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 pb-2.5"
         style={{ borderBottom: '1px solid rgba(144,0,240,0.18)' }}
       >
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3">
           {/* Primary — catalogue scale */}
           <span
-            className="font-sans font-semibold uppercase tracking-[0.18em] leading-tight text-[11px] sm:text-[12px] group-hover:text-white transition-colors"
+            className="font-sans font-semibold uppercase tracking-[0.18em] leading-tight text-[11px] sm:text-[12px]"
             style={{ color: '#d4d4d0' }}
           >
             <span className="tabular-nums">{display}</span>{' '}
@@ -94,7 +91,7 @@ export function CorpusStatEyebrow() {
             <span className="normal-case tracking-normal">last updated {updated}</span>
           </span>
         </div>
-      </Link>
+      </div>
     </div>
   )
 }

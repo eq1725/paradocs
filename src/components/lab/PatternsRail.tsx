@@ -17,6 +17,8 @@
 // SWC: var + function() per repo convention.
 
 import React, { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import FindingCard from '@/components/patterns/FindingCard'
 import type { Finding } from '@/components/patterns/FindingCard'
@@ -66,20 +68,43 @@ export default function PatternsRail() {
       aria-label="Patterns from the archive"
       className="my-6"
     >
-      <div className="mb-3 px-1">
-        <h3
-          className="text-white"
-          style={{
-            fontFamily: "'Changa One', Changa, system-ui, sans-serif",
-            fontSize: '15px',
-            lineHeight: 1.3,
-          }}
+      {/*
+        V11.18.3 — Sprint 1A polish round 2. Added "See all patterns →"
+        link in the rail header. Founder feedback: the standalone
+        /lab/patterns grid was unreachable without typing the URL — no
+        nav entry existed anywhere. Letterboxd-style rail headers all
+        carry a "See all" link to the full surface; this matches the
+        established pattern in /lab.
+      */}
+      <div className="mb-3 px-1 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h3
+            className="text-white"
+            style={{
+              fontFamily: "'Changa One', Changa, system-ui, sans-serif",
+              fontSize: '15px',
+              lineHeight: 1.3,
+            }}
+          >
+            Patterns from the archive
+          </h3>
+          <p className="text-[12px] text-gray-400 mt-1 leading-snug">
+            Across the corpus — touched on your record when relevant.
+          </p>
+        </div>
+        <Link
+          href="/lab/patterns"
+          className={
+            'inline-flex items-center gap-1 shrink-0 min-h-[44px] -my-2 py-2 ' +
+            'text-[12px] font-medium text-purple-300 hover:text-purple-200 ' +
+            'transition-colors border-b border-purple-300/40 hover:border-purple-200/60 ' +
+            'whitespace-nowrap leading-none pb-1'
+          }
+          aria-label="See all patterns"
         >
-          Patterns from the archive
-        </h3>
-        <p className="text-[12px] text-gray-400 mt-1 leading-snug">
-          Across the corpus — touched on your record when relevant.
-        </p>
+          See all patterns
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
       </div>
       <div
         className="flex gap-3 overflow-x-auto -mx-4 px-4 pb-2 snap-x snap-mandatory"
