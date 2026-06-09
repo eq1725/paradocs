@@ -711,7 +711,18 @@ export default function DiscoverPage() {
           setFeedOffset(data.nextOffset || offset + data.items.length)
           setHasMore(data.hasMore)
           setTotalAvailable(data.totalAvailable || 0)
-          if (offset === 0) fetchSpecialCards()
+          if (offset === 0) {
+            fetchSpecialCards()
+          } else {
+            // V11.18.2 — Sprint 1A polish. After each subsequent
+            // pagination page lands, re-attempt insertion of any
+            // pending special cards whose target position now fits.
+            // Before this, promos with positions beyond the first
+            // page (9 / 21 / 33 / 45 with cadence=12) were all
+            // clamped to arr.length on the initial inject and
+            // stacked back-to-back at the tail of page 1.
+            injectPendingSpecialCards()
+          }
         } else {
           setHasMore(false)
         }
@@ -849,17 +860,50 @@ export default function DiscoverPage() {
           pendingSpecialCards.current.push({ card: fbCard, position: fbPos })
         }
       }
+      // Sort descending so splice-by-index from the tail doesn't
+      // perturb earlier indices in the same pass.
       pendingSpecialCards.current.sort(function (a, b) { return b.position - a.position })
 
-      setItems(function (prev) {
-        var arr = prev.slice()
-        pendingSpecialCards.current.forEach(function (entry) {
-          var insertAt = Math.min(entry.position, arr.length)
-          arr.splice(insertAt, 0, entry.card)
-        })
-        specialCardsInjected.current = true
-        return arr
+      // V11.18.2 — Sprint 1A polish. Delegate to the shared injector
+      // so loadMore can re-run insertion on each subsequent page.
+      injectPendingSpecialCards()
+    })
+  }
+
+  // V11.18.2 — Sprint 1A polish. Shared injection routine, called once
+  // from fetchSpecialCards() after the initial promo decisions land and
+  // again from loadFeed() after every pagination page. The behavior
+  // change versus pre-V11.18.2 is critical: instead of clamping every
+  // pending position to arr.length (which caused 3 promos targeted at
+  // 21/33/45 to stack at the tail of page 1 when arr.length was ~12),
+  // we now insert ONLY the promos whose target position fits within the
+  // current array, and leave the rest in pendingSpecialCards.current
+  // for the next loadMore. specialCardsInjected.current flips to true
+  // only when nothing is pending.
+  function injectPendingSpecialCards() {
+    if (pendingSpecialCards.current.length === 0) {
+      // Nothing to insert this tick. Don't flip the injected flag —
+      // the fetchSpecialCards Promise.all may still be in flight on
+      // initial load, and would call us again with real entries. The
+      // flag flips only when we've actually drained the pending list
+      // to zero in the splice path below.
+      return
+    }
+    setItems(function (prev) {
+      var arr = (prev as ExtendedFeedItem[]).slice()
+      // Sorted DESC by position so we splice tail-first without
+      // invalidating earlier target indices in the same pass.
+      var remaining: { card: ExtendedFeedItem; position: number }[] = []
+      pendingSpecialCards.current.forEach(function (entry) {
+        if (entry.position <= arr.length) {
+          arr.splice(entry.position, 0, entry.card)
+        } else {
+          remaining.push(entry)
+        }
       })
+      pendingSpecialCards.current = remaining
+      specialCardsInjected.current = (remaining.length === 0)
+      return arr
     })
   }
 
