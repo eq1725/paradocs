@@ -320,10 +320,14 @@ async function main(): Promise<void> {
 
   var candidateIds = flagged.map(function (r) { return r.id })
 
-  // Paginate the "already regenerated" lookup — IN() lists are unbounded
-  // but we'll batch by 1000 to be polite to PostgREST.
+  // Paginate the "already regenerated" lookup. PostgREST sends IN() as a
+  // querystring (?id=in.(uuid1,uuid2,...)) and URL-length-limits cap that
+  // at ~8KB. Each UUID is 36 chars + comma; staying at <=200 keeps the
+  // querystring well under 8KB even with the surrounding select+filter
+  // params. The previous BATCH=1000 produced "Bad Request" responses
+  // because the URL crossed the limit silently.
   var alreadyDone = new Set<string>()
-  var BATCH = 1000
+  var BATCH = 200
   for (var off = 0; off < candidateIds.length; off += BATCH) {
     var slice = candidateIds.slice(off, off + BATCH)
     var q = await sb
