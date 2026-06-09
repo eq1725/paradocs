@@ -61,7 +61,7 @@ import type { HintCategory } from './hint-schema'
  * pipeline. New entries: append, never reorder.
  */
 export type DescriptorFamily =
-  | 'static_electricity'      // static, tingling, hair-stand, prickle
+  | 'static_electricity'      // DEPRECATED — kept for backwards-compat; use `piloerection`
   | 'low_hum'                  // low hum, throbbing, vibration, drone
   | 'whoop_vocalization'       // whoop, howl, call (cryptid auditory)
   | 'shadow_figure'            // shadow, figure, presence, standing
@@ -82,6 +82,17 @@ export type DescriptorFamily =
   | 'witness_paired_or_more'   // shared event, family-witnessed
   | 'apparition_residential'   // home, house, bedroom (haunting locus)
   | 'recurring_location'       // happens again, same place, same room
+  // V11.18.4 — Sprint 1B taxonomy additions (per PATTERNS_TAXONOMY.md §2).
+  // New names alongside the v1 vocabulary; existing seed-hints continue
+  // to compile against the v1 names, new Sprint 1B Findings use these.
+  | 'piloerection'             // hair stood on end, prickling, goosebumps (PATTERNS_TAXONOMY A8)
+  | 'paralysis'                // sleep paralysis, can't move, pinned (PATTERNS_TAXONOMY C3)
+  | 'time_dilation'            // time slowed, time stood still, slow motion (PATTERNS_TAXONOMY D2)
+  | 'hypnagogic_state'         // half asleep, drifting off, between sleep and waking (PATTERNS_TAXONOMY C5)
+  | 'sensed_presence'          // felt presence, watched, eyes on me (PATTERNS_TAXONOMY E1)
+  | 'reunion_with_deceased'    // met my grandmother, deceased relative, welcomed me (PATTERNS_TAXONOMY E2)
+  | 'animal_witness_reaction'  // dog barked, horse spooked, animals went silent (PATTERNS_TAXONOMY F3)
+  | 'obe_observer_from_above'  // out of body, floated above, watched myself (PATTERNS_TAXONOMY C1)
 
 /** Witness state at event — pulls directly from reports.witness_state_at_event. */
 export type WitnessState =

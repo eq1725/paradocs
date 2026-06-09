@@ -36,6 +36,7 @@ import type {
 } from './data-query-types'
 import { DEFAULT_MIN_DENOMINATOR } from './data-query-types'
 import type { HintCategory } from './hint-schema'
+import { buildLegacyKeywordMap } from '@/lib/patterns/descriptor-vocabulary'
 
 /* -------------------------------------------------------------------------- */
 /* Public types                                                                */
@@ -89,32 +90,15 @@ export interface UserReport {
 /**
  * Map each DescriptorFamily to the keyword set used to detect it inside
  * `reports.tags` or `paradocs_assessment.descriptors`. Conservative —
- * matches are case-insensitive substring checks. Founder should refine
- * once the assessment pipeline locks its descriptor vocabulary.
+ * matches are case-insensitive substring checks.
+ *
+ * V11.18.4 — Sprint 1B. Sourced from the single shared vocabulary
+ * module `src/lib/patterns/descriptor-vocabulary.ts`. That module is
+ * also consumed by `src/pages/api/lab/patterns/list.ts` (the user-
+ * overlay path); the two used to be near-duplicate inline maps that
+ * drifted (the drift risk flagged in SPRINT_1A_2_NOTES).
  */
-var DESCRIPTOR_KEYWORDS: Record<DescriptorFamily, string[]> = {
-  static_electricity: ['static', 'tingling', 'hair-stand', 'hair stood', 'prickle'],
-  low_hum: ['low hum', 'throbbing', 'vibration', 'drone'],
-  whoop_vocalization: ['whoop', 'howl', 'call', 'vocalization'],
-  shadow_figure: ['shadow', 'figure', 'presence', 'standing'],
-  tunnel_imagery: ['tunnel', 'corridor', 'passage'],
-  being_of_light: ['light', 'luminous', 'radiant'],
-  time_distortion: ['time slowed', 'time stopped', 'missing time'],
-  metallic_taste: ['metal taste', 'copper tongue', 'metallic'],
-  odor_sulphur: ['sulphur', 'sulfur', 'rotten eggs', 'burning smell'],
-  paralysis_onset: ["can't move", 'frozen', 'locked', 'paralyzed'],
-  observed_from_above: ['looking down', 'above body', 'ceiling view', 'from above'],
-  electromagnetic_disturbance: ['flicker', 'stopped watch', 'electronics', 'watch stopped'],
-  animal_reaction: ['dog barking', 'horse spooked', 'cat hiding', 'animal'],
-  three_note_pattern: ['three-tone', 'triadic', 'groups-of-three'],
-  craft_shape_triangle: ['triangle', 'v-formation', 'boomerang'],
-  craft_shape_disc: ['disc', 'saucer', 'plate'],
-  craft_shape_orb: ['orb', 'sphere', 'ball-of-light'],
-  witness_drowsy: ['hypnagogic', 'half-asleep', 'falling-asleep', 'drowsy'],
-  witness_paired_or_more: ['shared event', 'family-witnessed'],
-  apparition_residential: ['home', 'house', 'bedroom'],
-  recurring_location: ['happens again', 'same place', 'same room'],
-}
+var DESCRIPTOR_KEYWORDS: Record<DescriptorFamily, string[]> = buildLegacyKeywordMap()
 
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                     */

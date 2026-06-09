@@ -42,24 +42,15 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import { Database } from '@/lib/database.types'
-import type { DescriptorFamily } from '@/lib/lab/hints/data-query-types'
+import { getDescriptorKeywords } from '@/lib/patterns/descriptor-vocabulary'
 
 var SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 var SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 var SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
-// Mirror of DESCRIPTOR_KEYWORDS in data-query-executor.ts. We don't
-// import it because the executor file is not exported for keyword maps;
-// the keyword vocabulary is locked at the data-query-types.ts schema.
-// If the canonical map drifts, update both. The Sprint 1 set covers
-// only the 5 descriptors actually referenced by published Findings.
-var DESCRIPTOR_KEYWORDS: Record<string, string[]> = {
-  static_electricity: ['static', 'tingling', 'hair-stand', 'hair stood', 'prickle'],
-  tunnel_imagery: ['tunnel', 'corridor', 'passage'],
-  shadow_figure: ['shadow', 'figure', 'presence', 'standing'],
-  electromagnetic_disturbance: ['flicker', 'stopped watch', 'electronics', 'watch stopped'],
-  witness_drowsy: ['hypnagogic', 'half-asleep', 'falling-asleep', 'drowsy'],
-}
+// V11.18.4 — Sprint 1B. Keyword vocabulary moved to the shared module
+// `src/lib/patterns/descriptor-vocabulary.ts` (consumed here AND by
+// data-query-executor.ts). The two used to drift; one source now.
 
 interface FindingRow {
   id: string
@@ -106,11 +97,11 @@ function readReportTokens(row: any): string[] {
 }
 
 function tokensIncludeDescriptor(tokens: string[], descriptor: string): boolean {
-  var keywords = DESCRIPTOR_KEYWORDS[descriptor] || []
+  var keywords = getDescriptorKeywords(descriptor)
   for (var i = 0; i < tokens.length; i++) {
     var t = tokens[i]
     for (var j = 0; j < keywords.length; j++) {
-      if (t.indexOf(keywords[j].toLowerCase()) !== -1) return true
+      if (t.indexOf(keywords[j]) !== -1) return true
     }
   }
   return false

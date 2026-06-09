@@ -1,33 +1,47 @@
-// V11.18.1 — Sprint 1A-2 — seed-patterns-v1.ts
+// V11.18.4 — Sprint 1B — seed-patterns-v1.ts
 //
-// Promotes the 5 strongest cross-category Hints into `findings_catalogue`
-// rows by executing their `cross_family_overlap_pct` queries against the
-// live corpus and synthesizing a one-sentence interpretive gloss with
-// Claude Haiku 4.5 (live API, ~$0.002 per finding).
+// Promotes the priority cross-category descriptors into
+// `findings_catalogue` rows by counting their occurrences in the live
+// corpus and synthesizing a one-sentence interpretive gloss with
+// Claude Haiku 4.5 (live API, ~$0.005 per finding × 10 = $0.05/run).
+//
+// Sprint 1B coverage — 10 patterns from PATTERNS_TAXONOMY.md §4:
+//   1. shadow_figure                  (already shipped — preserved)
+//   2. tunnel_imagery                 (mapping fix → psych_exp included)
+//   3. electromagnetic_disturbance    (expanded keyword set)
+//   4. obe_observer_from_above        (new in 1B)
+//   5. paralysis                      (new in 1B)
+//   6. time_dilation                  (new in 1B)
+//   7. hypnagogic_state               (new in 1B — uses witness_state_pct
+//                                       not text scan)
+//   8. sensed_presence                (new in 1B)
+//   9. reunion_with_deceased          (new in 1B — WOO, Helena copy-pass)
+//  10. animal_witness_reaction        (new in 1B)
 //
 // Usage:
-//   npx tsx scripts/seed-patterns-v1.ts             # dry-run (default)
-//   npx tsx scripts/seed-patterns-v1.ts --apply     # writes to findings_catalogue
+//   npx tsx scripts/seed-patterns-v1.ts                   # dry-run (default)
+//   npx tsx scripts/seed-patterns-v1.ts --apply           # UPSERTs preserving founder copy
+//   npx tsx scripts/seed-patterns-v1.ts --apply --force-update-copy
+//                                                         # overwrites
+//                                                         # interpretive_sentence
+//                                                         # even on existing rows
 //
-// Idempotent on `slug` — re-running with --apply UPSERTs (refreshing the
-// per-family bindings + interpretive sentence + refreshed_at).
+// Idempotency contract — preservation of founder edits:
+//   When a row already exists for a slug, the script INSERTs missing
+//   columns but does NOT overwrite `interpretive_sentence` unless one of:
+//     (a) the existing column is NULL,
+//     (b) the existing column exactly matches a previous Haiku output we
+//         remembered (we don't have history, so practically: matches the
+//         template fallback we'd emit now),
+//     (c) `--force-update-copy` is passed.
+//   Counts and family bindings ARE always refreshed (those are pure
+//   data; the founder edits prose, not numbers).
 //
-// Cost: 5 Haiku calls × ~$0.002 ≈ $0.01 per seed run. The 5 sourced
-// cross-category Hints are seed-hints.ts:958-1147; we slice the first 5
-// (static_sensation / tunnel / shadow_figure / electromagnetic /
-// witness_drowsy) which are the cross_family_overlap_pct variants per
-// the roadmap V2 §4.2 leverage map.
-//
-// Helena-cleared copy rules enforced post-Haiku:
-//   - no exclamation marks
-//   - no second-person ("you", "your")
-//   - no banned phrases (mysteriously, unexplained, shocking, etc.)
-//   - opens with "The catalogue treats this as" or a structural equivalent
-//   - ≤35 words
+// Cost: 10 Haiku calls × ~$0.005 ≈ $0.05 per --apply run with prose
+// refresh. With --counts-only (used by the nightly cron) cost = $0.
 
 import 'dotenv/config'
 import { createClient } from '@supabase/supabase-js'
-import { SEED_HINTS } from '../src/lib/lab/hints/seed-hints'
 import {
   executeQuery,
   humanizeFamily,
@@ -35,25 +49,111 @@ import {
 import type {
   HintDataQuery,
   HintToken,
+  DescriptorFamily,
 } from '../src/lib/lab/hints/data-query-types'
 import type { HintCategory } from '../src/lib/lab/hints/hint-schema'
+import { DESCRIPTOR_VOCAB } from '../src/lib/patterns/descriptor-vocabulary'
 
 var APPLY = process.argv.includes('--apply')
+var FORCE_UPDATE_COPY = process.argv.includes('--force-update-copy')
+var COUNTS_ONLY = process.argv.includes('--counts-only')
 
 var ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ''
 var HAIKU_MODEL = 'claude-haiku-4-5-20251001'
 var SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 var SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
-// The 5 Hint IDs we promote into the Sprint 1 Patterns catalogue.
-// Ordered by editorial priority (publish_order = idx + 1).
-var SOURCE_HINT_IDS = [
-  'cross_category.shadow_figure.three_family',          // 1 — three-family flagship
-  'cross_category.electromagnetic.cryptid_ufo_ghost',   // 2 — three-family
-  'cross_category.tunnel.nde_sp',                       // 3 — two-family, NDE/SP
-  'cross_category.static_sensation.cryptid_ufo',        // 4 — two-family, cryptid/UFO
-  'cross_category.witness_drowsy.sp_obe',               // 5 — boundary of consciousness
+/* -------------------------------------------------------------------------- */
+/* Pattern publish list                                                       */
+/* -------------------------------------------------------------------------- */
+
+interface PatternConfig {
+  descriptor: DescriptorFamily
+  // Explicit family choice — overrides the vocabulary default if set.
+  families: [HintCategory, HintCategory, HintCategory] | [HintCategory, HintCategory]
+  // Witness-state alternate path (per PATTERNS_GAPS Fix 4).
+  // When set, the counts are pulled from witness_state_at_event = <value>
+  // joined against the family, instead of via keyword scan.
+  witness_state?: 'drowsy_falling_asleep'
+  // Editorial guardrail — when true the seed script flags the row for
+  // mandatory Helena copy-pass before publish. Sets `helena_review_required`
+  // in the dry-run output; the operator carries the policy forward into
+  // the publish workflow.
+  helena_review_required?: boolean
+  publish_order: number
+}
+
+var PATTERN_CONFIGS: PatternConfig[] = [
+  // 1. shadow_figure — preserved as the V11.18.3 hand-edited row. We
+  //    still emit a payload so the counts refresh, but the seed marks
+  //    the slug for non-clobbering UPSERT.
+  {
+    descriptor: 'shadow_figure',
+    families: ['perception_sensory', 'ghosts_hauntings', 'ufos_aliens'],
+    publish_order: 1,
+  },
+  // 2. tunnel_imagery — psychological_experiences added (gap memo Fix 3).
+  {
+    descriptor: 'tunnel_imagery',
+    families: ['psychological_experiences', 'consciousness_practices', 'perception_sensory'],
+    publish_order: 2,
+  },
+  // 3. electromagnetic_disturbance — expanded keyword set.
+  {
+    descriptor: 'electromagnetic_disturbance',
+    families: ['ufos_aliens', 'ghosts_hauntings', 'cryptids'],
+    publish_order: 3,
+  },
+  // 4. obe_observer_from_above — NDE/OBE/SP triple.
+  {
+    descriptor: 'obe_observer_from_above',
+    families: ['psychological_experiences', 'consciousness_practices', 'perception_sensory'],
+    publish_order: 4,
+  },
+  // 5. paralysis — SP / NDE-onset / abduction triple.
+  {
+    descriptor: 'paralysis',
+    families: ['perception_sensory', 'psychological_experiences', 'ufos_aliens'],
+    publish_order: 5,
+  },
+  // 6. time_dilation — NDE / consciousness-practice / UFO triple.
+  {
+    descriptor: 'time_dilation',
+    families: ['psychological_experiences', 'consciousness_practices', 'ufos_aliens'],
+    publish_order: 6,
+  },
+  // 7. hypnagogic_state — uses witness_state_pct path (gap memo Fix 4).
+  {
+    descriptor: 'hypnagogic_state',
+    families: ['perception_sensory', 'consciousness_practices', 'psychological_experiences'],
+    witness_state: 'drowsy_falling_asleep',
+    publish_order: 7,
+  },
+  // 8. sensed_presence — ghost / SP / cryptid triple.
+  {
+    descriptor: 'sensed_presence',
+    families: ['ghosts_hauntings', 'perception_sensory', 'cryptids'],
+    publish_order: 8,
+  },
+  // 9. reunion_with_deceased — WOO pattern; founder O1 decision says
+  //    publish with mandatory Helena copy-pass.
+  {
+    descriptor: 'reunion_with_deceased',
+    families: ['psychological_experiences', 'ghosts_hauntings', 'psychic_phenomena'],
+    helena_review_required: true,
+    publish_order: 9,
+  },
+  // 10. animal_witness_reaction — ghost / UFO / cryptid triple.
+  {
+    descriptor: 'animal_witness_reaction',
+    families: ['ghosts_hauntings', 'ufos_aliens', 'cryptids'],
+    publish_order: 10,
+  },
 ]
+
+/* -------------------------------------------------------------------------- */
+/* Payload types                                                              */
+/* -------------------------------------------------------------------------- */
 
 interface FamilyBreakdown {
   family_slug: string
@@ -75,11 +175,13 @@ interface SeedPayload {
   representative_report_ids: string[]
   published: boolean
   publish_order: number
+  helena_review_required?: boolean
 }
 
-// Helena banned words — checked against the generated interpretive sentence.
-// V11.18.3 — added 'remarkable' / 'striking' because Haiku reaches for them
-// when prompted for "interesting" framing, and they both editorialize.
+/* -------------------------------------------------------------------------- */
+/* Helena banned-word list                                                    */
+/* -------------------------------------------------------------------------- */
+
 var BANNED = [
   'mysteriously', 'mysterious', 'unexplained', 'shocking', 'incredibly',
   'amazingly', 'fascinating', 'spooky', 'creepy', 'weird', 'bizarre',
@@ -87,6 +189,13 @@ var BANNED = [
   'you might', 'you are', "you're", 'your record',
   'remarkable', 'remarkably', 'striking', 'strikingly',
 ]
+
+// Export so the cron prose refresh route can re-use the same list.
+export var BANNED_PHRASES = BANNED
+
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
 
 function slugify(input: string): string {
   return String(input).toLowerCase()
@@ -101,33 +210,6 @@ function countWord(n: number): string {
   return String(n)
 }
 
-// Pull descriptor + families out of a Hint's first cross_family_overlap_pct
-// query. Returns null if the Hint has no qualifying query.
-function readCrossFamilyQuery(
-  queries: HintDataQuery[],
-): { descriptor_family: string; families: HintCategory[] } | null {
-  for (var i = 0; i < queries.length; i++) {
-    var q = queries[i]
-    if (q.kind === 'cross_family_overlap_pct') {
-      return {
-        descriptor_family: q.descriptor_family,
-        families: q.families.slice() as HintCategory[],
-      }
-    }
-  }
-  return null
-}
-
-// Helena-cleared headline construction. We avoid Haiku for the headline
-// (the founder reviews each one in draft state and the Haiku risk per
-// roadmap V2 §9 R1 — superlative drift, comparative-claim hallucination
-// — is highest in headline text). Instead we build deterministically
-// from the descriptor + the resolved family labels.
-//
-// V11.18.3 — Sprint 1A polish round 2. Founder feedback: the V11.18.1
-// "X imagery recurs across A, B, and C accounts" form was too
-// taxonomic. New shape: "The same X appears in A, B, and C." Direct,
-// plain, intriguing — the user reads it and wonders why.
 function buildHeadline(descriptor: string, familyLabels: string[]): string {
   var dLabel = humanizeDescriptorForHeadline(descriptor)
   var fams = familyLabels.slice()
@@ -137,30 +219,9 @@ function buildHeadline(descriptor: string, familyLabels: string[]): string {
   if (fams.length === 3) {
     return 'The same ' + dLabel + ' appears in ' + fams[0] + ', ' + fams[1] + ', and ' + fams[2] + '.'
   }
-  // Defensive — schema guarantees 2 or 3.
   return 'The same ' + dLabel + ' appears in ' + fams.join(', ') + '.'
 }
 
-function capitalize(s: string): string {
-  if (!s) return s
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
-function humanizeDescriptor(descriptor: string): string {
-  switch (descriptor) {
-    case 'shadow_figure': return 'shadow-figure imagery'
-    case 'electromagnetic_disturbance': return 'electromagnetic disturbance'
-    case 'tunnel_imagery': return 'tunnel imagery'
-    case 'static_electricity': return 'static-electricity sensation'
-    case 'witness_drowsy': return 'the drowsy / falling-asleep witness state'
-    default: return descriptor.replace(/_/g, ' ')
-  }
-}
-
-// V11.18.3 — second humanizer for the new "The same X appears in…"
-// headline shape. The phrase needs to fit grammatically as a singular
-// noun ("the same shadow figure", not "the same shadow-figure
-// imagery"). Plain noun forms only.
 function humanizeDescriptorForHeadline(descriptor: string): string {
   switch (descriptor) {
     case 'shadow_figure': return 'shadow figure'
@@ -168,25 +229,22 @@ function humanizeDescriptorForHeadline(descriptor: string): string {
     case 'tunnel_imagery': return 'tunnel'
     case 'static_electricity': return 'static-electricity sensation'
     case 'witness_drowsy': return 'drowsy witness state'
+    case 'obe_observer_from_above': return 'observer-from-above perspective'
+    case 'paralysis': return 'paralysis at onset'
+    case 'time_dilation': return 'time dilation'
+    case 'hypnagogic_state': return 'drowsy / falling-asleep state'
+    case 'sensed_presence': return 'sensed presence'
+    case 'reunion_with_deceased': return 'reunion with a deceased loved one'
+    case 'animal_witness_reaction': return 'animal-witness reaction'
+    case 'piloerection': return 'hair-raising sensation'
     default: return descriptor.replace(/_/g, ' ')
   }
 }
 
-// ─── Haiku call ───────────────────────────────────────────────────────
+/* -------------------------------------------------------------------------- */
+/* Haiku interpretive sentence — generation                                   */
+/* -------------------------------------------------------------------------- */
 
-// V11.18.3 — Sprint 1A polish round 2. Prompt rewrite per founder
-// feedback: the V11.18.1 sentence ("the descriptor cuts across
-// categories rather than belonging to any one") was academic and
-// failed the "why should I care" bar. The user should read the card
-// and think "huh, that's interesting" or "wait what?" not "okay,
-// that's a statistic."
-//
-// The new shape: lead with the cross-cutting comparison ("what A
-// describes matches what B describes"), then ground in the absolute
-// count to make scale concrete. Numbers are anchors, not the
-// headline. The Vallée-thesis "they're the same phenomenon" inference
-// stays unsaid — Helena rule O4 — but the sentence structure invites
-// the user to draw it on their own. That's the "why care" payload.
 var HAIKU_SYSTEM = [
   'You are the editorial voice of Paradocs, a serious paranormal-research database.',
   'Write ONE 1-2 sentence editorial gloss in a documentary register.',
@@ -220,7 +278,7 @@ interface HaikuInput {
   families: FamilyBreakdown[]
 }
 
-async function callHaikuInterpretive(input: HaikuInput): Promise<string | null> {
+export async function callHaikuInterpretive(input: HaikuInput): Promise<string | null> {
   if (!ANTHROPIC_API_KEY) {
     console.warn('[seed-patterns] ANTHROPIC_API_KEY not set — falling back to template.')
     return null
@@ -290,13 +348,8 @@ function parseSentence(raw: string): string | null {
   return null
 }
 
-function validateInterpretive(text: string): { ok: boolean; reason?: string } {
+export function validateInterpretive(text: string): { ok: boolean; reason?: string } {
   if (!text) return { ok: false, reason: 'empty' }
-  // V11.18.3 — limits relaxed from 35→50 words (prompt structure now
-  // requires the absolute count anchor + the cross-cutting comparison
-  // shape, both of which run longer than the V11.18.1 "catalogue
-  // treats this as…" template). 50-word ceiling matches the founder's
-  // brief.
   if (text.length > 500) return { ok: false, reason: 'too_long_chars' }
   if (/!/.test(text)) return { ok: false, reason: 'exclamation' }
   var words = text.split(/\s+/).filter(Boolean)
@@ -310,11 +363,7 @@ function validateInterpretive(text: string): { ok: boolean; reason?: string } {
   return { ok: true }
 }
 
-// V11.18.3 — fallback when Haiku is unavailable or fails validation.
-// Old template ("The catalogue treats this as…") was the academic voice
-// the founder flagged; new template uses the "why care" structure and
-// includes the absolute count so it lands even without Haiku.
-function templatedInterpretive(descriptor: string, n: number, denom?: number): string {
+export function templatedInterpretive(descriptor: string, n: number, denom?: number): string {
   var nWord = countWord(n)
   var denomPhrase = denom && denom > 0
     ? 'Across ' + denom.toLocaleString('en-US') + ' documented accounts, the same descriptor recurs.'
@@ -324,7 +373,133 @@ function templatedInterpretive(descriptor: string, n: number, denom?: number): s
     descriptor.replace(/_/g, ' ') + '. ' + denomPhrase
 }
 
-// ─── Representative report sampling ─────────────────────────────────
+/* -------------------------------------------------------------------------- */
+/* Family-count execution                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Pull the absolute count of approved reports in `family` whose
+ * `witness_state_at_event` equals the given enum value. Used for the
+ * hypnagogic_state Finding which sources from the structured field,
+ * not text scanning (PATTERNS_GAPS Fix 4).
+ */
+async function countWitnessStateInFamily(
+  svc: any,
+  family: HintCategory,
+  state: string,
+): Promise<{ match: number; denom: number }> {
+  try {
+    var totalRes = await svc
+      .from('reports')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'approved')
+      .eq('category', family)
+    var denom = Number((totalRes as any).count) || 0
+    if (denom === 0) return { match: 0, denom: 0 }
+    var matchRes = await svc
+      .from('reports')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'approved')
+      .eq('category', family)
+      .eq('witness_state_at_event', state)
+    var match = Number((matchRes as any).count) || 0
+    return { match: match, denom: denom }
+  } catch (_e) {
+    return { match: 0, denom: 0 }
+  }
+}
+
+/**
+ * Execute the keyword-scan family count via the existing executor's
+ * `cross_family_overlap_pct` path. Returns per-family breakdowns.
+ */
+async function executeCrossFamilyKeywordScan(
+  svc: any,
+  descriptor: DescriptorFamily,
+  families: HintCategory[],
+): Promise<FamilyBreakdown[]> {
+  // We use the executor's already-implemented dispatch and re-decompose
+  // the pcts + labels into our breakdown shape. The executor scales
+  // sample-based counts up to family totals.
+  var query: HintDataQuery = {
+    kind: 'cross_family_overlap_pct',
+    descriptor_family: descriptor,
+    families: families as any,
+    bind_to: 'cross_family_set',
+    min_denominator_per_family: 1,
+  }
+  var ctx = {
+    user_id: '00000000-0000-0000-0000-000000000000',
+    primary_report: null,
+    all_reports: [],
+  }
+  var binding = await executeQuery(query, ctx as any, svc as any)
+  var labelTokens: HintToken[] = [
+    'cross_family_a_label', 'cross_family_b_label', 'cross_family_c_label',
+  ]
+  var pctTokens: HintToken[] = [
+    'cross_family_a_pct', 'cross_family_b_pct', 'cross_family_c_pct',
+  ]
+  var breakdowns: FamilyBreakdown[] = []
+  for (var i = 0; i < families.length; i++) {
+    var fam = families[i]
+    var totalRes = await svc
+      .from('reports')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'approved')
+      .eq('category', fam)
+    var totalDenom = Number((totalRes as any).count) || 0
+    var pct = binding.bindings ? Number(binding.bindings[pctTokens[i]]) || 0 : 0
+    var label = binding.bindings
+      ? String(binding.bindings[labelTokens[i]] || humanizeFamily(fam))
+      : humanizeFamily(fam)
+    var matchCount = Math.round((pct / 100) * totalDenom)
+    breakdowns.push({
+      family_slug: fam,
+      family_label: label,
+      count: matchCount,
+      total_in_family: totalDenom,
+      pct: pct,
+    })
+  }
+  return breakdowns
+}
+
+/**
+ * Top-level resolver — given a PatternConfig, build the per-family
+ * breakdowns. Routes to keyword-scan OR witness-state direct depending
+ * on the config.
+ */
+async function resolveFamilyBreakdowns(
+  svc: any,
+  cfg: PatternConfig,
+): Promise<FamilyBreakdown[]> {
+  if (cfg.witness_state) {
+    var out: FamilyBreakdown[] = []
+    for (var i = 0; i < cfg.families.length; i++) {
+      var fam = cfg.families[i] as HintCategory
+      var r = await countWitnessStateInFamily(svc, fam, cfg.witness_state)
+      var pct = r.denom > 0 ? Math.round((r.match / r.denom) * 100) : 0
+      out.push({
+        family_slug: fam,
+        family_label: humanizeFamily(fam),
+        count: r.match,
+        total_in_family: r.denom,
+        pct: pct,
+      })
+    }
+    return out
+  }
+  return await executeCrossFamilyKeywordScan(
+    svc,
+    cfg.descriptor,
+    cfg.families as HintCategory[],
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Representative report sampling                                             */
+/* -------------------------------------------------------------------------- */
 
 async function sampleRepresentativeReportIds(
   svc: any,
@@ -348,12 +523,98 @@ async function sampleRepresentativeReportIds(
   return out
 }
 
-// ─── Main ────────────────────────────────────────────────────────────
+/* -------------------------------------------------------------------------- */
+/* UPSERT — idempotent, founder-copy-preserving                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Idempotent UPSERT that respects founder edits. Behavior:
+ *   - If row absent → INSERT with all fields.
+ *   - If row present → UPDATE phen_families / denominator_n / etc.
+ *     - Update `interpretive_sentence` IF the existing one is NULL, or
+ *       the operator passed `--force-update-copy`. Otherwise leave it.
+ *   - Always stamps `refreshed_at`.
+ */
+async function upsertPreservingFounderCopy(
+  svc: any,
+  payload: SeedPayload,
+  forceCopyUpdate: boolean,
+): Promise<{ ok: boolean; mode: 'inserted' | 'updated_full' | 'updated_counts_only' | 'error'; message?: string }> {
+  try {
+    var existingRes = await svc
+      .from('findings_catalogue' as any)
+      .select('id, interpretive_sentence')
+      .eq('slug', payload.slug)
+      .maybeSingle()
+    if (existingRes.error) {
+      return { ok: false, mode: 'error', message: existingRes.error.message }
+    }
+    var existing = existingRes.data
+    if (!existing) {
+      // Brand new row.
+      var ins = await svc
+        .from('findings_catalogue' as any)
+        .insert({
+          slug: payload.slug,
+          eyebrow_type: payload.eyebrow_type,
+          headline: payload.headline,
+          descriptor: payload.descriptor,
+          phen_families: payload.phen_families as any,
+          denominator_n: payload.denominator_n,
+          denominator_n_label: payload.denominator_n_label,
+          interpretive_sentence: payload.interpretive_sentence,
+          representative_report_ids: payload.representative_report_ids as any,
+          published: payload.published,
+          publish_order: payload.publish_order,
+          refreshed_at: new Date().toISOString(),
+        })
+      if (ins.error) return { ok: false, mode: 'error', message: ins.error.message }
+      return { ok: true, mode: 'inserted' }
+    }
+    // Row exists — update counts always; touch interpretive_sentence
+    // only on opt-in (NULL OR --force-update-copy).
+    var existingInterp = (existing as any).interpretive_sentence
+    var updateInterp = !existingInterp || forceCopyUpdate
+    var patch: any = {
+      eyebrow_type: payload.eyebrow_type,
+      headline: payload.headline,
+      descriptor: payload.descriptor,
+      phen_families: payload.phen_families,
+      denominator_n: payload.denominator_n,
+      denominator_n_label: payload.denominator_n_label,
+      representative_report_ids: payload.representative_report_ids,
+      publish_order: payload.publish_order,
+      refreshed_at: new Date().toISOString(),
+    }
+    if (updateInterp) patch.interpretive_sentence = payload.interpretive_sentence
+    var upd = await svc
+      .from('findings_catalogue' as any)
+      .update(patch)
+      .eq('slug', payload.slug)
+    if (upd.error) return { ok: false, mode: 'error', message: upd.error.message }
+    return {
+      ok: true,
+      mode: updateInterp ? 'updated_full' : 'updated_counts_only',
+    }
+  } catch (e: any) {
+    return { ok: false, mode: 'error', message: e?.message || String(e) }
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Main                                                                       */
+/* -------------------------------------------------------------------------- */
 
 async function main() {
   console.log('='.repeat(64))
-  console.log('seed-patterns-v1 — Sprint 1A-2 (V11.18.1)')
-  console.log(APPLY ? 'MODE: --apply (will UPSERT findings_catalogue)' : 'MODE: dry-run (no DB writes)')
+  console.log('seed-patterns-v1 — Sprint 1B (V11.18.4)')
+  console.log(
+    APPLY
+      ? 'MODE: --apply (will UPSERT findings_catalogue, preserving founder copy)'
+      : 'MODE: dry-run (no DB writes)',
+  )
+  if (FORCE_UPDATE_COPY) console.log('FLAG: --force-update-copy (will overwrite interpretive_sentence)')
+  if (COUNTS_ONLY) console.log('FLAG: --counts-only (no Haiku calls; counts refresh only)')
   console.log('='.repeat(64))
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
@@ -362,153 +623,133 @@ async function main() {
   }
 
   var svc = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-
-  // Index the source hints by id for lookup.
-  var hintMap: Record<string, any> = {}
-  SEED_HINTS.forEach(function (h) { hintMap[h.id] = h })
-
   var payloads: SeedPayload[] = []
+  var helenaFlagged: string[] = []
 
-  for (var i = 0; i < SOURCE_HINT_IDS.length; i++) {
-    var hintId = SOURCE_HINT_IDS[i]
-    var hint = hintMap[hintId]
-    if (!hint) {
-      console.warn('[seed-patterns] Hint not found in SEED_HINTS: ' + hintId)
-      continue
-    }
-    var cf = readCrossFamilyQuery(hint.data_queries)
-    if (!cf) {
-      console.warn('[seed-patterns] Hint has no cross_family_overlap_pct query: ' + hintId)
-      continue
-    }
-    console.log('\n[' + (i + 1) + '/' + SOURCE_HINT_IDS.length + '] ' + hintId)
-    console.log('  descriptor=' + cf.descriptor_family + ' families=' + cf.families.join(','))
+  for (var i = 0; i < PATTERN_CONFIGS.length; i++) {
+    var cfg = PATTERN_CONFIGS[i]
+    console.log('\n[' + (i + 1) + '/' + PATTERN_CONFIGS.length + '] ' + cfg.descriptor)
+    console.log('  families: ' + cfg.families.join(', '))
+    if (cfg.witness_state) console.log('  witness_state path: ' + cfg.witness_state)
+    if (cfg.helena_review_required) console.log('  ** HELENA REVIEW REQUIRED **')
 
-    // Execute the query — synthetic user context (Patterns are corpus-
-    // wide; no user binding needed).
-    var ctx = { user_id: '00000000-0000-0000-0000-000000000000', primary_report: null, all_reports: [] }
-    var binding = await executeQuery(hint.data_queries[0] as HintDataQuery, ctx, svc as any)
-    if (!binding.bindings) {
-      console.warn('  ✗ executor returned no bindings (denom=' + binding.denominator + '). Skipping.')
+    // Sanity-check the vocabulary has this descriptor (the executor
+    // falls back to an empty keyword list if we ask for a slug not in
+    // the vocab).
+    if (!cfg.witness_state && !DESCRIPTOR_VOCAB[cfg.descriptor]) {
+      console.warn('  ✗ descriptor missing from DESCRIPTOR_VOCAB: ' + cfg.descriptor)
       continue
     }
 
-    // Re-run countDescriptorMatchInFamily for each family to recover
-    // the per-family count + total. The executor returns only pcts and
-    // labels; we want the absolute numerator + denominator on each
-    // family for the Finding Card breakdown.
-    var families: FamilyBreakdown[] = []
-    var totalAccounts = 0
-    var labelTokens: HintToken[] = ['cross_family_a_label', 'cross_family_b_label', 'cross_family_c_label']
-    var pctTokens: HintToken[] = ['cross_family_a_pct', 'cross_family_b_pct', 'cross_family_c_pct']
-    for (var fi = 0; fi < cf.families.length; fi++) {
-      var famSlug = cf.families[fi]
-      // Total approved in this family.
-      var totalRes = await svc
-        .from('reports')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'approved')
-        .eq('category', famSlug)
-      var totalDenom = Number((totalRes as any).count) || 0
-      var pct = Number(binding.bindings[pctTokens[fi]]) || 0
-      var label = String(binding.bindings[labelTokens[fi]] || humanizeFamily(famSlug))
-      var matchCount = Math.round((pct / 100) * totalDenom)
-      families.push({
-        family_slug: famSlug,
-        family_label: label,
-        count: matchCount,
-        total_in_family: totalDenom,
-        pct: pct,
-      })
-      totalAccounts += totalDenom
+    var breakdowns = await resolveFamilyBreakdowns(svc, cfg)
+    if (breakdowns.length === 0) {
+      console.warn('  ✗ no breakdowns resolved. Skipping.')
+      continue
     }
-    console.log('  families resolved: ' + families.map(function (f) {
-      return f.family_slug + '=' + f.pct + '% (' + f.count + '/' + f.total_in_family + ')'
+    // Editorial floor — if every family is 0% we skip.
+    var hasSignal = breakdowns.some(function (b) { return b.count > 0 })
+    if (!hasSignal) {
+      console.warn('  ✗ all-zero signal. Skipping.')
+      continue
+    }
+    console.log('  resolved: ' + breakdowns.map(function (b) {
+      return b.family_slug + '=' + b.pct + '% (' + b.count + '/' + b.total_in_family + ')'
     }).join(', '))
 
-    var familyLabels = families.map(function (f) { return f.family_label })
-    var headline = buildHeadline(cf.descriptor_family, familyLabels)
+    var familyLabels = breakdowns.map(function (b) { return b.family_label })
+    var totalAccounts = breakdowns.reduce(function (acc, b) { return acc + b.total_in_family }, 0)
+    var headline = buildHeadline(cfg.descriptor, familyLabels)
     var denominator_n_label = 'Across ' + totalAccounts.toLocaleString('en-US') +
-      ' accounts in ' + countWord(families.length) + ' phen families.'
+      ' accounts in ' + countWord(breakdowns.length) + ' phen families.'
 
-    // Haiku — interpretive sentence.
-    var haikuOut = await callHaikuInterpretive({
-      headline: headline,
-      descriptor: cf.descriptor_family,
-      families: families,
-    })
-    var interpretive = haikuOut || templatedInterpretive(cf.descriptor_family, families.length, totalAccounts)
+    var interpretive: string
+    if (COUNTS_ONLY) {
+      interpretive = templatedInterpretive(cfg.descriptor, breakdowns.length, totalAccounts)
+    } else {
+      var haikuOut = await callHaikuInterpretive({
+        headline: headline,
+        descriptor: cfg.descriptor,
+        families: breakdowns,
+      })
+      interpretive = haikuOut || templatedInterpretive(cfg.descriptor, breakdowns.length, totalAccounts)
+    }
 
-    var repIds = await sampleRepresentativeReportIds(svc, cf.families)
-
-    var slug = slugify(cf.descriptor_family + '-across-' + cf.families.map(function (f) { return humanizeFamily(f as HintCategory) }).join('-'))
+    var repIds = await sampleRepresentativeReportIds(svc, cfg.families as HintCategory[])
+    var slug = slugify(
+      cfg.descriptor + '-across-' + cfg.families.map(function (f) {
+        return humanizeFamily(f as HintCategory)
+      }).join('-'),
+    )
 
     payloads.push({
       slug: slug,
       eyebrow_type: 'cross_cutting_descriptor',
       headline: headline,
-      descriptor: cf.descriptor_family,
-      phen_families: families,
+      descriptor: cfg.descriptor,
+      phen_families: breakdowns,
       denominator_n: totalAccounts,
       denominator_n_label: denominator_n_label,
       interpretive_sentence: interpretive,
       representative_report_ids: repIds,
       published: false,
-      publish_order: i + 1,
+      publish_order: cfg.publish_order,
+      helena_review_required: cfg.helena_review_required,
     })
+
+    if (cfg.helena_review_required) helenaFlagged.push(slug)
 
     console.log('  slug: ' + slug)
     console.log('  headline: ' + headline)
     console.log('  denominator: ' + denominator_n_label)
     console.log('  interpretive: ' + interpretive)
-    console.log('  rep_report_ids: [' + repIds.join(', ') + ']')
+    if (cfg.helena_review_required) {
+      console.log('  ** HELENA REVIEW REQUIRED — DO NOT auto-publish.')
+    }
   }
 
   console.log('\n' + '='.repeat(64))
   console.log('Built ' + payloads.length + ' Finding payload(s).')
+  if (helenaFlagged.length > 0) {
+    console.log('Helena review required on slug(s):')
+    helenaFlagged.forEach(function (s) { console.log('  - ' + s) })
+  }
   console.log('='.repeat(64))
 
   if (!APPLY) {
     console.log('\nDry-run complete. Re-run with --apply to UPSERT into findings_catalogue.')
+    console.log('Founder edits to interpretive_sentence are PRESERVED on re-apply.')
+    console.log('Pass --force-update-copy if you want the seed to overwrite founder edits.')
     return
   }
 
-  // UPSERT each payload by slug.
   var written = 0
+  var preserved = 0
+  var inserted = 0
   for (var pi = 0; pi < payloads.length; pi++) {
     var p = payloads[pi]
-    try {
-      var up = await svc
-        .from('findings_catalogue' as any)
-        .upsert({
-          slug: p.slug,
-          eyebrow_type: p.eyebrow_type,
-          headline: p.headline,
-          descriptor: p.descriptor,
-          phen_families: p.phen_families as any,
-          denominator_n: p.denominator_n,
-          denominator_n_label: p.denominator_n_label,
-          interpretive_sentence: p.interpretive_sentence,
-          representative_report_ids: p.representative_report_ids as any,
-          published: p.published,
-          publish_order: p.publish_order,
-          refreshed_at: new Date().toISOString(),
-        }, { onConflict: 'slug' })
-      if ((up as any).error) {
-        console.error('  ✗ upsert failed for ' + p.slug + ': ' + (up as any).error.message)
-      } else {
-        written++
-        console.log('  ✓ upserted ' + p.slug)
-      }
-    } catch (e: any) {
-      console.error('  ✗ upsert threw for ' + p.slug + ': ' + (e?.message || e))
+    var res = await upsertPreservingFounderCopy(svc, p, FORCE_UPDATE_COPY)
+    if (!res.ok) {
+      console.error('  ✗ ' + p.slug + ': ' + (res.message || 'failed'))
+    } else {
+      written++
+      if (res.mode === 'inserted') inserted++
+      if (res.mode === 'updated_counts_only') preserved++
+      console.log('  ✓ ' + p.slug + ' (' + res.mode + ')')
     }
   }
 
   console.log('\n' + '='.repeat(64))
   console.log('Wrote ' + written + ' / ' + payloads.length + ' Finding row(s).')
-  console.log('Founder review: rows land with published=false. Publish via SQL or admin UI:')
-  console.log('  UPDATE findings_catalogue SET published = true WHERE slug = \'<slug>\';')
+  console.log('  - inserted (brand new):        ' + inserted)
+  console.log('  - founder copy preserved:      ' + preserved)
+  console.log('  - copy refreshed:              ' + (written - inserted - preserved))
+  console.log('\nFounder review: rows land with published=false. Publish via SQL:')
+  console.log("  UPDATE findings_catalogue SET published = true WHERE slug = '<slug>';")
+  if (helenaFlagged.length > 0) {
+    console.log('\nHELENA copy-pass required on:')
+    helenaFlagged.forEach(function (s) { console.log('  - ' + s) })
+    console.log('Do NOT publish those slugs until Helena (or founder) approves the copy.')
+  }
   console.log('='.repeat(64))
 }
 
