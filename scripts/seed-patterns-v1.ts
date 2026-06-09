@@ -283,13 +283,27 @@ export async function callHaikuInterpretive(input: HaikuInput): Promise<string |
     console.warn('[seed-patterns] ANTHROPIC_API_KEY not set — falling back to template.')
     return null
   }
+  // V11.18.5 — substitute "haunting" → "ghost report" in the family labels
+  // passed to Haiku so the generated prose uses the un-banned synonym.
+  // The rendered FindingCard UI still maps "haunting" → "Hauntings" at
+  // render time (FindingCard pretty-label map), so this substitution
+  // affects ONLY the Haiku prompt input + its generated prose.
+  function _labelForPrompt(label: string): string {
+    if (label === 'haunting') return 'ghost report'
+    if (label === 'hauntings') return 'ghost reports'
+    return label
+  }
   var userPrompt = [
-    'HEADLINE: ' + input.headline,
+    'HEADLINE: ' + input.headline.replace(/hauntings?/gi, function (m) {
+      return m[0] === m[0].toUpperCase() ? 'Ghost reports' : 'ghost reports'
+    }),
     'DESCRIPTOR: ' + input.descriptor,
     'FAMILY BREAKDOWN:',
     input.families.map(function (f) {
-      return '  - ' + f.family_label + ': ' + f.pct + '% (' + f.count + ' of ' + f.total_in_family + ')'
+      return '  - ' + _labelForPrompt(f.family_label) + ': ' + f.pct + '% (' + f.count + ' of ' + f.total_in_family + ')'
     }).join('\n'),
+    '',
+    'IMPORTANT VOCAB: Refer to the ghost-family category as "ghost reports" or "ghost accounts" — do NOT use "haunting" or "hauntings" as adjectives (they are reserved as a genre term in our brand register).',
     '',
     'Write the catalogue-treatment sentence per the rules. JSON only.',
   ].join('\n')
