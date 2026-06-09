@@ -43,7 +43,11 @@
 
 import React from 'react'
 import Link from 'next/link'
-import { ArrowRight } from 'lucide-react'
+import {
+  ArrowRight,
+  Ghost, Eye, Brain, Sparkles, Atom, Moon, Footprints, Radio, Church,
+  Circle,
+} from 'lucide-react'
 
 export interface FindingFamilyBreakdown {
   family_slug: string
@@ -187,6 +191,113 @@ function pickHero(families: FindingFamilyBreakdown[]): FindingFamilyBreakdown | 
     if (families[i].pct > best.pct) best = families[i]
   }
   return best
+}
+
+// ─── Family icon set (Sprint 1C — right-side card affordance) ─────
+//
+// V11.18.6 — Sprint 1C. Founder feedback: "we could make more use of
+// the blank space on the right side of the card." Per the Sprint 1C
+// brief, three options were considered:
+//   A. sparkline of count-over-time (real history needed)
+//   B. condensed phenomenon-family icon set (this one)
+//   C. mini histogram of category breakdown
+//
+// Picked B because:
+//   - zero new data dependency (icons read from existing phen_families)
+//   - fits documentary register (small, hairline-styled, no chart chrome)
+//   - doesn't compete with the headline or the hero stat
+//   - reinforces the cross-family scope (the whole point of a Finding)
+//   - degrades gracefully when only two families are present
+//
+// Renders on `today_card` + `grid` variants. Skipped on `rail` — at
+// 300px wide the rail card is too tight to share the top row with
+// both the eyebrow and three icons; the brand-purple top hairline
+// already does the "this is a Patterns artifact" work there.
+//
+// Mapping is intentionally short — each family gets one Lucide icon
+// at 16px (today_card) or 14px (grid). Unmapped families fall back to
+// a small empty Circle so the row never collapses or shows broken
+// icons. The icons share the muted gray tone the secondary copy uses
+// so they read as ambient context, not as an action affordance.
+//
+// Accessibility: the icon set is wrapped in a div with role="img"
+// and an aria-label naming the three families ("Across Hauntings,
+// UFO Sightings, Cryptid Encounters"); the icons themselves are
+// aria-hidden. Screen readers read the label, not the SVGs.
+
+// Type-loose to accept Lucide's ForwardRefExoticComponent shape without
+// fighting LucideProps/SVG ref types — the consumer only ever passes
+// `className` + `strokeWidth`, which all Lucide icons support.
+type IconComponent = React.ComponentType<any>
+
+var FAMILY_ICON_OVERRIDES: Record<string, IconComponent> = {
+  // humanizeFamily() outputs
+  'cryptid': Footprints,
+  'UFO': Radio,
+  'haunting': Ghost,
+  'psychic': Sparkles,
+  'esoteric': Sparkles,
+  'consciousness': Brain,
+  'perception-sensory': Moon,
+  'psychological': Brain,
+  'religion/mythology': Church,
+  // Raw category slugs
+  'cryptids': Footprints,
+  'ufos_aliens': Radio,
+  'ghosts_hauntings': Ghost,
+  'psychic_phenomena': Sparkles,
+  'esoteric_practices': Sparkles,
+  'consciousness_practices': Brain,
+  'perception_sensory': Moon,
+  'psychological_experiences': Brain,
+  'religion_mythology': Church,
+}
+
+function iconForFamily(f: FindingFamilyBreakdown): IconComponent {
+  var bySlug = FAMILY_ICON_OVERRIDES[f.family_slug]
+  if (bySlug) return bySlug
+  var byLabel = FAMILY_ICON_OVERRIDES[f.family_label]
+  if (byLabel) return byLabel
+  // Fall back to a generic atomic-orbit icon for unmapped families.
+  return Atom as unknown as IconComponent
+}
+
+function FamilyIconSet(props: { families: FindingFamilyBreakdown[]; variant: Variant }) {
+  var fams = (props.families || []).slice(0, 3)
+  if (fams.length === 0) return null
+  var iconCls =
+    props.variant === 'today_card'
+      ? 'w-4 h-4 text-gray-400'
+      : 'w-[14px] h-[14px] text-gray-400'
+  var labels = fams.map(prettyFamilyLabel)
+  var ariaLabel = 'Across ' + labels.join(', ')
+  return (
+    <div
+      role="img"
+      aria-label={ariaLabel}
+      className="flex items-center gap-1.5 shrink-0"
+    >
+      {fams.map(function (f, idx) {
+        var Icon = iconForFamily(f)
+        return (
+          <span
+            key={f.family_slug + '-' + idx}
+            aria-hidden="true"
+            title={prettyFamilyLabel(f)}
+            className={
+              'inline-flex items-center justify-center rounded-md border border-white/[0.08] ' +
+              (props.variant === 'today_card'
+                ? 'w-7 h-7 bg-white/[0.025]'
+                : 'w-6 h-6 bg-white/[0.025]')
+            }
+          >
+            {/* Fallback if icon resolution returned null/undefined. */}
+            {Icon ? <Icon className={iconCls} strokeWidth={1.5} /> : <Circle className={iconCls} strokeWidth={1.5} />}
+          </span>
+        )
+      })}
+    </div>
+  )
 }
 
 // ─── Eyebrow (small-caps, hairline-underlined) ───────────────────────
@@ -383,7 +494,14 @@ function GridLayout(props: { finding: Finding; href: string }) {
       <div aria-hidden="true" className="absolute inset-x-0 top-0 h-px" style={{ background: '#9000F0' }} />
 
       <div className="flex flex-col gap-5 p-6 sm:p-7">
-        <Eyebrow type={f.eyebrow_type} size="md" />
+        {/* Sprint 1C — Eyebrow on the left, family icon set on the right.
+            The flex row balances the top of the card; the icons read
+            as a glance-at "this finding spans three families" affordance
+            without competing with the headline below. */}
+        <div className="flex items-start justify-between gap-3">
+          <Eyebrow type={f.eyebrow_type} size="md" />
+          <FamilyIconSet families={f.phen_families} variant="grid" />
+        </div>
 
         <h3
           className="font-display text-[24px] sm:text-[28px] leading-[1.18] tracking-tight text-white"
@@ -472,8 +590,13 @@ function TodayCardLayout(props: { finding: Finding; href: string; isActive?: boo
           (props.isActive === false ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0')
         }
       >
-        <div className="mb-6">
+        {/* Sprint 1C — Eyebrow + family icons share the top row on the
+            today_card variant. The icons sit right-aligned with the
+            eyebrow's underline — visually the cleanest place; the
+            headline below has a max-w-[24ch] cap so it leaves room. */}
+        <div className="mb-6 flex items-start justify-between gap-3">
           <Eyebrow type={f.eyebrow_type} size="md" />
+          <FamilyIconSet families={f.phen_families} variant="today_card" />
         </div>
 
         <h2 className="font-display text-[26px] sm:text-[32px] font-semibold text-white leading-[1.15] tracking-[-0.005em] max-w-[24ch] mb-6">

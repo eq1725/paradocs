@@ -1,3 +1,26 @@
+// V11.18.6 — Sprint 1C — centralized descriptor-keyword vocabulary.
+//
+// Sprint 1C expansion notes
+// -------------------------
+//   - animal_witness_reaction: greatly expanded keyword set per
+//     Hynek's CE2 effect (species-specific phrasings beyond
+//     dog/cat/horse; possessive narrator forms; plural + singular).
+//     Sprint 1B yielded 0/0/0; Sprint 1C should register signal.
+//   - piloerection: bare 'static' and 'static electricity' dropped
+//     (too noisy in audit). Possessive narrator forms added
+//     ("the hairs on my arm", "hairs on my neck").
+//   - paralysis: expanded to cover abduction-literature phrasings
+//     ("as if paralyzed", "something held me", "limbs wouldn't move",
+//     "frozen in place / solid / still", "immobilized"). UFO family
+//     should rise from 0% → 5–15% post re-seed.
+//   - time_dilation: added Mack's "missing time" canonical form +
+//     abduction phrasings ("hours felt like minutes", "no recollection
+//     of", "woke up later than", "the clock skipped"). UFO family
+//     should rise from 0% → 5–10% post re-seed.
+//   - static_electricity entry DROPPED. The enum value remains for
+//     backwards-compat with seed-hints.ts; no keywords means zero
+//     matches at runtime (which is correct — it was deprecated).
+//
 // V11.18.4 — Sprint 1B — centralized descriptor-keyword vocabulary.
 //
 // Single source of truth for the keyword lists the Patterns surface uses
@@ -120,24 +143,60 @@ export var DESCRIPTOR_VOCAB: DescriptorVocabulary = {
   },
 
   // 5. Paralysis / inability to move — PATTERNS_TAXONOMY C3.
+  //
+  // V11.18.6 — Sprint 1C. Expanded keyword set so UFO-family registers
+  // the abduction-paralysis signal that Mack documents (was 0% in
+  // Sprint 1B because the vocabulary skewed toward sleep-paralysis-only
+  // phrasing). Added "as if paralyzed", "like I was paralyzed",
+  // "couldn't move at all", "frozen in place / solid / still",
+  // "immobilized", "body wouldn't respond", "limbs/arms/legs wouldn't
+  // move", "something held me", "held in place". Kept the perception-
+  // sensory-driving "sleep paralysis" + "weight on my chest" entries
+  // so the existing 93% match is preserved.
   paralysis: {
     keywords: [
-      'sleep paralysis', "couldn't move", "can't move", "couldn't speak",
-      'frozen', 'paralyzed', 'body locked', 'locked in place', 'unable to move',
-      'pinned', 'pinned down', 'held down', 'held in place',
+      // canonical
+      'paralysis', 'paralyzed', 'as if paralyzed', 'like i was paralyzed',
+      "couldn't move", 'could not move', "couldn't move at all", 'unable to move',
+      'frozen', 'froze', 'frozen in place', 'frozen solid', 'frozen still',
+      'immobilized', "body wouldn't respond", "my body wouldn't",
+      'trapped in my body', 'felt locked', 'locked in place',
+      "limbs wouldn't move", "arms wouldn't move", "legs wouldn't move",
+      'something held me', 'held in place', 'pinned', 'pinned down',
+      'sleep paralysis',
+      // preserved from Sprint 1B for perception-sensory continuity
+      "can't move", "couldn't speak", 'body locked', 'held down',
       'weight on my chest', 'pressure on my chest',
     ],
     pretty_label: 'paralysis at onset',
     phen_families_default: ['perception_sensory', 'psychological_experiences', 'ufos_aliens'],
   },
 
-  // 6. Time dilation — PATTERNS_TAXONOMY D2. Distinct from D1 missing-time;
-  //    this is the subjective-stretch flavor.
+  // 6. Time dilation — PATTERNS_TAXONOMY D2. Mack's "missing time" is
+  //    the canonical UFO-abduction marker.
+  //
+  // V11.18.6 — Sprint 1C. Added "missing time", "lost time", "time was
+  //    lost", "no recollection of", "woke up later than", "came to in",
+  //    "hours felt like minutes / minutes felt like hours", "lasted
+  //    forever / felt like an eternity / felt like seconds",
+  //    "everything went in slow motion", "the clock skipped", and the
+  //    "time stood still" canonical form. Sprint 1B's narrow set
+  //    produced 3/1/0% — these additions are the literature-grounded
+  //    abduction phrasings that should lift UFO to 5–10%.
   time_dilation: {
     keywords: [
-      'time slowed', 'time stopped', 'time stood still', 'time froze',
-      'slow motion', 'in slow motion', 'felt like hours', 'felt like minutes',
-      'lost track of time', 'time dilated', 'time was different',
+      // subjective stretch
+      'time stood still', 'time stopped', 'time slowed', 'time slowing',
+      'lost track of time', 'time was lost', 'lost time', 'missing time',
+      'hours felt like minutes', 'minutes felt like hours',
+      'felt like seconds', 'felt like an eternity', 'lasted forever',
+      'everything went in slow motion', 'in slow motion',
+      'the clock skipped', 'clock skipped ahead', 'no recollection of',
+      'woke up later than', 'when i came to', 'came to in',
+      'frozen moment', 'time-frozen', 'time froze',
+      // preserved from Sprint 1B
+      'felt like hours', 'felt like minutes', 'time dilated',
+      'time was different', 'slow motion',
     ],
     pretty_label: 'time dilation',
     phen_families_default: ['psychological_experiences', 'consciousness_practices', 'ufos_aliens'],
@@ -186,14 +245,47 @@ export var DESCRIPTOR_VOCAB: DescriptorVocabulary = {
     phen_families_default: ['psychological_experiences', 'ghosts_hauntings', 'psychic_phenomena'],
   },
 
-  // 10. Animal-witness reaction — PATTERNS_TAXONOMY F3.
+  // 10. Animal-witness reaction — PATTERNS_TAXONOMY F3. Hynek's CE2
+  //     effect. The Sprint 1B set was too narrow — produced 0/0/0
+  //     because the literature documents this in a wide spread of
+  //     species-specific phrasings ("horse bolted", "cattle in
+  //     distress", "deer fled", "chickens panicked") that the narrow
+  //     "dog barked / horse spooked / cat hiding" trio missed.
+  //
+  // V11.18.6 — Sprint 1C. Greatly expanded set per the Sprint 1C brief.
+  //     Covers plural + singular forms ("dogs barked", "the dog
+  //     barked"), refusal/fleeing/silence variants, and species
+  //     beyond dog/cat ("horse", "horses", "cattle", "livestock",
+  //     "birds", "deer", "chickens", "sheep", "wildlife"). Also
+  //     covers the possessive-narrator forms ("my dog refused", "my
+  //     horse refused") which read as Hynek's exact literary marker.
   animal_witness_reaction: {
     keywords: [
+      // generic
+      'animals fled', 'animals scattered', 'animals refused', 'animals panicked',
+      // horses
+      'horse spooked', 'horse bolted', 'horses bolted', 'horses scattered',
+      'spooked the horses',
+      // cattle / livestock
+      'cattle fled', 'cattle panicked', 'cattle in distress', 'livestock panicked',
+      // birds
+      'birds went silent', 'birds stopped singing', 'birds fell silent',
+      'sudden silence in the trees',
+      // dogs
+      'dogs barked', 'dogs barking', 'dog whined', 'dogs whining',
+      'dog whimpered', 'dogs howled', 'spooked the dog',
+      // cats
+      'cat fled', 'cats fled', 'cat hid', 'cats hid', 'cat refused',
+      // other species
+      'chickens panicked', 'sheep ran', 'deer fled', 'deer scattered',
+      'wildlife disappeared',
+      // possessive narrator
+      "the dog wouldn't", "the cat wouldn't", 'my dog refused', 'my horse refused',
+      // preserved from Sprint 1B
       'dog barked', "dog wouldn't stop barking", 'dogs went wild',
-      'dog growled', 'horse spooked', 'horse refused', 'cat hiding',
-      'cat stared at', 'cattle fled', 'birds went silent', 'no birdsong',
-      'dead silence in the woods', 'animal sensed it', 'the animals knew',
-      'dog barking', 'cat ran',
+      'dog growled', 'horse refused', 'cat hiding', 'cat stared at',
+      'no birdsong', 'dead silence in the woods', 'animal sensed it',
+      'the animals knew', 'dog barking', 'cat ran',
     ],
     pretty_label: 'animal-witness reaction',
     phen_families_default: ['ghosts_hauntings', 'ufos_aliens', 'cryptids'],
@@ -203,20 +295,33 @@ export var DESCRIPTOR_VOCAB: DescriptorVocabulary = {
   /* Sprint 1B taxonomy additions, not on the publish-now list             */
   /* ===================================================================== */
 
-  // Piloerection — the cleaned-up cousin of the legacy `static_electricity`
-  // entry. Drops bare 'static' (per gap memo §2.3 — catches static-like /
-  // static vigil / stationary noise). Sprint 1B retains both names so the
-  // legacy Hint keeps compiling; new Findings should use `piloerection`.
+  // Piloerection — Hynek's "the hair on my arm stood up" pattern.
+  //
+  // V11.18.6 — Sprint 1C. Replaces the deprecated `static_electricity`
+  // entry entirely (which has been dropped from the vocabulary below).
+  // Drops bare 'static' and bare 'static electricity' per Sprint 1C
+  // brief — both keywords were too noisy (catch "static-like",
+  // "stationary", "static vigil", "static-line"). Adds the canonical
+  // "hair stood on end" / "hair-raising" / possessive-narrator forms
+  // ("the hairs on my arm", "hairs on my neck", "hairs on my arms
+  // stood") that the literature flags as the cross-family marker for
+  // cryptid + UFO + ghost encounters.
   piloerection: {
     keywords: [
-      'static electricity', 'hair stood on end', 'hair stood up',
-      'hair on end', 'hair stand on end', 'hair raised',
-      'prickling sensation', 'prickled', 'tingling sensation',
-      'electrical sensation', 'goosebumps', 'goose bumps', 'gooseflesh',
-      'raised the hair on my arms', 'skin crawled', 'piloerection',
-      'tingling', 'hair stood',
+      // hair-raising
+      'hair stood on end', 'hair stood', 'hair on end', 'hair raising',
+      'hair-raising',
+      // goosebumps
+      'goosebumps', 'goose bumps', 'goose-bumps',
+      // prickling / tingling
+      'prickling', 'prickling sensation', 'electrical sensation on skin',
+      'tingling', 'tingling sensation',
+      // possessive narrator (Hynek's literary marker)
+      'the hairs on my arm', 'hairs on my neck', 'hairs on my arms stood',
+      // canonical
+      'piloerection',
     ],
-    pretty_label: 'piloerection (hair-raising / static sensation)',
+    pretty_label: 'piloerection (hair-raising sensation)',
     phen_families_default: ['ghosts_hauntings', 'ufos_aliens', 'cryptids'],
   },
 
@@ -226,13 +331,17 @@ export var DESCRIPTOR_VOCAB: DescriptorVocabulary = {
   /* a Finding for any of these; they remain Hint-only.                    */
   /* ===================================================================== */
 
-  static_electricity: {
-    // DEPRECATED — see `piloerection` above. Keep the V11.18.1 set verbatim
-    // because existing seed-hints + tests reference it.
-    keywords: ['static', 'tingling', 'hair-stand', 'hair stood', 'prickle'],
-    pretty_label: 'static-electricity sensation',
-    phen_families_default: ['cryptids', 'ufos_aliens'],
-  },
+  // static_electricity — DROPPED in V11.18.6 (Sprint 1C).
+  //
+  // The bare 'static' keyword was the single largest false-positive source
+  // in the Sprint 1B audit (matched "static vigil", "stationary",
+  // "static-line", "static-like noise" — none of which describe a
+  // piloerection / static-electricity sensation). The DescriptorFamily
+  // enum value 'static_electricity' is preserved for backwards-compat
+  // with seed-hints.ts references, but the vocabulary entry is removed
+  // so that any code path scanning for it returns zero matches. New
+  // code should use `piloerection` (which carries the cleaned-up
+  // keyword set targeting the Hynek "hair stood on end" marker).
 
   low_hum: {
     keywords: ['low hum', 'throbbing', 'vibration', 'drone'],

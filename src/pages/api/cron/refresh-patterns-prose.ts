@@ -49,13 +49,48 @@ interface FindingRow {
 // Mirror of BANNED_PHRASES in seed-patterns-v1.ts. Duplicated here
 // (small list) to keep the cron route self-contained — no pulling in
 // the seed-script side-effects via import.
+//
+// V11.18.6 — Sprint 1C. Removed bare 'haunting' from this list and
+// replaced it with a structured `isAdjectivalHaunting()` check below.
+// Rationale: 'haunting' as a NOUN ("in a haunting", "the haunting",
+// "filed as a haunting") is acceptable register — it's how the
+// catalogue refers to the ghost-family of accounts; it's the verb
+// an archivist uses. 'haunting' as an ADJECTIVE ("haunting tale",
+// "haunting silence", "haunting melody") is the goth-marketing
+// register Helena vetoed. The substring match couldn't disambiguate;
+// the new check does.
 var BANNED = [
   'mysteriously', 'mysterious', 'unexplained', 'shocking', 'incredibly',
   'amazingly', 'fascinating', 'spooky', 'creepy', 'weird', 'bizarre',
-  'eerie', 'chilling', 'haunting', 'strange', 'fun fact', 'did you know',
+  'eerie', 'chilling', 'strange', 'fun fact', 'did you know',
   'you might', 'you are', "you're", 'your record',
   'remarkable', 'remarkably', 'striking', 'strikingly',
 ]
+
+/**
+ * Reject "haunting + adjective_noun" patterns ("haunting tale",
+ * "haunting silence", "haunting melody") while accepting "haunting"
+ * as a noun ("in a haunting", "the haunting", "filed as a haunting")
+ * and "haunted" as a past-participle adjective ("haunted location",
+ * "haunted house").
+ *
+ * Examples (Sprint 1C unit-test-style):
+ *   "in a haunting (47%)"          → PASS (noun, preceded by article)
+ *   "a haunting tale"              → REJECT (adjective + noun)
+ *   "in a haunted location"        → PASS (past-participle adjective)
+ *   "haunting silence"             → REJECT (adjective + noun)
+ *   "the haunting"                 → PASS (noun, preceded by article)
+ *   "filed as a haunting"          → PASS (noun, preceded by article)
+ *   "a haunting melody fell"       → REJECT (adjective + noun)
+ *
+ * The regex tests for "haunting" followed by one of a documented
+ * list of nouns that the goth-register voice attaches it to
+ * (tale, silence, melody, story, image, moment, memory, feeling,
+ * sound, sight). Other syntactic environments pass.
+ */
+function isAdjectivalHaunting(text: string): boolean {
+  return /\bhaunting\b\s+(tale|tales|silence|silences|melody|melodies|story|stories|image|images|moment|moments|memory|memories|feeling|feelings|sound|sounds|sight|sights)\b/i.test(text)
+}
 
 var HAIKU_SYSTEM = [
   'You are the editorial voice of Paradocs, a serious paranormal-research database.',
@@ -108,6 +143,11 @@ function validateInterpretive(text: string): { ok: boolean; reason?: string } {
     if (lower.indexOf(BANNED[i]) !== -1) {
       return { ok: false, reason: 'banned:' + BANNED[i] }
     }
+  }
+  // V11.18.6 — structured adjectival-haunting check (replaces the bare
+  // 'haunting' substring entry in the BANNED list).
+  if (isAdjectivalHaunting(text)) {
+    return { ok: false, reason: 'banned:adjectival_haunting' }
   }
   return { ok: true }
 }
@@ -189,12 +229,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   var supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
   try {
+    // V11.18.6 — Sprint 1C. The prose cron now respects the per-row
+    // `prose_locked` flag (migration: 20260609_findings_catalogue_prose_locked.sql).
+    // Founder sets prose_locked=true on rows with hand-edited copy
+    // (shadow_figure, reunion_with_deceased, electromagnetic_disturbance,
+    // sensed_presence as of Sprint 1C). Those rows are skipped entirely
+    // — their interpretive_sentence is the source of truth.
+    //
+    // We do a single SELECT that filters out locked rows, then surface
+    // the count of locked rows separately so the cron's log line is
+    // honest about what it did and didn't touch.
     var listRes = await (supabase.from('findings_catalogue' as any) as any)
       .select('id, slug, descriptor, headline, phen_families, denominator_n, interpretive_sentence')
       .eq('published', true)
+      .eq('prose_locked', false)
     if (listRes.error) {
       console.error('[CronRefreshPatternsProse] list error ' + listRes.error.message)
       return res.status(500).json({ error: listRes.error.message })
+    }
+
+    // Separately count locked rows for the log line. Cheap (head-only).
+    var lockedCountRes = await (supabase.from('findings_catalogue' as any) as any)
+      .select('id', { count: 'exact', head: true })
+      .eq('published', true)
+      .eq('prose_locked', true)
+    var skippedLocked = Number((lockedCountRes as any).count) || 0
+    if (skippedLocked > 0) {
+      console.log('[CronRefreshPatternsProse] Skipping ' + skippedLocked + ' rows (prose_locked).')
     }
 
     var rows: FindingRow[] = (listRes.data as FindingRow[]) || []
@@ -242,6 +303,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     var out = {
       ok: errors.length === 0,
       refreshed: refreshed,
+      skipped_locked: skippedLocked,
       rejected: rejected,
       errors: errors,
       duration_ms: duration_ms,

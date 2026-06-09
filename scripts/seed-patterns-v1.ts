@@ -182,16 +182,49 @@ interface SeedPayload {
 /* Helena banned-word list                                                    */
 /* -------------------------------------------------------------------------- */
 
+// V11.18.6 — Sprint 1C. Removed bare 'haunting' from this list and
+// replaced it with a structured `isAdjectivalHaunting()` check below.
+// Rationale: 'haunting' as a NOUN ("in a haunting", "the haunting",
+// "filed as a haunting") is acceptable register — it's how the
+// catalogue refers to the ghost-family of accounts; it's the verb
+// an archivist uses. 'haunting' as an ADJECTIVE ("haunting tale",
+// "haunting silence", "haunting melody") is the goth-marketing
+// register Helena vetoed. The substring match couldn't disambiguate;
+// the new check does.
 var BANNED = [
   'mysteriously', 'mysterious', 'unexplained', 'shocking', 'incredibly',
   'amazingly', 'fascinating', 'spooky', 'creepy', 'weird', 'bizarre',
-  'eerie', 'chilling', 'haunting', 'strange', 'fun fact', 'did you know',
+  'eerie', 'chilling', 'strange', 'fun fact', 'did you know',
   'you might', 'you are', "you're", 'your record',
   'remarkable', 'remarkably', 'striking', 'strikingly',
 ]
 
 // Export so the cron prose refresh route can re-use the same list.
 export var BANNED_PHRASES = BANNED
+
+/**
+ * Reject "haunting + adjective_noun" patterns ("haunting tale",
+ * "haunting silence", "haunting melody") while accepting "haunting"
+ * as a noun ("in a haunting", "the haunting", "filed as a haunting")
+ * and "haunted" as a past-participle adjective ("haunted location",
+ * "haunted house").
+ *
+ * Examples (Sprint 1C unit-test-style):
+ *   "in a haunting (47%)"          → PASS (noun, preceded by article)
+ *   "a haunting tale"              → REJECT (adjective + noun)
+ *   "in a haunted location"        → PASS (past-participle adjective)
+ *   "haunting silence"             → REJECT (adjective + noun)
+ *   "the haunting"                 → PASS (noun, preceded by article)
+ *   "filed as a haunting"          → PASS (noun, preceded by article)
+ *
+ * The regex tests for "haunting" followed by one of a documented
+ * list of nouns the goth-register voice attaches it to (tale,
+ * silence, melody, story, image, moment, memory, feeling, sound,
+ * sight). Other syntactic environments pass.
+ */
+export function isAdjectivalHaunting(text: string): boolean {
+  return /\bhaunting\b\s+(tale|tales|silence|silences|melody|melodies|story|stories|image|images|moment|moments|memory|memories|feeling|feelings|sound|sounds|sight|sights)\b/i.test(text)
+}
 
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                    */
@@ -373,6 +406,11 @@ export function validateInterpretive(text: string): { ok: boolean; reason?: stri
     if (lower.indexOf(BANNED[i]) !== -1) {
       return { ok: false, reason: 'banned:' + BANNED[i] }
     }
+  }
+  // V11.18.6 — structured adjectival-haunting check (replaces the bare
+  // 'haunting' substring entry in the BANNED list).
+  if (isAdjectivalHaunting(text)) {
+    return { ok: false, reason: 'banned:adjectival_haunting' }
   }
   return { ok: true }
 }
