@@ -1,43 +1,52 @@
 'use client'
 
 /**
- * ClusteringCard — V11.17.41 redesign (panel: Maya/Jordan/Lena/Sam).
+ * ClusteringCard — V11.18.12 Sprint 1E redesign (panel: Sho / Mariko /
+ * Helena / Lucia / Sam).
  *
- * Memo: docs/CLUSTER_CARD_REDESIGN_PANEL.md
+ * Memo: docs/TODAY_SPECIAL_CARDS_REDESIGN.md §3
  *
- * v1 (this rev) ships:
- *   - Left-aligned editorial composition (matches Phenomenon Spotlight)
- *   - Corner pill carries the type label ("Geographic cluster" / "Recent
- *     burst" / "Category trend" / "Milestone")
- *   - Headline in Changa 600, body in Changa 400, hairline rule before
- *     meta footer
- *   - Left-edge accent rail (4px brand-purple, ~20% opacity) replaces
- *     the prior wash + dotgrid
- *   - Whole-card tap target; chevron in the meta footer instead of a
- *     "View Reports" pill
+ * Sprint 1E changes:
+ *   - HERO: `baseline_text` ("5×") promoted to a Spotify-Wrapped-scale
+ *     72px brand-purple numeric. Headline demoted to a fact-sentence
+ *     under the numeric. When baseline_text is missing the hero numeric
+ *     is suppressed and the headline floats up into the hero slot —
+ *     the card never has a void.
+ *   - SUBSTANCE: NEW "IN THIS CLUSTER" section listing 3 representative
+ *     reports (title + location + relative date). Each row is its own
+ *     tap target → /report/<slug>. Data comes from the API's new
+ *     `representative_reports[]` field (cluster route joins on the
+ *     first 3 of linked_report_ids).
+ *   - ACTION: existing meta-footer kept (category · location · time +
+ *     chevron).
+ *   - SHARE: deliberately NOT added on the cluster card in MVP
+ *     (founder taste-call locked decision #2 — share lives on
+ *     FindingCard only).
  *
- * v2 (also this rev) adds:
- *   - body sentence is now the API's `body` field, which the cluster
- *     route synthesises from a Haiku "finding" generator when there's
- *     enough signal (linked reports' shared locale, time, etc). Falls
- *     back to a quiet templated sentence when Haiku is unavailable.
- *   - Optional `baseline_text` second line ("Twice the usual week",
- *     etc) when the cluster type supports it and the data is
- *     defensible. Renders just below the body sentence, italicised
- *     in muted gray. Skipped on milestones.
+ * V11.17.41 prior history (kept for context):
+ *   - Left-edge accent rail (4px brand-purple, ~20% opacity)
+ *   - Whole-card tap target; chevron in the meta footer
+ *   - Body is the API's `body` field — Haiku-synthesised when
+ *     defensible, templated fallback otherwise
  *
- * Explicitly NOT in this rev (deferred per panel):
- *   - Per-type emoji or per-type colour theming
- *   - "Trending Pattern" badge (the corner pill already self-identifies)
- *   - Giant numeric hero (count appears once, inside the headline)
- *   - Pill CTA button (whole-card link + chevron is sufficient)
+ * Voice contract: documentary register, no second-person, no
+ * exclamations. The hero numeric is the founder's "screenshottable
+ * beat"; the substance list is the evidence-not-chrome that the
+ * panel locked in for Zone B.
  *
  * SWC compliant: var + function() form.
  */
 
 import React from 'react'
-import Link from 'next/link'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, ArrowRight } from 'lucide-react'
+
+export interface ClusterRepresentativeReport {
+  id: string
+  slug: string
+  title: string
+  location_short: string | null
+  date_short: string | null
+}
 
 export interface ClusterCardData {
   item_type: 'cluster'
@@ -54,11 +63,19 @@ export interface ClusterCardData {
   // synthesise this from the linked reports' shared characteristics
   // when possible ("Most cluster around the Central Valley and the
   // coast south of Monterey."). Falls back to a quiet templated line.
+  //
+  // V11.18.12 — Sprint 1E. Demoted: the body sentence is no longer
+  // rendered in the standard layout (the substance zone now carries
+  // the 3-row rep-reports list). Retained on the interface so the
+  // API contract is stable and so we can re-introduce body as a
+  // hairline-italic fact line if a future iteration needs it.
   body: string
   // V11.17.41 — Optional baseline sentence ("Twice the usual week.")
-  // surfaced only when the cluster type supports it (temporal_burst,
-  // sometimes geographic_cluster) AND we have enough history to make
-  // the claim defensible.
+  // V11.18.12 — Sprint 1E. PROMOTED. Parsed for the leading numeric
+  // ("5×", "Twice"); the leading token becomes the Spotify-Wrapped-
+  // scale hero glyph and the rest becomes the fact-line beneath it.
+  // When missing, the hero numeric is suppressed entirely and the
+  // headline promotes into the hero slot.
   baseline_text?: string
   // V11.17.41 — Human-readable category label ("UFOs & Aliens", not
   // the slug). Computed server-side so client doesn't need to look up
@@ -69,6 +86,10 @@ export interface ClusterCardData {
   time_range: string
   location_summary?: string
   linked_report_ids: string[]
+  // V11.18.12 — Sprint 1E. NEW. 3 representative reports for the
+  // cluster's substance-zone list. May be empty when the join lost
+  // rows (status changes, etc); the card then suppresses the section.
+  representative_reports?: ClusterRepresentativeReport[]
   // V8-era field. Kept for the legacy fallback path; not rendered.
   headline_legacy?: string
   subheadline_legacy?: string
@@ -89,6 +110,42 @@ var TYPE_LABEL_FALLBACK: Record<string, string> = {
   milestone: 'Milestone',
 }
 
+// V11.18.12 — Sprint 1E. Parse the baseline string into the leading
+// scalar glyph + the trailing fact-line.
+//   "Twice the usual week."          → { glyph: "2×", trailing: "the usual week" }
+//   "5× the usual week."             → { glyph: "5×", trailing: "the usual week" }
+//   "Three times the usual week."    → { glyph: "3×", trailing: "the usual week" }
+//
+// Returns null when the string doesn't parse to a defensible
+// hero-numeric — in that case the card suppresses the hero entirely
+// and the headline promotes up into the hero slot.
+function parseBaseline(s: string | undefined): { glyph: string; trailing: string } | null {
+  if (!s) return null
+  var t = String(s).trim()
+  if (t.length === 0) return null
+  // Match "5× the usual week" style first.
+  var mNum = t.match(/^([0-9]+(?:\.[0-9]+)?)\s*×\s*(.*?)\.?$/)
+  if (mNum) {
+    var n = mNum[1]
+    return { glyph: n + '×', trailing: (mNum[2] || '').trim() }
+  }
+  // "Twice / Three times the usual week".
+  var lower = t.toLowerCase()
+  if (lower.indexOf('twice') === 0) {
+    return { glyph: '2×', trailing: t.replace(/^twice\s+/i, '').replace(/\.$/, '').trim() }
+  }
+  var mTimes = lower.match(/^(three|four|five|six|seven|eight|nine|ten)\s+times\s+(.*)$/)
+  if (mTimes) {
+    var WORD: Record<string, string> = {
+      three: '3×', four: '4×', five: '5×', six: '6×',
+      seven: '7×', eight: '8×', nine: '9×', ten: '10×',
+    }
+    return { glyph: WORD[mTimes[1]] || '×', trailing: t.replace(/^[a-z]+\s+times\s+/i, '').replace(/\.$/, '').trim() }
+  }
+  // Unparseable — be conservative; suppress the hero numeric.
+  return null
+}
+
 export function ClusteringCard(props: ClusteringCardProps) {
   var item = props.item
   var typeLabel = item.type_label || TYPE_LABEL_FALLBACK[item.cluster_type] || 'Cluster'
@@ -101,17 +158,45 @@ export function ClusteringCard(props: ClusteringCardProps) {
   // legacy templated fields so the card renders sensibly during a
   // staggered deploy window.
   var displayHeadline = item.headline || item.headline_legacy || ''
-  var displayBody = item.body || item.subheadline_legacy || ''
+
+  // V11.18.12 — Sprint 1E. Hero numeric parsed from baseline_text.
+  var hero = parseBaseline(item.baseline_text)
+  var reps = Array.isArray(item.representative_reports) ? item.representative_reports : []
+
+  // V11.18.12 — Sprint 1E. The card has up to (1 + reps.length) hit
+  // targets: each rep row is a real <a> to /report/<slug>; the outer
+  // card click takes the user to /explore?category=<slug>. We use the
+  // same outer-div-with-onClick pattern as the FindingCard rewrite so
+  // nested anchors stay valid HTML.
+  function onCardClick(e: React.MouseEvent) {
+    if (e.defaultPrevented) return
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+    if ((e as any).button && (e as any).button !== 0) return
+    var a = document.createElement('a')
+    a.href = href
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+  function onCardKey(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onCardClick(e as any)
+    }
+  }
 
   return (
-    <Link
-      href={href}
-      className="block h-full w-full relative overflow-hidden bg-gray-950 group"
-      role="article"
+    <div
+      onClick={onCardClick}
+      onKeyDown={onCardKey}
+      role="link"
+      tabIndex={0}
       aria-label={typeLabel + ': ' + displayHeadline}
+      className="block h-full w-full relative overflow-hidden bg-gray-950 group cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-purple-500/40"
     >
       {/* Left-edge accent rail — single brand-purple bar, no wash.
-          Replaces the prior gradient + dotgrid surface. */}
+          Identifying mark per the V11.17.41 panel memo; kept verbatim
+          in Sprint 1E. */}
       <div
         className="absolute top-0 bottom-0 left-0 w-1 pointer-events-none"
         style={{ background: 'linear-gradient(to right, rgba(144,0,240,0.55), rgba(144,0,240,0))', width: '60px' }}
@@ -123,17 +208,13 @@ export function ClusteringCard(props: ClusteringCardProps) {
         aria-hidden="true"
       />
 
-      {/* Three-block left-aligned content. Padding mirrors the
-          Phenomenon Spotlight card; mt-auto on the footer pins it to
-          the bottom regardless of headline length. */}
       <div className={
         'relative z-10 h-full flex flex-col px-7 sm:px-10 transition-all duration-700 ' +
         'pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] pb-[calc(80px+env(safe-area-inset-bottom,0px)+1.25rem)] md:pb-8 ' +
         (props.isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4')
       }>
-        {/* Eyebrow row — corner pill self-identifier. Optional small
-            accent dot before milestones, per the panel memo. */}
-        <div className="inline-flex items-center self-start gap-2 mb-7">
+        {/* Eyebrow pill — corner self-identifier. Optional milestone dot. */}
+        <div className="inline-flex items-center self-start gap-2 mb-5">
           {isMilestone && (
             <span
               className="inline-block w-1.5 h-1.5 rounded-full"
@@ -146,28 +227,80 @@ export function ClusteringCard(props: ClusteringCardProps) {
           </span>
         </div>
 
-        {/* Headline — the templated fact. Number is inside the sentence. */}
-        <h2 className="font-display text-[26px] sm:text-[30px] font-semibold text-white leading-[1.2] tracking-[-0.005em] max-w-[22ch] mb-4">
-          {displayHeadline}
-        </h2>
-
-        {/* Body — the shape sentence ("finding"). Cream-tinted gray. */}
-        {displayBody && (
-          <p className="font-display text-[15px] sm:text-[16px] font-normal text-gray-300/85 leading-[1.55] max-w-[34ch] mb-2">
-            {displayBody}
-          </p>
+        {/* HERO ZONE — Sprint 1E.
+            When baseline_text parses, render a 72px brand-purple glyph
+            ("5×") as the dominant numeric and the headline becomes the
+            fact-line beneath it. When it doesn't parse, promote the
+            headline into the hero slot — the card never has a void. */}
+        {hero ? (
+          <>
+            <div
+              className="font-display font-semibold leading-none tracking-tight mb-2 max-w-[6ch]"
+              style={{ color: '#9000F0', fontSize: 'clamp(56px, 18vw, 76px)' }}
+              aria-label={hero.glyph + ' ' + hero.trailing}
+            >
+              {hero.glyph}
+            </div>
+            {hero.trailing && (
+              <p className="font-display text-[14px] sm:text-[15px] text-gray-300/85 leading-snug mb-5 max-w-[24ch]">
+                {hero.trailing}
+              </p>
+            )}
+            <h2 className="font-display text-[20px] sm:text-[22px] font-semibold text-white leading-[1.25] tracking-[-0.005em] max-w-[24ch] mb-6">
+              {displayHeadline}
+            </h2>
+          </>
+        ) : (
+          <h2 className="font-display text-[26px] sm:text-[30px] font-semibold text-white leading-[1.2] tracking-[-0.005em] max-w-[22ch] mb-6">
+            {displayHeadline}
+          </h2>
         )}
 
-        {/* Optional baseline line — italic, dimmer, sits beneath body.
-            Only rendered when the API emitted it (temporal_burst with
-            enough trailing history; sometimes geographic_cluster). */}
-        {item.baseline_text && (
-          <p className="font-display text-[13.5px] sm:text-[14px] font-normal text-gray-400/70 leading-snug italic mb-3 max-w-[34ch]">
-            {item.baseline_text}
-          </p>
+        {/* SUBSTANCE ZONE — Sprint 1E NEW.
+            3-row representative-report list. "IN THIS CLUSTER" small-
+            caps label + hairline rule + tappable rows. The whole list
+            is suppressed when no rep reports are returned — the card
+            then leans on the hero + headline + footer. */}
+        {reps.length > 0 && (
+          <div className="mb-4 max-w-[34ch]">
+            <div className="text-[10px] sm:text-[10.5px] font-sans font-semibold uppercase tracking-[0.22em] text-gray-400 pb-1.5 border-b border-white/[0.18] mb-3 inline-block">
+              In this cluster
+            </div>
+            <ul className="space-y-2">
+              {reps.slice(0, 3).map(function (r) {
+                return (
+                  <li key={r.id}>
+                    <a
+                      href={'/report/' + encodeURIComponent(r.slug || r.id)}
+                      onClick={function (e) { e.stopPropagation() }}
+                      className={
+                        'flex items-start gap-2.5 py-1.5 ' +
+                        'text-gray-200 hover:text-white transition-colors'
+                      }
+                      aria-label={'Read the report: ' + r.title}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13.5px] sm:text-[14px] leading-snug font-medium line-clamp-1">
+                          {r.title || 'Untitled account'}
+                        </div>
+                        {(r.location_short || r.date_short) && (
+                          <div className="mt-0.5 text-[11px] text-gray-500 tabular-nums truncate">
+                            {r.location_short && <span>{r.location_short}</span>}
+                            {r.location_short && r.date_short && <span className="text-gray-600"> · </span>}
+                            {r.date_short && <span>{r.date_short}</span>}
+                          </div>
+                        )}
+                      </div>
+                      <ArrowRight className="w-3.5 h-3.5 mt-1 text-gray-500 shrink-0" />
+                    </a>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
         )}
 
-        {/* Hairline rule + meta footer pinned to the bottom. */}
+        {/* ACTION ZONE — kept from V11.17.41. */}
         <div className="mt-auto">
           <div className="border-t border-white/[0.07] pt-4 flex items-center gap-1.5 text-[12px] font-sans font-medium text-gray-400 group-hover:text-gray-200 transition-colors">
             <span className="truncate">{categoryLabel}</span>
@@ -184,6 +317,6 @@ export function ClusteringCard(props: ClusteringCardProps) {
           </div>
         </div>
       </div>
-    </Link>
+    </div>
   )
 }

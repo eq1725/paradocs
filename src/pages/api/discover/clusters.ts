@@ -35,6 +35,19 @@ function getSupabase() {
   return createClient(supabaseUrl, supabaseServiceKey)
 }
 
+// V11.18.12 — Sprint 1E. Per-cluster representative report row used to
+// fill the ClusteringCard's substance zone. Title + location + relative
+// date string; one row tapped routes the user to /report/<slug>. The
+// API joins three of these per cluster (the first three of
+// `linked_report_ids`).
+interface ClusterRepresentativeReport {
+  id: string
+  slug: string
+  title: string
+  location_short: string | null
+  date_short: string | null
+}
+
 interface ClusterCard {
   id: string
   type: 'geographic_cluster' | 'temporal_burst' | 'category_trend' | 'milestone'
@@ -48,6 +61,11 @@ interface ClusterCard {
   time_range: string
   location_summary?: string
   linked_report_ids: string[]
+  // V11.18.12 — Sprint 1E. 3-row representative-report list rendered in
+  // the ClusteringCard's substance zone. Always returned (possibly
+  // empty when the cluster's linked rows are missing or unparseable);
+  // the card hides the section when empty.
+  representative_reports: ClusterRepresentativeReport[]
   generated_at: string
   // Legacy fields retained for the brief consumer-deploy lag window.
   // Will be cleaned up after the new ClusteringCard is in prod for a
@@ -158,6 +176,95 @@ function baselineLineFromRatio(currentWeekly: number, weeklyAvg: number): string
 
 // ─────────────────────────────────────────────────────────────────────
 
+// V11.18.12 — Sprint 1E. Build a short "City, ST" / "ST, Country" /
+// "Country" label for cluster-card rep-report rows. Falls back to the
+// truthiest available scrap so the line is never blank.
+function shortLocationLabel(r: any): string | null {
+  if (!r) return null
+  var city = (r.city || '').trim()
+  var state = (r.state_province || '').trim()
+  var country = (r.country || '').trim()
+  if (city && state) return city + ', ' + state
+  if (city && country) return city + ', ' + country
+  if (state && country) return state + ', ' + country
+  if (state) return state
+  if (city) return city
+  if (country) return country
+  if (r.location_text) return String(r.location_text)
+  return null
+}
+
+// V11.18.12 — Sprint 1E. Relative-time label sized for the cluster
+// substance row: "2 days ago" / "yesterday" / "today" / "last week".
+// We anchor on `event_date` when present (the witnessed date), else
+// `created_at` (the ingest date). Long-form falls back to the
+// fmtShortDate format ("Mar 14, 2003") for events more than a year out.
+function relativeTimeLabel(isoEvent: string | null | undefined, isoCreated: string | null | undefined): string | null {
+  var iso = isoEvent || isoCreated || null
+  if (!iso) return null
+  try {
+    var d = new Date(iso)
+    if (isNaN(d.getTime())) return null
+    var now = Date.now()
+    var diffMs = now - d.getTime()
+    var diffDays = Math.floor(diffMs / 86400000)
+    if (diffDays < 0) {
+      // Future-dated — fall back to absolute.
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    }
+    if (diffDays === 0) return 'today'
+    if (diffDays === 1) return 'yesterday'
+    if (diffDays < 7) return diffDays + ' days ago'
+    if (diffDays < 14) return 'last week'
+    if (diffDays < 30) return Math.floor(diffDays / 7) + ' weeks ago'
+    if (diffDays < 365) {
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    }
+    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+  } catch {
+    return null
+  }
+}
+
+// V11.18.12 — Sprint 1E. Pull title/location/date for the first three
+// linked-report IDs of a cluster. Single PostgREST round-trip; the rows
+// are re-ordered to match the input linked_report_ids order (which is
+// already editorially-stable — they're ranked by recency inside each
+// cluster). Defensive: any failure yields [] so the cluster card simply
+// suppresses the substance section.
+async function loadClusterReports(
+  supabase: any,
+  ids: string[],
+): Promise<ClusterRepresentativeReport[]> {
+  if (!Array.isArray(ids) || ids.length === 0) return []
+  var firstThree = ids.slice(0, 3)
+  try {
+    var repsRes: any = await supabase
+      .from('reports')
+      .select('id, slug, title, city, state_province, country, location_text, event_date, created_at, status')
+      .in('id', firstThree)
+      .eq('status', 'approved')
+    var rows: any[] = (repsRes && repsRes.data) || []
+    var byId: Record<string, any> = {}
+    for (var i = 0; i < rows.length; i++) byId[String(rows[i].id)] = rows[i]
+    var out: ClusterRepresentativeReport[] = []
+    for (var j = 0; j < firstThree.length; j++) {
+      var r = byId[firstThree[j]]
+      if (!r) continue
+      out.push({
+        id: String(r.id),
+        slug: String(r.slug || r.id),
+        title: String(r.title || 'Untitled account'),
+        location_short: shortLocationLabel(r),
+        date_short: relativeTimeLabel(r.event_date, r.created_at),
+      })
+    }
+    return out
+  } catch (_e) {
+    return []
+  }
+}
+
 function categoryLabelOf(slug: string): string {
   var cfg = (CATEGORY_CONFIG as any)[slug]
   if (cfg && cfg.label) return cfg.label
@@ -250,6 +357,11 @@ export default async function handler(
 
         var body = haikuBody || fallbackBody('geographic_cluster', catLabel, state)
 
+        // V11.18.12 — Sprint 1E. Substance-zone rep-report list.
+        // Loaded lazily here per cluster; 1 IN-query per cluster
+        // surfaced. The card hides the section when empty.
+        var repReports = await loadClusterReports(supabase, ids)
+
         clusters.push({
           id: 'geo-' + keyG.replace(/[^a-z0-9]/gi, '-'),
           type: 'geographic_cluster',
@@ -263,6 +375,7 @@ export default async function handler(
           time_range: 'Past 7 days',
           location_summary: locationLabel,
           linked_report_ids: ids,
+          representative_reports: repReports,
           generated_at: nowIso,
           headline_legacy: group.length + ' ' + catLabel + ' reports from ' + state,
           subheadline_legacy: 'A concentration of activity detected in ' + state + ' over the past week.',
@@ -313,6 +426,8 @@ export default async function handler(
           linked_report_ids: idsB,
         }).catch(function () { return null })
         var bodyB = haikuBodyB || fallbackBody('temporal_burst', catLabelB, undefined)
+        // V11.18.12 — Sprint 1E. Substance-zone rep-report list.
+        var repReportsB = await loadClusterReports(supabase, idsB)
         clusters.push({
           id: 'burst-' + catB,
           type: 'temporal_burst',
@@ -325,6 +440,7 @@ export default async function handler(
           report_count: thisWeek,
           time_range: 'Past 7 days',
           linked_report_ids: idsB,
+          representative_reports: repReportsB,
           generated_at: nowIso,
           headline_legacy: catLabelB + ' activity surging',
           subheadline_legacy: thisWeek + ' reports this week.',

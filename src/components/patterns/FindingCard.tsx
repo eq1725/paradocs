@@ -46,7 +46,7 @@ import Link from 'next/link'
 import {
   ArrowRight,
   Ghost, Eye, Brain, Sparkles, Atom, Moon, Footprints, Radio, Church,
-  Circle,
+  Circle, Share2, Check,
 } from 'lucide-react'
 
 export interface FindingFamilyBreakdown {
@@ -61,6 +61,24 @@ export interface UserOverlay {
   matches: number
   total: number
   traits_matched: string[]
+}
+
+// V11.18.12 — Sprint 1E. The Today FindingCard substance zone now
+// renders an excerpt slab — title + location + date + 2-3 sentence
+// preview of the first representative report. The preview is fetched
+// server-side at /api/lab/patterns/list (or in discover.tsx's
+// getServerSideProps) so it lands on initial paint. Null when the
+// Finding has no representative reports — the slab is then suppressed
+// (the card never has a void; the headline + hero stat + bars + footer
+// fill the viewport on their own).
+export interface RepresentativeReportPreview {
+  id: string
+  slug: string
+  title: string | null
+  location_text: string | null
+  event_date: string | null
+  preview_text: string | null
+  category: string | null
 }
 
 export interface Finding {
@@ -80,6 +98,11 @@ export interface Finding {
   denominator_n_label: string
   interpretive_sentence: string
   representative_report_ids?: string[] | null
+  // V11.18.12 — Sprint 1E. Substance-slab data for the today_card
+  // variant. Optional + nullable because the rail / grid variants
+  // don't render it, and because the catalogue may have rows with no
+  // representative reports.
+  representative_report_preview?: RepresentativeReportPreview | null
   user_overlay?: UserOverlay | null
 }
 
@@ -184,6 +207,22 @@ function resolveHref(finding: Finding, override?: string): string {
 function fmtInt(n: number): string {
   if (!isFinite(n)) return '0'
   return Math.round(n).toLocaleString('en-US')
+}
+
+// V11.18.12 — Sprint 1E. Editorial date format matched to the detail
+// page (lab/patterns/[slug].tsx fmtDate): "Mar 14, 2003". Quiet, US-
+// short, no relative time on the FindingCard substance slab — the
+// reunion / shadow figure findings are inherently undated stretches,
+// so "5 days ago" reads wrong; an absolute date reads documentary.
+function fmtShortDate(iso: string | null | undefined): string {
+  if (!iso) return ''
+  try {
+    var d = new Date(iso)
+    if (isNaN(d.getTime())) return ''
+    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+  } catch {
+    return ''
+  }
 }
 
 // V11.18.2 — Sprint 1A polish. The DB `denominator_n_label` reads
@@ -428,6 +467,174 @@ function HeroStat(props: { hero: FindingFamilyBreakdown; variant: Variant }) {
   )
 }
 
+// ─── Share button (today_card only — Sprint 1E founder pick) ────────
+//
+// V11.18.12 — Sprint 1E. Founder pick #2 — share affordance lives on
+// the FindingCard today_card only (NOT ClusteringCard; that's a Sprint
+// 1F or later decision). The button uses navigator.share() with a
+// graceful clipboard fallback, then a hand-rolled "Copied" state for
+// 1.6s so the user sees the success state. The share TEXT is the
+// headline; the URL is the canonical /lab/patterns/<slug>.
+//
+// Placement: top-right of the card, mirroring the eyebrow's left
+// position in zone A. The button is a separate hit target inside the
+// card-level <Link>; we stop event propagation so taps don't
+// double-fire as "open the detail page."
+//
+// SSR-safe — all browser-API checks happen inside the handler so the
+// component renders on first paint without a window guard.
+
+function ShareButton(props: { slug: string; headline: string }) {
+  var [copied, setCopied] = React.useState<boolean>(false)
+  var resetTimerRef = React.useRef<any>(null)
+  React.useEffect(function () {
+    return function () {
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
+    }
+  }, [])
+
+  function buildShareUrl(): string {
+    var path = '/lab/patterns/' + encodeURIComponent(props.slug)
+    if (typeof window === 'undefined') return path
+    try {
+      return window.location.origin + path
+    } catch (_e) {
+      return path
+    }
+  }
+
+  async function onShare(e: React.MouseEvent) {
+    // Stop the click from bubbling to the card-level Link.
+    e.preventDefault()
+    e.stopPropagation()
+    var url = buildShareUrl()
+    var title = props.headline
+    var shareText = title
+    // 1) Native share sheet (mobile primary).
+    if (typeof navigator !== 'undefined' && (navigator as any).share) {
+      try {
+        await (navigator as any).share({ title: title, text: shareText, url: url })
+        return
+      } catch (_err) {
+        // User dismissed or share failed — fall through to clipboard.
+      }
+    }
+    // 2) Clipboard fallback (desktop + mobile-no-share).
+    var copyPayload = shareText + '\n' + url
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(copyPayload)
+        setCopied(true)
+        if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
+        resetTimerRef.current = setTimeout(function () { setCopied(false) }, 1600)
+        return
+      } catch (_err) {
+        /* clipboard blocked — last resort below */
+      }
+    }
+    // 3) Last-ditch: textarea + execCommand. Old Safari, embedded WebViews.
+    try {
+      var ta = document.createElement('textarea')
+      ta.value = copyPayload
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      setCopied(true)
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
+      resetTimerRef.current = setTimeout(function () { setCopied(false) }, 1600)
+    } catch (_e) {
+      /* swallow — share simply did not happen */
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onShare}
+      aria-label={copied ? 'Copied to clipboard' : 'Share this Finding'}
+      className={
+        'inline-flex items-center justify-center w-9 h-9 rounded-full ' +
+        'border border-white/[0.10] bg-white/[0.025] ' +
+        'text-gray-300 hover:text-white hover:border-white/[0.22] ' +
+        'transition-colors shrink-0'
+      }
+    >
+      {copied ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
+    </button>
+  )
+}
+
+// ─── Representative report excerpt slab (today_card — Sprint 1E) ─────
+//
+// V11.18.12 — Sprint 1E. Fills the dead space in the today_card's
+// substance zone with a quote-shaped slab pulled from the first
+// representative report. Title + location · date + 2-3 sentences from
+// the Helena-cleared `paradocs_narrative` (NOT raw source description).
+//
+// The slab is its own <Link> to /report/<slug>. Tapping it routes to
+// the report page; the card-level "Read more →" still routes to the
+// Finding detail page at /lab/patterns/<slug>. Two distinct hand-offs
+// from one card — slab = "see the case," chevron = "see the pattern."
+//
+// The slab gets `e.stopPropagation()` on its own anchor so the card-
+// level Link doesn't double-fire. (Anchors nested in anchors are
+// non-conforming HTML, so the today_card variant uses a div wrapper
+// for the outer click target rather than the Link element — see the
+// TodayCardLayout for that swap.)
+//
+// When `preview` is null (no representative reports on the Finding,
+// or the lookup failed), the slab is suppressed. The hero + headline
+// + bars + footer fill the viewport on their own; the card never has
+// a void.
+
+function ReportExcerptSlab(props: { preview: RepresentativeReportPreview }) {
+  var p = props.preview
+  var locDate = ''
+  if (p.location_text && p.event_date) {
+    locDate = p.location_text + ' · ' + fmtShortDate(p.event_date)
+  } else if (p.location_text) {
+    locDate = p.location_text
+  } else if (p.event_date) {
+    locDate = fmtShortDate(p.event_date)
+  }
+  var href = '/report/' + encodeURIComponent(p.slug || p.id)
+  function onClick(e: React.MouseEvent) {
+    // Stop the card-level click from also firing — the slab navigates
+    // to the report page; the chevron + card navigate to the Finding
+    // detail page. Two distinct hand-offs, same card.
+    e.stopPropagation()
+  }
+  return (
+    <a
+      href={href}
+      onClick={onClick}
+      className={
+        'block rounded-lg border border-white/[0.07] bg-white/[0.025] ' +
+        'px-3.5 py-3 mb-4 max-w-[34ch] ' +
+        'hover:border-white/[0.18] hover:bg-white/[0.045] transition-colors'
+      }
+      aria-label={'Read the report: ' + (p.title || 'Untitled account')}
+    >
+      <div className="text-[13.5px] sm:text-[14px] text-white leading-snug font-medium line-clamp-2">
+        {p.title || 'Untitled account'}
+      </div>
+      {locDate && (
+        <div className="mt-1 text-[11px] text-gray-500 tabular-nums">
+          {locDate}
+        </div>
+      )}
+      {p.preview_text && (
+        <p className="mt-2 text-[12.5px] sm:text-[13px] italic text-gray-300 leading-relaxed line-clamp-3">
+          {p.preview_text}
+        </p>
+      )}
+    </a>
+  )
+}
+
 // ─── Variants ────────────────────────────────────────────────────────
 
 function RailLayout(props: { finding: Finding; href: string }) {
@@ -581,12 +788,53 @@ function TodayCardLayout(props: { finding: Finding; href: string; isActive?: boo
     ? f.phen_families.filter(function (x) { return x.family_slug !== hero!.family_slug })
     : f.phen_families
   var overlay = f.user_overlay && f.user_overlay.matches >= 1 ? f.user_overlay : null
+  // V11.18.12 — Sprint 1E. Substance-zone preview slab. Falls through
+  // to null when the catalogue row has no representative_report_ids or
+  // the API lookup failed; the card then suppresses the slab and lets
+  // the headline + hero + bars + footer fill the viewport.
+  var preview = f.representative_report_preview || null
+
+  // V11.18.12 — Sprint 1E. The card has three hit targets:
+  //   1. Outer card     → /lab/patterns/<slug>   (the Finding detail page)
+  //   2. Substance slab → /report/<rep slug>     (the representative report)
+  //   3. Share button   → navigator.share() or clipboard
+  //
+  // Nested <a> elements are invalid HTML, so the outer wrapper is a
+  // <div> with role="link" + onClick + onKeyDown. The footer "Read more"
+  // chevron uses a real Link (anchor) so middle-click / Cmd-click /
+  // right-click "Open in new tab" still work for the primary chevron
+  // affordance. The inner <a>s for the slab use stopPropagation so the
+  // outer onClick doesn't double-fire.
+  function onCardClick(e: React.MouseEvent) {
+    // Don't intercept if the user opened in a new tab/window/etc.
+    if (e.defaultPrevented) return
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+    if ((e as any).button && (e as any).button !== 0) return
+    // The inner Link / slab anchor / share button stop propagation
+    // themselves; we only land here for taps in dead card area.
+    // Use the Next router via a synthetic anchor click so client-side
+    // navigation still kicks in.
+    var a = document.createElement('a')
+    a.href = props.href
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+  function onCardKey(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onCardClick(e as any)
+    }
+  }
+
   return (
-    <Link
-      href={props.href}
-      className="block h-full w-full relative overflow-hidden bg-gray-950 group"
-      role="article"
+    <div
+      onClick={onCardClick}
+      onKeyDown={onCardKey}
+      role="link"
+      tabIndex={0}
       aria-label={'Finding: ' + f.headline}
+      className="block h-full w-full relative overflow-hidden bg-gray-950 group cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-purple-500/40"
     >
       {/* Hairline edges — V2 cross-surface decision. Distinct from
           report cards via 1px purple top + bottom borders. */}
@@ -607,39 +855,52 @@ function TodayCardLayout(props: { finding: Finding; href: string; isActive?: boo
         }
       >
         {/* Sprint 1C — Eyebrow + family icons share the top row on the
-            today_card variant. The icons sit right-aligned with the
-            eyebrow's underline — visually the cleanest place; the
-            headline below has a max-w-[24ch] cap so it leaves room. */}
-        <div className="mb-6 flex items-start justify-between gap-3">
-          <Eyebrow type={f.eyebrow_type} size="md" />
-          <FamilyIconSet families={f.phen_families} variant="today_card" />
+            today_card variant. V11.18.12 Sprint 1E — Share button is
+            absolutely positioned in the top-right so it doesn't have
+            to share the row with the family icons. The family icons
+            now sit beneath the share button on a second row inline
+            with the eyebrow — gives the share button breathing room
+            and keeps the eyebrow as the visual anchor of zone A. */}
+        <div className="mb-5 flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-3 min-w-0">
+            <Eyebrow type={f.eyebrow_type} size="md" />
+            <FamilyIconSet families={f.phen_families} variant="today_card" />
+          </div>
+          <ShareButton slug={f.slug} headline={f.headline} />
         </div>
 
-        <h2 className="font-display text-[26px] sm:text-[32px] font-semibold text-white leading-[1.15] tracking-[-0.005em] max-w-[24ch] mb-6">
+        <h2 className="font-display text-[26px] sm:text-[32px] font-semibold text-white leading-[1.15] tracking-[-0.005em] max-w-[24ch] mb-5">
           {f.headline}
         </h2>
 
         {hero && (
-          <div className="mb-5 max-w-[34ch]">
+          <div className="mb-4 max-w-[34ch]">
             <HeroStat hero={hero} variant="today_card" />
           </div>
         )}
 
         {secondaries.length > 0 && (
-          <div className="mb-5 max-w-[34ch]">
+          <div className="mb-4 max-w-[34ch]">
             {secondaries.map(function (fam) {
               return <CategoryBar key={fam.family_slug} f={fam} variant="today_card" muted />
             })}
           </div>
         )}
 
-        <p className="text-[13px] italic leading-snug text-gray-400 max-w-[34ch] mb-3">
+        <p className="text-[12.5px] italic leading-snug text-gray-400 max-w-[34ch] mb-3">
           {prettyDenominatorLabel(f)}
         </p>
 
-        <p className="text-[14.5px] sm:text-[15.5px] text-gray-200 leading-relaxed max-w-[34ch] mb-3">
+        <p className="text-[14px] sm:text-[15px] text-gray-200 leading-relaxed max-w-[34ch] mb-4">
           {f.interpretive_sentence}
         </p>
+
+        {/* V11.18.12 — Sprint 1E. Substance zone — representative report
+            excerpt slab. Routes to /report/<slug> (NOT the Finding
+            detail page); the chevron + footer route there. Tap the
+            slab to see the human case; tap the chevron to see the
+            wider pattern. */}
+        {preview && <ReportExcerptSlab preview={preview} />}
 
         {overlay && (
           <div className="max-w-[34ch] mb-2">
@@ -651,10 +912,21 @@ function TodayCardLayout(props: { finding: Finding; href: string; isActive?: boo
           <div className="flex-1 min-w-0">
             <FooterCitation denominator_n={f.denominator_n} variant="today_card" />
           </div>
-          <ArrowRight className="w-3.5 h-3.5 flex-shrink-0 text-gray-400 group-hover:text-gray-200 transition-colors" />
+          {/* V11.18.12 — Sprint 1E. Make the chevron a real Link so
+              Cmd/Ctrl/middle-click "open in new tab" still works on
+              the primary action affordance. stopPropagation so the
+              outer onCardClick doesn't double-navigate. */}
+          <Link
+            href={props.href}
+            onClick={function (e) { e.stopPropagation() }}
+            className="inline-flex items-center gap-1 text-[12.5px] font-medium text-purple-300 hover:text-purple-200 transition-colors shrink-0 whitespace-nowrap min-h-[44px] -my-2 py-2"
+          >
+            Read more
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
       </div>
-    </Link>
+    </div>
   )
 }
 

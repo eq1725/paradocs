@@ -1,4 +1,11 @@
 // V11.18.1 — Sprint 1A-2 — GET /api/lab/patterns/list
+// V11.18.12 — Sprint 1E. Added `representative_report_preview` to the
+// response so the Today FindingCard substance slab can render the first
+// rep report's title + location + date + 2-3 sentence narrative pull
+// without a second client round-trip. The data lives on the existing
+// `reports` row (paradocs_narrative is the Helena-cleared rewrite, NOT
+// the raw source description); the join is cheap and uses the first
+// element of `representative_report_ids`.
 //
 // Returns the published `findings_catalogue` rows for the Patterns
 // surface. The endpoint is namespaced under /api/lab/ (NOT /api/patterns/,
@@ -19,6 +26,10 @@
 //                          total_in_family, pct}, ...],
 //         denominator_n, denominator_n_label, interpretive_sentence,
 //         representative_report_ids,
+//         representative_report_preview: null | {
+//           id, slug, title, location_text, event_date,
+//           preview_text, category,
+//         },
 //         user_overlay: null | {
 //           matches: <int>,
 //           total: <int>,
@@ -70,6 +81,99 @@ interface UserOverlay {
   matches: number
   total: number
   traits_matched: string[]
+}
+
+// V11.18.12 — Sprint 1E. Preview-slab shape rendered in the Today
+// FindingCard substance zone. Matches `RepresentativeReport` in
+// finding-detail-types.ts so the client can re-use the same type. The
+// preview_text is built from `paradocs_narrative` (NOT the raw source
+// `description` — that's index-only ToS-restricted) at ~260 chars.
+interface RepresentativeReportPreview {
+  id: string
+  slug: string
+  title: string | null
+  location_text: string | null
+  event_date: string | null
+  preview_text: string | null
+  category: string | null
+}
+
+// V11.18.12 — Sprint 1E. Build the 2-3 sentence preview pull from the
+// AI-rewritten narrative. ~260 chars is the substance-slab budget at
+// 375px portrait — three short sentences before the line-clamp kicks
+// in. Keep the boundary at a sentence end when possible (regex hunts
+// for the last . ! or ? before the 260-char mark); otherwise we trim
+// at a word boundary.
+function buildPreview(text: string | null | undefined): string | null {
+  if (!text) return null
+  var t = String(text).trim()
+  if (t.length === 0) return null
+  if (t.length <= 260) return t
+  var head = t.slice(0, 260)
+  // Prefer a sentence boundary near the end of the head.
+  var lastSentence = head.lastIndexOf('.')
+  var lastBang = head.lastIndexOf('!')
+  var lastQ = head.lastIndexOf('?')
+  var lastEnd = Math.max(lastSentence, lastBang, lastQ)
+  if (lastEnd >= 180) return head.slice(0, lastEnd + 1).trim()
+  // Fall back to a word boundary.
+  var lastSpace = head.lastIndexOf(' ')
+  if (lastSpace >= 200) return head.slice(0, lastSpace).trim() + '…'
+  return head.trim() + '…'
+}
+
+// V11.18.12 — Sprint 1E. Fetch the first representative report (by the
+// stable order in `representative_report_ids[0]`) for each Finding and
+// return a preview-shaped slab. One Supabase round-trip for the whole
+// page (IN clause), keyed back to findings by report.id.
+async function loadRepresentativePreviews(
+  svc: any,
+  findings: FindingRow[],
+): Promise<Record<string, RepresentativeReportPreview | null>> {
+  var out: Record<string, RepresentativeReportPreview | null> = {}
+  var firstIds: string[] = []
+  var idByFindingId: Record<string, string> = {}
+  for (var i = 0; i < findings.length; i++) {
+    var f = findings[i]
+    var ids = Array.isArray(f.representative_report_ids) ? f.representative_report_ids : []
+    out[f.id] = null
+    if (ids.length === 0) continue
+    var firstId = String(ids[0] || '')
+    if (!firstId) continue
+    idByFindingId[f.id] = firstId
+    if (firstIds.indexOf(firstId) === -1) firstIds.push(firstId)
+  }
+  if (firstIds.length === 0) return out
+  try {
+    var repsRes: any = await svc
+      .from('reports')
+      .select('id, slug, title, location_text, event_date, paradocs_narrative, category, status')
+      .in('id', firstIds)
+      .eq('status', 'approved')
+    var rows: any[] = (repsRes && repsRes.data) || []
+    var byId: Record<string, any> = {}
+    for (var ri = 0; ri < rows.length; ri++) {
+      byId[String(rows[ri].id)] = rows[ri]
+    }
+    findings.forEach(function (f) {
+      var firstId = idByFindingId[f.id]
+      if (!firstId) return
+      var r = byId[firstId]
+      if (!r) return
+      out[f.id] = {
+        id: String(r.id),
+        slug: String(r.slug || r.id),
+        title: r.title || null,
+        location_text: r.location_text || null,
+        event_date: r.event_date || null,
+        preview_text: buildPreview(r.paradocs_narrative),
+        category: r.category || null,
+      }
+    })
+  } catch (_e) {
+    /* defensive — leave previews null, FindingCard hides the slab */
+  }
+  return out
 }
 
 function readReportTokens(row: any): string[] {
@@ -203,6 +307,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   var findings: FindingRow[] = ((listRes.data as any[]) || []).map(function (r) { return r as FindingRow })
 
+  // V11.18.12 — Sprint 1E. Pre-fetch the first representative report's
+  // preview slab for every Finding (single IN-query). Renders in the
+  // Today FindingCard substance zone; falls through to null when the
+  // Finding has no representative_report_ids or the row is missing.
+  var previewMap: Record<string, RepresentativeReportPreview | null> = {}
+  try {
+    previewMap = await loadRepresentativePreviews(svc, findings)
+  } catch (_e) {
+    /* defensive — leave map empty; client tolerates null preview */
+  }
+
   // Optional per-user overlay.
   var overlayMap: Record<string, UserOverlay | null> = {}
   var bearer: string | null = null
@@ -235,6 +350,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       denominator_n_label: f.denominator_n_label,
       interpretive_sentence: f.interpretive_sentence,
       representative_report_ids: f.representative_report_ids,
+      // V11.18.12 — Sprint 1E. Substance-slab preview for the Today
+      // FindingCard. Null when the Finding has no representative
+      // report IDs or the row is missing — the card hides the slab.
+      representative_report_preview: previewMap[f.id] || null,
       user_overlay: overlayMap[f.id] || null,
     }
   })

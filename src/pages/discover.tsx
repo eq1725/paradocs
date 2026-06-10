@@ -2279,6 +2279,66 @@ export const getServerSideProps: GetServerSideProps<DiscoverPageProps> = async f
       var doy = Math.floor((nowUtc - startUtc) / 86400000) + 1
       var pickIdx = doy % rows.length
       var f: any = rows[pickIdx]
+
+      // V11.18.12 — Sprint 1E. Pre-fetch the first representative
+      // report's preview slab for the FindingCard substance zone. The
+      // client patterns/list path also fetches this (see api/lab/
+      // patterns/list.ts loadRepresentativePreviews); we duplicate the
+      // join here so the SSR-delivered Finding lands fully populated
+      // on first paint. Null when the catalogue row has no rep ids or
+      // the lookup fails — FindingCard then suppresses the slab.
+      var firstRepId: string | null = null
+      if (Array.isArray(f.representative_report_ids) && f.representative_report_ids.length > 0) {
+        firstRepId = String(f.representative_report_ids[0] || '')
+      }
+      var preview: any = null
+      if (firstRepId) {
+        try {
+          var repRes: any = await (svc.from('reports') as any)
+            .select('id, slug, title, location_text, event_date, paradocs_narrative, category')
+            .eq('id', firstRepId)
+            .eq('status', 'approved')
+            .maybeSingle()
+          var rr: any = repRes && repRes.data
+          if (rr) {
+            var narrative: string | null = rr.paradocs_narrative || null
+            var previewText: string | null = null
+            if (narrative) {
+              var trimmed = String(narrative).trim()
+              if (trimmed.length === 0) previewText = null
+              else if (trimmed.length <= 260) previewText = trimmed
+              else {
+                var head = trimmed.slice(0, 260)
+                var lastEnd = Math.max(
+                  head.lastIndexOf('.'),
+                  head.lastIndexOf('!'),
+                  head.lastIndexOf('?'),
+                )
+                if (lastEnd >= 180) {
+                  previewText = head.slice(0, lastEnd + 1).trim()
+                } else {
+                  var lastSpace = head.lastIndexOf(' ')
+                  previewText = lastSpace >= 200
+                    ? head.slice(0, lastSpace).trim() + '…'
+                    : head.trim() + '…'
+                }
+              }
+            }
+            preview = {
+              id: String(rr.id),
+              slug: String(rr.slug || rr.id),
+              title: rr.title || null,
+              location_text: rr.location_text || null,
+              event_date: rr.event_date || null,
+              preview_text: previewText,
+              category: rr.category || null,
+            }
+          }
+        } catch (_e) {
+          /* defensive — leave preview null */
+        }
+      }
+
       initialFinding = {
         id: String(f.id),
         slug: String(f.slug),
@@ -2290,6 +2350,7 @@ export const getServerSideProps: GetServerSideProps<DiscoverPageProps> = async f
         denominator_n_label: String(f.denominator_n_label || ''),
         interpretive_sentence: String(f.interpretive_sentence || ''),
         representative_report_ids: f.representative_report_ids || null,
+        representative_report_preview: preview,
         user_overlay: null,
         item_type: 'finding',
       }
