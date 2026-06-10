@@ -149,6 +149,18 @@ var PATTERN_CONFIGS: PatternConfig[] = [
     families: ['ghosts_hauntings', 'ufos_aliens', 'cryptids'],
     publish_order: 10,
   },
+  // 11. piloerection — V11.18.7 — Sprint 1D. Hynek + Bigfoot literature
+  //     trio: ghost / UFO / cryptid. The Sprint 1C vocab dropped bare
+  //     'static' and added the canonical "hair stood on end" /
+  //     "goosebumps" / "prickling" / "tingling" / "electrical
+  //     sensation on skin" / "piloerection" forms. PATTERNS_TAXONOMY A8
+  //     classifies as MEDIUM confidence; Sprint 1D promotes to the
+  //     publish list now that the vocabulary is corpus-grounded.
+  {
+    descriptor: 'piloerection',
+    families: ['ghosts_hauntings', 'ufos_aliens', 'cryptids'],
+    publish_order: 11,
+  },
 ]
 
 /* -------------------------------------------------------------------------- */

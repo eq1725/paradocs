@@ -156,12 +156,18 @@ function prettyFamilyLabel(f: FindingFamilyBreakdown): string {
 
 function resolveHref(finding: Finding, override?: string): string {
   if (override) return override
-  // Sprint 1 has no per-finding detail page yet. Route to the first
-  // representative report when available; otherwise route to the
-  // Patterns index page (still useful — surfaces the rail/grid).
-  if (Array.isArray(finding.representative_report_ids) && finding.representative_report_ids.length > 0) {
-    return '/reports/' + encodeURIComponent(String(finding.representative_report_ids[0]))
+  // V11.18.7 — Sprint 1D. Route "See reports →" to the new per-Finding
+  // detail page at /lab/patterns/[slug]. Sprint 1A–1C routed the CTA
+  // to the first representative report (because the detail page did
+  // not exist yet); Sprint 1D builds the click-down scholarly layer
+  // and migrates all three card variants (rail, grid, today_card) to
+  // route here. The representative reports are now linked from within
+  // the detail page, one click deeper, with title + location + date.
+  if (finding && finding.slug) {
+    return '/lab/patterns/' + encodeURIComponent(String(finding.slug))
   }
+  // Defensive fallback if a Finding ever lacks a slug — link to the
+  // grid index so the surface never produces a dead-end.
   return '/lab/patterns'
 }
 

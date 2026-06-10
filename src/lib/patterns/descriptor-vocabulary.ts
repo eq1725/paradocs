@@ -259,6 +259,15 @@ export var DESCRIPTOR_VOCAB: DescriptorVocabulary = {
   //     "birds", "deer", "chickens", "sheep", "wildlife"). Also
   //     covers the possessive-narrator forms ("my dog refused", "my
   //     horse refused") which read as Hynek's exact literary marker.
+  //
+  // V11.18.7 — Sprint 1D. Sprint 1C's expansion only lifted cryptid to
+  //     1% (still 0 in ghost + UFO). The taxonomy says it should also
+  //     land 2-5% in UFO + ghost. Sprint 1D adds Hynek-CE2 phrasings
+  //     that surface in NUFORC-style short-form narratives — "the
+  //     dog wouldn't go near", "the birds went quiet", "my pet
+  //     acted", "horses neighed", "cattle bellowed", "deer froze",
+  //     "the cat puffed up", "all the dogs in the neighborhood".
+  //     Net new ~36 phrasings.
   animal_witness_reaction: {
     keywords: [
       // generic
@@ -286,6 +295,22 @@ export var DESCRIPTOR_VOCAB: DescriptorVocabulary = {
       'dog growled', 'horse refused', 'cat hiding', 'cat stared at',
       'no birdsong', 'dead silence in the woods', 'animal sensed it',
       'the animals knew', 'dog barking', 'cat ran',
+      // V11.18.7 — Sprint 1D additions. Hynek CE2 phrasings tuned to
+      //     short-form NUFORC + ghost-report registers. Targeting
+      //     UFO ≥1% and ghost ≥1% (Sprint 1C left both at 0).
+      'animals reacted', 'animal reaction', 'animals were spooked',
+      'livestock disturbed', 'livestock fled', 'livestock ran',
+      "the dog wouldn't go near", 'the dog refused to enter', "dog wouldn't approach",
+      'animals avoided', 'animals stayed away', 'animals refused to',
+      'horses neighed', 'horse neighed', 'cattle bellowed', 'cows bellowed',
+      'nervous animals', 'agitated animals', 'panicked animals',
+      'all the dogs in the neighborhood', 'every dog within',
+      'unusual animal behavior', 'strange animal behavior',
+      'the cat puffed up', 'cat puffed', 'fur stood up on the dog',
+      'my pet acted', 'my dog acted', 'my cat acted',
+      'the chickens scattered', 'the goats panicked',
+      'deer froze', 'deer ran', 'deer scattered into',
+      'the birds went quiet', 'birds suddenly stopped', 'sudden bird silence',
     ],
     pretty_label: 'animal-witness reaction',
     phen_families_default: ['ghosts_hauntings', 'ufos_aliens', 'cryptids'],
