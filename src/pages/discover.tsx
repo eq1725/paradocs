@@ -36,9 +36,17 @@
  */
 
 import React, { useEffect, useState, useRef, useCallback } from 'react'
+import type { GetServerSideProps } from 'next'
 import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
+// V11.18.10 — Sprint 1D SSR fix. Supabase service-role client used in
+// getServerSideProps to pre-fetch the day's Finding so it lands in the
+// initial paint of /discover instead of racing the user's swipe past
+// position 4-5. Only FindingCard moves to SSR — LabPromo/OnThisDate/
+// Cluster remain client-side per the surgical-fix scope.
+import { createClient as createServiceClient } from '@supabase/supabase-js'
+import type { Database } from '@/lib/database.types'
 // V11.17.44 — swapped from local createClient (which ran at module
 // load and crashed CI builds when env vars were absent) to the lazy
 // proxy in @/lib/supabase. Same anon-key client; deferred init.
@@ -226,7 +234,18 @@ function applyLens(items: ExtendedFeedItem[], lens: TodayLens): ExtendedFeedItem
   return items
 }
 
-export default function DiscoverPage() {
+// V11.18.10 — Sprint 1D SSR fix. Props pre-fetched by getServerSideProps
+// (defined at the bottom of this file). `initialFinding` is the day's
+// rotated Finding row, ready to be folded into the special-card inject
+// pipeline on first paint. Null when SSR couldn't reach Supabase — in
+// that case fetchSpecialCards() falls through to the client-side fetch
+// as before, preserving the pre-V11.18.10 behavior as a safety net.
+interface DiscoverPageProps {
+  initialFinding: FindingFeedItem | null
+}
+
+export default function DiscoverPage(props: DiscoverPageProps) {
+  var initialFinding = props.initialFinding || null
   var router = useRouter()
 
   // --- URL-driven lens + category state (panel review IA fix) ---
@@ -270,6 +289,10 @@ export default function DiscoverPage() {
     setHasMore(true)
     specialCardsInjected.current = false
     pendingSpecialCards.current = []
+    // V11.18.10 — SSR-delivered finding is a first-paint contract;
+    // user-initiated lens change falls back to the client patterns/list
+    // fetch in fetchSpecialCards() (pre-V11.18.10 path).
+    ssrFindingDelivered.current = false
     setTimeout(function () { loadFeed(0) }, 0)
   }
   function handleCategoryChange(next: string | null) {
@@ -286,6 +309,11 @@ export default function DiscoverPage() {
     setHasMore(true)
     specialCardsInjected.current = false
     pendingSpecialCards.current = []
+    // V11.18.10 — same reset as handleLensChange; on category change,
+    // the SSR pre-fetched Finding is no longer valid (Findings suppress
+    // when categoryFilter is set anyway) and on a category-clear we
+    // want the live client fetch to repopulate.
+    ssrFindingDelivered.current = false
     setTimeout(function () { loadFeed(0) }, 0)
   }
 
@@ -586,6 +614,29 @@ export default function DiscoverPage() {
   var pendingSpecialCards = useRef<{ card: ExtendedFeedItem; position: number }[]>([])
   var specialCardsInjected = useRef(false)
 
+  // V11.18.10 — Sprint 1D SSR fix. When `initialFinding` came from
+  // getServerSideProps, push it into the pending queue at mount time
+  // (BEFORE the first loadFeed(0) lands) and flip the
+  // `ssrFindingDelivered` ref so fetchSpecialCards() skips the client
+  // patterns/list fetch and we don't double-inject. The pull-to-refresh
+  // path resets the ref so the next session re-attempts SSR semantics
+  // via the client fetch (since pull-to-refresh doesn't re-run SSR).
+  var ssrFindingDelivered = useRef<boolean>(initialFinding != null)
+  var ssrFindingSeededRef = useRef(false)
+  useEffect(function () {
+    if (typeof window !== 'undefined') {
+      console.log('[Discover/SSR-finding]', {
+        hasInitialFinding: !!initialFinding,
+        slug: initialFinding && initialFinding.slug,
+      })
+    }
+    if (ssrFindingSeededRef.current) return
+    if (initialFinding) {
+      ssrFindingSeededRef.current = true
+      pendingSpecialCards.current.push({ card: initialFinding, position: 4 })
+    }
+  }, [])
+
   // V11.18.x — removed per UI_SHIPPING_ROADMAP_V2 Sprint 1A deletes
   // (body scroll-lock on /discover was a chrome-stacking workaround for
   // a problem fixed elsewhere). Mobile + desktop now scroll natively.
@@ -852,7 +903,15 @@ export default function DiscoverPage() {
     // onThisDate position-1 splice pushes the finding from idx 4 to
     // idx 5 — the 6th card swiped to). The first two surface here;
     // (c) is documented in SPRINT_1A_POLISH_R2_NOTES.md.
-    if (!categoryFilter) {
+    // V11.18.10 — Sprint 1D SSR fix. Skip the client patterns/list fetch
+    // entirely when getServerSideProps already pre-fetched today's
+    // Finding and seeded it into pendingSpecialCards.current at mount.
+    // Without this guard we'd double-inject (SSR finding + client
+    // finding) and the day-of-year rotation pick could differ between
+    // server tick and client tick if midnight UTC fell between renders.
+    if (!categoryFilter && ssrFindingDelivered.current) {
+      console.log('[Discover/FindingCard] SSR-delivered — skipping client patterns/list fetch')
+    } else if (!categoryFilter) {
       fetches.push(
         fetch('/api/lab/patterns/list?limit=20')
           .then(function (res) {
@@ -1323,6 +1382,11 @@ export default function DiscoverPage() {
       setHasMore(true)
       specialCardsInjected.current = false
       pendingSpecialCards.current = []
+      // V11.18.10 — pull-to-refresh re-runs loadFeed but NOT
+      // getServerSideProps, so we drop back to the client patterns/list
+      // fetch path. Without clearing this, the post-refresh feed would
+      // silently lose its FindingCard.
+      ssrFindingDelivered.current = false
       setTimeout(function () {
         loadFeed(0)
         setTimeout(function () { setRefreshing(false) }, 600)
@@ -2158,4 +2222,81 @@ export default function DiscoverPage() {
       '}</style>
     </>
   )
+}
+
+// =========================================================================
+//  V11.18.10 — Sprint 1D SSR fix. Pre-fetch the day's Finding so it
+//  renders in the initial paint instead of racing the user's swipe past
+//  position 4–5.
+//
+//  Scope (deliberately narrow):
+//    - ONLY the FindingCard is pre-fetched on the server. LabPromo
+//      (tier-gated user state), OnThisDateCard (smaller data + lower
+//      perceived race cost), and ClusteringCard (session-seeded
+//      ranker) remain client-side fetches.
+//    - Day-of-year rotation is deterministic from `new Date()` server-
+//      side. Per V11.18.1 §5.A5, every user worldwide sees the same
+//      Finding on the same UTC date — so rendering it from the server
+//      tick instead of the client tick changes nothing for the user.
+//    - On Supabase outage or env-not-configured, we fall through to
+//      `initialFinding: null`; the client patterns/list fetch then
+//      runs as the safety net (pre-V11.18.10 behavior).
+//
+//  Caching: short s-maxage so CDN can cache the anon shell + Finding
+//  for 60s without staling the day-of-year rotation noticeably (every
+//  user gets the same Finding for the whole UTC day anyway).
+// =========================================================================
+export const getServerSideProps: GetServerSideProps<DiscoverPageProps> = async function (ctx) {
+  var SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+  var SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+    return { props: { initialFinding: null } }
+  }
+
+  var initialFinding: FindingFeedItem | null = null
+  try {
+    var svc = createServiceClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    var res: any = await (svc.from('findings_catalogue' as any) as any)
+      .select('id, slug, eyebrow_type, headline, descriptor, phen_families, denominator_n, denominator_n_label, interpretive_sentence, representative_report_ids')
+      .eq('published', true)
+      .order('publish_order', { ascending: true, nullsFirst: false })
+      .limit(20)
+    var rows: any[] = (res && res.data) || []
+    if (rows.length > 0) {
+      // Day-of-year rotation, UTC, same as the client dayOfYear()
+      // helper above — keeps server/client picks identical when the
+      // safety-net client fetch ever runs.
+      var d = new Date()
+      var startUtc = Date.UTC(d.getUTCFullYear(), 0, 1)
+      var nowUtc = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+      var doy = Math.floor((nowUtc - startUtc) / 86400000) + 1
+      var pickIdx = doy % rows.length
+      var f: any = rows[pickIdx]
+      initialFinding = {
+        id: String(f.id),
+        slug: String(f.slug),
+        eyebrow_type: f.eyebrow_type,
+        headline: String(f.headline),
+        descriptor: String(f.descriptor),
+        phen_families: f.phen_families || [],
+        denominator_n: Number(f.denominator_n) || 0,
+        denominator_n_label: String(f.denominator_n_label || ''),
+        interpretive_sentence: String(f.interpretive_sentence || ''),
+        representative_report_ids: f.representative_report_ids || null,
+        user_overlay: null,
+        item_type: 'finding',
+      }
+    }
+  } catch (_e) {
+    // Defensive: any server-side failure falls through to the client
+    // patterns/list fetch (pre-V11.18.10 behavior preserved as the
+    // safety net).
+    initialFinding = null
+  }
+
+  // Short edge cache. The Finding for a given UTC day is stable;
+  // a 60s s-maxage trims server load without staling the rotation.
+  ctx.res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=60')
+
+  return { props: { initialFinding: initialFinding } }
 }
