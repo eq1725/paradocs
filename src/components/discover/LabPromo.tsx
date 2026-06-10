@@ -44,7 +44,7 @@
 
 import React, { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Compass } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { logLabPromoEvent } from '@/lib/lab-promo-telemetry'
 
@@ -99,7 +99,23 @@ function pickHeadline(payload: RecentSavesPayload | null): string {
 // sentence workshop vocabulary
 // ("The pattern is already there. My Record places your account inside it.")
 // with one austere documentary sentence.
-var SUB_HEADLINE = 'Your account, set against the archive.'
+//
+// V11.18.16 — Fix 4. Apple-aligned polish. The "Your account, set
+// against the archive" sub-line read as corporate marketing copy
+// against the Apple Health / Apple News register the founder is
+// chasing. We now compose the sub-line from the user's actual state
+// ("4 reports this week · 12 on record") via composeSubline() so the
+// surface earns its space with concrete numbers instead of abstract
+// promises. Anonymous + zero-save cases fall back to the original
+// abstract line.
+var SUB_HEADLINE_DEFAULT = 'Your record, set against the archive.'
+function composeSubline(payload: RecentSavesPayload | null): string {
+  if (!payload || !payload.signedIn) return SUB_HEADLINE_DEFAULT
+  var n = payload.savedCount7d || 0
+  if (n === 0) return SUB_HEADLINE_DEFAULT
+  if (n === 1) return 'Your record · 1 report this week'
+  return 'Your record · ' + n + ' reports this week'
+}
 
 export function LabPromo(props: LabPromoProps) {
   var [data, setData] = useState<RecentSavesPayload | null>(null)
@@ -118,19 +134,37 @@ export function LabPromo(props: LabPromoProps) {
         if (token) headers.Authorization = 'Bearer ' + token
         var r = await fetch('/api/lab/recent-saves', { headers })
         if (!r.ok) {
+          // V11.18.16 — Fix 3. Be louder on non-2xx so the founder's
+          // DevTools surfaces 401/500 instead of silently empty.
           // Defensive fallback: treat as anonymous so the empty-state
           // chip renders. The card never has a void.
+          console.warn('[LabPromo] recent-saves response not ok', {
+            status: r.status,
+            statusText: r.statusText,
+            hadToken: !!token,
+          })
           if (!cancelled) setData({ signedIn: false, savedCount7d: 0, saves: [] })
           return
         }
         var j = await r.json()
         if (cancelled) return
-        setData({
+        var payload: RecentSavesPayload = {
           signedIn: !!j.signedIn,
           savedCount7d: Number(j.savedCount7d) || 0,
           saves: Array.isArray(j.saves) ? j.saves as RecentSaveChip[] : [],
+        }
+        // V11.18.16 — Fix 3. Founder reported a "headline says 4 saved,
+        // chip stack shows empty" mismatch on /discover?preview_labpromo=1.
+        // Surface the response shape so the exact cause is visible in
+        // DevTools and is a real datapoint after the V11.18.16 API patch.
+        console.log('[LabPromo] recent-saves response', {
+          signedIn: payload.signedIn,
+          savedCount7d: payload.savedCount7d,
+          saves: payload.saves.length,
         })
-      } catch (_e) {
+        setData(payload)
+      } catch (e: any) {
+        console.warn('[LabPromo] recent-saves threw', { message: e?.message || String(e) })
         if (!cancelled) setData({ signedIn: false, savedCount7d: 0, saves: [] })
       }
     }
@@ -155,7 +189,32 @@ export function LabPromo(props: LabPromoProps) {
   var saves: RecentSaveChip[] = (data && data.saves) || []
   // Chip stack capacity is 4. We rely on the API to cap; defensive .slice.
   var visibleSaves = saves.slice(0, 4)
-  var showEmptyState = visibleSaves.length === 0
+  // V11.18.16 — Fix 3. The empty-state chip should ONLY render when the
+  // user genuinely has zero saves in the 7-day window. Before V11.18.16
+  // a recent-saves response that returned `savedCount7d > 0` but
+  // `saves: []` (e.g. PostgREST FK embed mis-name dropping every row,
+  // or a transient 401) would still render the "Start saving reports to
+  // fill your record" empty-state chip — directly contradicting the
+  // "You've saved N reports this week" headline above. Now the chip
+  // stack only falls to the empty state when savedCount7d is also 0.
+  // When savedCount7d > 0 but saves is empty, the substance slab shows
+  // a "filling in…" placeholder + a diagnostic warn so the operator
+  // can see the gap in DevTools without breaking the card surface.
+  var savedCount = (data && data.savedCount7d) || 0
+  var showEmptyState = visibleSaves.length === 0 && savedCount === 0
+  var showFallbackPlaceholder = visibleSaves.length === 0 && savedCount > 0
+  React.useEffect(function () {
+    if (!data) return
+    var source: 'primary' | 'fallback' | 'empty' = visibleSaves.length > 0
+      ? 'primary'
+      : (savedCount > 0 ? 'fallback' : 'empty')
+    console.log('[LabPromo] chip-stack render', {
+      source: source,
+      count: visibleSaves.length,
+      savedCount7d: savedCount,
+      signedIn: data.signedIn,
+    })
+  }, [data])
 
   return (
     <div
@@ -165,10 +224,16 @@ export function LabPromo(props: LabPromoProps) {
     >
       {/* Gradient background — kept as the one card-surface tell that
           this is the promo surface (intentional divergence per panel
-          §5.2). Restrained palette per Helena copy-for-visuals pass. */}
+          §5.2). Restrained palette per Helena copy-for-visuals pass.
+          V11.18.16 — Fix 4. Apple-aligned polish: add a top-to-bottom
+          subtle darkening overlay so the card has a felt-depth gradient
+          (Apple News / Apple Music story-card pattern) rather than a
+          flat dark slab. The two radial-gradients stay as the brand-
+          purple glow accents. */}
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/60 via-gray-950 to-purple-950/40" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_22%,rgba(99,102,241,0.18),transparent_55%)]" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_78%_78%,rgba(168,85,247,0.12),transparent_55%)]" />
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/35" />
 
       <div className={
         'relative z-10 h-full flex flex-col px-7 sm:px-10 transition-all duration-700 ' +
@@ -187,7 +252,7 @@ export function LabPromo(props: LabPromoProps) {
           {headline}
         </h3>
         <p className="mt-2 font-display font-normal text-[#f2ead8]/75 text-[13.5px] leading-snug max-w-[28ch]">
-          {SUB_HEADLINE}
+          {composeSubline(data)}
         </p>
 
         {/* SUBSTANCE ZONE — Sprint 1E NEW. "YOUR RECORD SO FAR" chip
@@ -204,11 +269,48 @@ export function LabPromo(props: LabPromoProps) {
           </div>
 
           {showEmptyState ? (
-            <div className="mt-3 rounded-lg border border-[#f2ead8]/18 bg-[#f2ead8]/[0.045] px-3.5 py-3">
-              <p className="font-display text-[13px] text-[#f2ead8]/80 leading-snug">
-                Start saving reports to fill your record.
+            // V11.18.16 — Fix 4. Apple-aligned polish: dashed border,
+            // inline CTA-as-affordance ("Save your first report →"), and
+            // a slight gradient lift for visual presence. The empty-state
+            // chip is the entry-level case for cold users — it should
+            // feel like an open envelope, not a closed dead-end.
+            <Link
+              href="/discover"
+              className={
+                'mt-3 flex items-center justify-between gap-3 rounded-lg ' +
+                'border border-dashed border-[#f2ead8]/35 ' +
+                'bg-gradient-to-br from-[#f2ead8]/[0.07] to-[#f2ead8]/[0.025] ' +
+                'px-3.5 py-3 hover:from-[#f2ead8]/[0.10] hover:to-[#f2ead8]/[0.04] ' +
+                'transition-colors'
+              }
+            >
+              <p className="font-display text-[13px] text-[#f2ead8]/85 leading-snug">
+                Save your first report
               </p>
-            </div>
+              <ArrowRight className="w-4 h-4 text-[#f2ead8]/70 shrink-0" />
+            </Link>
+          ) : showFallbackPlaceholder ? (
+            // V11.18.16 — Fix 3. Headline says N>0 saved, but the chip-
+            // resolution missed (PostgREST FK mismatch, transient 401,
+            // etc). Render a quiet placeholder instead of contradicting
+            // the headline with the empty-state CTA. The diagnostic
+            // chip-stack render log above will surface the gap to the
+            // operator.
+            <Link
+              href="/lab"
+              className={
+                'mt-3 flex items-center justify-between gap-3 rounded-lg ' +
+                'border border-[#f2ead8]/18 bg-[#f2ead8]/[0.045] ' +
+                'px-3.5 py-3 hover:bg-[#f2ead8]/[0.07] transition-colors'
+              }
+            >
+              <p className="font-display text-[13px] text-[#f2ead8]/80 leading-snug">
+                {savedCount === 1
+                  ? '1 report on record'
+                  : savedCount + ' reports on record'}
+              </p>
+              <ArrowRight className="w-4 h-4 text-[#f2ead8]/65 shrink-0" />
+            </Link>
           ) : (
             <ul className="mt-3 rounded-lg border border-[#f2ead8]/18 bg-[#f2ead8]/[0.035] divide-y divide-[#f2ead8]/14 overflow-hidden">
               {visibleSaves.map(function (s) {
@@ -246,20 +348,26 @@ export function LabPromo(props: LabPromoProps) {
             non-Basic users into the paywall when they hit gated
             features; that's the right surface for the conversion ask,
             not the Today feed promo. */}
+        {/* V11.18.16 — Fix 4. Apple-aligned polish:
+              - Compass icon prefixes "Open My Record" so the chevron
+                feels like a destination affordance, not just an arrow.
+              - Pricing caption demoted to text-[10.5px] / 45% opacity
+                so it doesn't compete with the CTA. */}
         <div className="mt-auto pt-5 border-t border-[#f2ead8]/15">
           <Link
             href="/lab"
             onClick={handleCtaClick}
             className={
-              'inline-flex items-center gap-1.5 ' +
+              'inline-flex items-center gap-2 ' +
               'font-display font-semibold text-[15px] sm:text-[16px] text-[#f2ead8] ' +
               'hover:text-white transition-colors min-h-[44px] -my-2 py-2'
             }
           >
+            <Compass className="w-[15px] h-[15px] opacity-90" />
             Open My Record
             <ArrowRight className="w-4 h-4" />
           </Link>
-          <p className="mt-1 font-display font-normal text-[11.5px] text-[#f2ead8]/55 leading-snug">
+          <p className="mt-1 font-display font-normal text-[10.5px] text-[#f2ead8]/45 leading-snug">
             Free to start · $5.99/mo after 7 days.
           </p>
         </div>

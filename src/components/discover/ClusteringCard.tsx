@@ -38,7 +38,7 @@
  */
 
 import React from 'react'
-import { ChevronRight, ArrowRight } from 'lucide-react'
+import { ChevronRight, ArrowRight, MapPin } from 'lucide-react'
 
 export interface ClusterRepresentativeReport {
   id: string
@@ -119,20 +119,34 @@ var TYPE_LABEL_FALLBACK: Record<string, string> = {
 // Returns null when the string doesn't parse to a defensible
 // hero-numeric — in that case the card suppresses the hero entirely
 // and the headline promotes up into the hero slot.
+//
+// V11.18.16 — Fix 4. Apple-aligned polish. The "the usual week"
+// trailing was a fragment that read awkward at small type and made
+// the hero feel like a half-finished sentence. We now rewrite the
+// trailing to the cleaner "vs. usual week" / "vs. usual month"
+// register (Apple Health activity-ring annotation pattern) — the
+// hero glyph speaks for itself and the trailing is a quiet anchor.
 function parseBaseline(s: string | undefined): { glyph: string; trailing: string } | null {
   if (!s) return null
   var t = String(s).trim()
   if (t.length === 0) return null
+  var rewriteTrailing = function (raw: string): string {
+    var clean = raw.replace(/\.$/, '').trim().toLowerCase()
+    if (/usual\s+week/.test(clean)) return 'vs. usual week'
+    if (/usual\s+month/.test(clean)) return 'vs. usual month'
+    if (/usual\s+day/.test(clean)) return 'vs. usual day'
+    return clean
+  }
   // Match "5× the usual week" style first.
   var mNum = t.match(/^([0-9]+(?:\.[0-9]+)?)\s*×\s*(.*?)\.?$/)
   if (mNum) {
     var n = mNum[1]
-    return { glyph: n + '×', trailing: (mNum[2] || '').trim() }
+    return { glyph: n + '×', trailing: rewriteTrailing(mNum[2] || '') }
   }
   // "Twice / Three times the usual week".
   var lower = t.toLowerCase()
   if (lower.indexOf('twice') === 0) {
-    return { glyph: '2×', trailing: t.replace(/^twice\s+/i, '').replace(/\.$/, '').trim() }
+    return { glyph: '2×', trailing: rewriteTrailing(t.replace(/^twice\s+/i, '')) }
   }
   var mTimes = lower.match(/^(three|four|five|six|seven|eight|nine|ten)\s+times\s+(.*)$/)
   if (mTimes) {
@@ -140,7 +154,7 @@ function parseBaseline(s: string | undefined): { glyph: string; trailing: string
       three: '3×', four: '4×', five: '5×', six: '6×',
       seven: '7×', eight: '8×', nine: '9×', ten: '10×',
     }
-    return { glyph: WORD[mTimes[1]] || '×', trailing: t.replace(/^[a-z]+\s+times\s+/i, '').replace(/\.$/, '').trim() }
+    return { glyph: WORD[mTimes[1]] || '×', trailing: rewriteTrailing(t.replace(/^[a-z]+\s+times\s+/i, '')) }
   }
   // Unparseable — be conservative; suppress the hero numeric.
   return null
@@ -169,14 +183,28 @@ export function ClusteringCard(props: ClusteringCardProps) {
   // this surfaces the cause (no representative_reports field at all vs.
   // empty array vs. some other shape mismatch) in DevTools without
   // breaking the documentary register on the rendered card.
+  //
+  // V11.18.16 — Fix 2. Sharpened message per the founder's V11.18.16
+  // diagnosis suspect list ("data is wired to the wrong endpoint /
+  // feed-v2 path"). When this fires after V11.18.16 ships, the API
+  // fallback in `/api/discover/clusters.ts` (recent-approved-by-
+  // category+state backstop) also failed — which most likely means
+  // either there ARE no recent reports in the cluster's category
+  // (zero-substance true negative) or the cluster was injected through
+  // a path that bypassed the API entirely (the suspect feed-v2 path).
   React.useEffect(function () {
     if (typeof window !== 'undefined' && reps.length === 0) {
-      console.warn('[ClusteringCard] substance zone suppressed — no representative reports', {
-        cluster_id: item.id,
-        cluster_type: item.cluster_type,
-        linked_count: Array.isArray(item.linked_report_ids) ? item.linked_report_ids.length : 0,
-        has_reps_field: Object.prototype.hasOwnProperty.call(item, 'representative_reports'),
-      })
+      console.warn(
+        '[ClusteringCard] empty representative_reports — likely feed-v2 path bug',
+        {
+          cluster_id: item.id,
+          cluster_type: item.cluster_type,
+          linked_count: Array.isArray(item.linked_report_ids) ? item.linked_report_ids.length : 0,
+          has_reps_field: Object.prototype.hasOwnProperty.call(item, 'representative_reports'),
+          category: item.category,
+          location_summary: item.location_summary || null,
+        },
+      )
     }
   }, [item.id])
 
@@ -234,6 +262,16 @@ export function ClusteringCard(props: ClusteringCardProps) {
         style={{ background: '#9000F0' }}
         aria-hidden="true"
       />
+      {/* V11.18.16 — Fix 4. Apple-aligned polish: subtle top-to-bottom
+          darkening gradient (Apple News / Apple Music card pattern).
+          Adds felt-depth without competing with the brand-purple hero
+          glyph or the rep-report list — both sit in the lighter top
+          ~60% of the card. */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: 'linear-gradient(180deg, transparent 0%, transparent 55%, rgba(0,0,0,0.28) 100%)' }}
+        aria-hidden="true"
+      />
 
       <div className={
         'relative z-10 h-full flex flex-col px-7 sm:px-10 transition-all duration-700 ' +
@@ -258,27 +296,34 @@ export function ClusteringCard(props: ClusteringCardProps) {
             When baseline_text parses, render a 72px brand-purple glyph
             ("5×") as the dominant numeric and the headline becomes the
             fact-line beneath it. When it doesn't parse, promote the
-            headline into the hero slot — the card never has a void. */}
+            headline into the hero slot — the card never has a void.
+            V11.18.16 — Fix 4. Apple-aligned polish: trailing baseline
+            line ("vs. usual week") demoted to tracked-out small-caps
+            so it reads as an annotation on the glyph rather than a
+            second sentence. Hero→headline gap tightened (mb-5 → mb-4)
+            and headline→substance gap tightened (mb-6 → mb-3) so the
+            hero, headline, and rep-report list feel like one breath
+            instead of three separated zones. */}
         {hero ? (
           <>
             <div
-              className="font-display font-semibold leading-none tracking-tight mb-2 max-w-[6ch]"
+              className="font-display font-semibold leading-none tracking-tight mb-1.5 max-w-[6ch]"
               style={{ color: '#9000F0', fontSize: 'clamp(56px, 18vw, 76px)' }}
               aria-label={hero.glyph + ' ' + hero.trailing}
             >
               {hero.glyph}
             </div>
             {hero.trailing && (
-              <p className="font-display text-[14px] sm:text-[15px] text-gray-300/85 leading-snug mb-5 max-w-[24ch]">
+              <p className="font-sans text-[10.5px] uppercase tracking-[0.18em] text-gray-400 leading-snug mb-4 max-w-[24ch]">
                 {hero.trailing}
               </p>
             )}
-            <h2 className="font-display text-[20px] sm:text-[22px] font-semibold text-white leading-[1.25] tracking-[-0.005em] max-w-[24ch] mb-6">
+            <h2 className="font-display text-[20px] sm:text-[22px] font-semibold text-white leading-[1.25] tracking-[-0.005em] max-w-[24ch] mb-3">
               {displayHeadline}
             </h2>
           </>
         ) : (
-          <h2 className="font-display text-[26px] sm:text-[30px] font-semibold text-white leading-[1.2] tracking-[-0.005em] max-w-[22ch] mb-6">
+          <h2 className="font-display text-[26px] sm:text-[30px] font-semibold text-white leading-[1.2] tracking-[-0.005em] max-w-[22ch] mb-4">
             {displayHeadline}
           </h2>
         )}
@@ -327,14 +372,22 @@ export function ClusteringCard(props: ClusteringCardProps) {
           </div>
         )}
 
-        {/* ACTION ZONE — kept from V11.17.41. */}
+        {/* ACTION ZONE — kept from V11.17.41.
+            V11.18.16 — Fix 4. Apple-aligned polish: small MapPin icon
+            prefixes the location_summary so the geographic anchor reads
+            at a glance (Apple Maps annotation pattern). The footer's
+            documentary register is preserved — same dot-separated
+            sequence, just a glanceable map-pin on the location segment. */}
         <div className="mt-auto">
           <div className="border-t border-white/[0.07] pt-4 flex items-center gap-1.5 text-[12px] font-sans font-medium text-gray-400 group-hover:text-gray-200 transition-colors">
             <span className="truncate">{categoryLabel}</span>
             {item.location_summary && (
               <>
                 <span className="text-gray-600">·</span>
-                <span className="truncate">{item.location_summary}</span>
+                <span className="inline-flex items-center gap-1 truncate">
+                  <MapPin className="w-3 h-3 text-gray-500 shrink-0" aria-hidden="true" />
+                  <span className="truncate">{item.location_summary}</span>
+                </span>
               </>
             )}
             <span className="text-gray-600">·</span>

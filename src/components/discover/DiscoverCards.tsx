@@ -715,13 +715,16 @@ export function PhenomenonCard(props: {
             taxonomy entry. */}
         <div className="inline-flex items-center gap-2 self-start px-2.5 py-1 rounded-full bg-primary-500/15 border border-primary-500/30 text-primary-300">
           <span className="text-[9px] font-semibold uppercase tracking-widest">
-            {/* V11.18.15 — brand consistency. Eyebrow now matches the
-                `/phenomena` tab + URL slug ("PHENOMENA") instead of the
-                longer marketing label "PHENOMENON SPOTLIGHT". The
-                aria-label and the V11.17.41 internal comments still say
-                "Phenomenon spotlight" because that is the variant's
-                semantic name, not a string the user sees. */}
-            Phenomena
+            {/* V11.18.16 — final founder call. V11.18.15 trimmed the
+                eyebrow to single-word "PHENOMENA" to match the tab/URL
+                slug, but founder wants the editorial pairing back: the
+                plural noun ("PHENOMENA", aligning with the tab) plus
+                the descriptor SPOTLIGHT. So the final string is
+                "PHENOMENA SPOTLIGHT" — plural form of the V11.17.41
+                "PHENOMENON SPOTLIGHT" label. The aria-label and the
+                internal "Phenomenon spotlight" comments still describe
+                the variant's semantic name, not user-visible copy. */}
+            Phenomena Spotlight
           </span>
         </div>
 

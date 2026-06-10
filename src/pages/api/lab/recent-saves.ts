@@ -130,34 +130,65 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .gte('created_at', periodStart)
     var savedCount7d = countRes.count || 0
 
-    // Most-recent N saves with the joined report row.
+    // V11.18.16 — Fix 3. Two-query approach replaces the PostgREST FK
+    // embed syntax (`report:reports!saved_reports_report_id_fkey(...)`).
+    // The named-FK embed silently returns `null` for `report` when the
+    // FK constraint name in production doesn't match — that path then
+    // skips every row, returning `saves: []` even when the user has
+    // saves (the founder's symptom: headline says "4 saved", chip stack
+    // shows empty-state). Step 1: pull the most-recent save rows; step 2:
+    // resolve report rows via an IN-query on the collected report_ids.
+    // Same shape returned to the client.
     var listRes = await supabase
       .from('saved_reports')
-      .select(
-        'id, created_at, report_id, ' +
-        'report:reports!saved_reports_report_id_fkey(' +
-          'id, slug, title, city, state_province, country, location_text, event_date' +
-        ')'
-      )
+      .select('id, created_at, report_id')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(MAX_CHIPS)
 
-    var rows: any[] = (listRes.data as any[]) || []
+    var saveRows: any[] = (listRes.data as any[]) || []
     var saves: RecentSaveChip[] = []
-    for (var i = 0; i < rows.length; i++) {
-      var row = rows[i]
-      var r: any = row.report
-      // saved_reports can technically join to nothing if the report was
-      // archived between save + read; tolerate it by skipping the row.
-      if (!r || !r.id) continue
-      saves.push({
-        id: String(r.id),
-        slug: String(r.slug || r.id),
-        title: String(r.title || 'Untitled account'),
-        location_short: shortLocationLabel(r),
-        date_short: savedDayLabel(row.created_at),
-      })
+
+    if (saveRows.length > 0) {
+      var reportIds: string[] = saveRows
+        .map(function (s: any) { return s.report_id })
+        .filter(function (id: any) { return !!id })
+
+      var reportsById: Record<string, any> = {}
+      if (reportIds.length > 0) {
+        var reportsRes: any = await supabase
+          .from('reports')
+          .select('id, slug, title, city, state_province, country, location_text, event_date, status')
+          .in('id', reportIds)
+        var reportRows: any[] = (reportsRes && reportsRes.data) || []
+        for (var ri = 0; ri < reportRows.length; ri++) {
+          reportsById[String(reportRows[ri].id)] = reportRows[ri]
+        }
+      }
+
+      var skipped = 0
+      for (var i = 0; i < saveRows.length; i++) {
+        var srow = saveRows[i]
+        var r: any = srow.report_id ? reportsById[String(srow.report_id)] : null
+        // Tolerate joins to archived/deleted reports — skip but track.
+        if (!r || !r.id) { skipped++; continue }
+        saves.push({
+          id: String(r.id),
+          slug: String(r.slug || r.id),
+          title: String(r.title || 'Untitled account'),
+          location_short: shortLocationLabel(r),
+          date_short: savedDayLabel(srow.created_at),
+        })
+      }
+
+      if (skipped > 0) {
+        console.warn('[api/lab/recent-saves] skipped saves with missing/archived report', {
+          user_id: userId,
+          save_rows: saveRows.length,
+          skipped: skipped,
+          resolved: saves.length,
+        })
+      }
     }
 
     return res.status(200).json({

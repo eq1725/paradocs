@@ -246,48 +246,116 @@ function relativeTimeLabel(isoEvent: string | null | undefined, isoCreated: stri
 //   2) Log a structured warning when the join returns fewer rows than
 //      requested so the cause surfaces in Vercel logs immediately on
 //      the next request rather than silently rendering an empty zone.
+//
+// V11.18.16 — Fix 2. The substance zone is STILL rendering empty in
+// founder QA despite V11.18.13's mitigations. Two further hardenings:
+//   1) When the IN-query returns < 3 rows (the panel-target row count
+//      for the cluster's substance zone), fall back to a category +
+//      location filtered query that pulls the most recent 3 approved
+//      reports matching the cluster's shape. This guarantees the zone
+//      is filled whenever the cluster itself has enough reports, even
+//      when the `linked_report_ids` resolution misses rows (between-
+//      query status changes, deleted rows, etc).
+//   2) Pull the cluster shape (category + state_province) through as
+//      `fallbackContext` so the broader fallback query can be tightly
+//      scoped to the same shape.
 async function loadClusterReports(
   supabase: any,
   ids: string[],
+  fallbackContext?: { category?: string; state?: string },
 ): Promise<ClusterRepresentativeReport[]> {
-  if (!Array.isArray(ids) || ids.length === 0) return []
-  var firstThree = ids.slice(0, 3)
+  if (!Array.isArray(ids) || ids.length === 0) {
+    // No linked IDs — fall through to the category/state fallback path
+    // below if we have context to scope it.
+  }
+  var firstThree = (ids || []).slice(0, 3)
+  var out: ClusterRepresentativeReport[] = []
   try {
-    var repsRes: any = await supabase
-      .from('reports')
-      .select('id, slug, title, city, state_province, country, location_text, event_date, created_at, status')
-      .in('id', firstThree)
-    var rows: any[] = (repsRes && repsRes.data) || []
-    if (rows.length < firstThree.length) {
-      console.warn('[Clusters] loadClusterReports returned fewer rows than requested', {
-        requested: firstThree.length,
-        received: rows.length,
-        ids: firstThree,
-        error: repsRes && repsRes.error ? repsRes.error.message : null,
-      })
+    if (firstThree.length > 0) {
+      var repsRes: any = await supabase
+        .from('reports')
+        .select('id, slug, title, city, state_province, country, location_text, event_date, created_at, status')
+        .in('id', firstThree)
+      var rows: any[] = (repsRes && repsRes.data) || []
+      if (rows.length < firstThree.length) {
+        console.warn('[Clusters] loadClusterReports returned fewer rows than requested', {
+          requested: firstThree.length,
+          received: rows.length,
+          ids: firstThree,
+          error: repsRes && repsRes.error ? repsRes.error.message : null,
+        })
+      }
+      var byId: Record<string, any> = {}
+      for (var i = 0; i < rows.length; i++) byId[String(rows[i].id)] = rows[i]
+      for (var j = 0; j < firstThree.length; j++) {
+        var r = byId[firstThree[j]]
+        if (!r) continue
+        out.push({
+          id: String(r.id),
+          slug: String(r.slug || r.id),
+          title: String(r.title || 'Untitled account'),
+          location_short: shortLocationLabel(r),
+          date_short: relativeTimeLabel(r.event_date, r.created_at),
+        })
+      }
     }
-    var byId: Record<string, any> = {}
-    for (var i = 0; i < rows.length; i++) byId[String(rows[i].id)] = rows[i]
-    var out: ClusterRepresentativeReport[] = []
-    for (var j = 0; j < firstThree.length; j++) {
-      var r = byId[firstThree[j]]
-      if (!r) continue
-      out.push({
-        id: String(r.id),
-        slug: String(r.slug || r.id),
-        title: String(r.title || 'Untitled account'),
-        location_short: shortLocationLabel(r),
-        date_short: relativeTimeLabel(r.event_date, r.created_at),
-      })
-    }
-    return out
   } catch (e: any) {
     console.warn('[Clusters] loadClusterReports threw', {
       message: e && e.message,
       ids: firstThree,
     })
-    return []
   }
+
+  // V11.18.16 — Fix 2 fallback path. When the linked-ID resolution
+  // produced fewer than 3 rows AND we have category/state context,
+  // top up the list by pulling the most recent approved reports in
+  // the same shape. De-duped against rows we already have.
+  if (out.length < 3 && fallbackContext && fallbackContext.category) {
+    try {
+      var seenIds: Record<string, boolean> = {}
+      out.forEach(function (r) { seenIds[r.id] = true })
+      var sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+      var query: any = supabase
+        .from('reports')
+        .select('id, slug, title, city, state_province, country, location_text, event_date, created_at')
+        .eq('status', 'approved')
+        .eq('category', fallbackContext.category)
+        .gte('created_at', sevenDaysAgo)
+        .order('created_at', { ascending: false })
+        .limit(8)
+      if (fallbackContext.state) {
+        query = query.eq('state_province', fallbackContext.state)
+      }
+      var fbRes: any = await query
+      var fbRows: any[] = (fbRes && fbRes.data) || []
+      console.warn('[Clusters] loadClusterReports fell back to category/state scoped query', {
+        category: fallbackContext.category,
+        state: fallbackContext.state || null,
+        linked_ids_returned: out.length,
+        fallback_rows: fbRows.length,
+      })
+      for (var k = 0; k < fbRows.length && out.length < 3; k++) {
+        var fb = fbRows[k]
+        if (seenIds[String(fb.id)]) continue
+        seenIds[String(fb.id)] = true
+        out.push({
+          id: String(fb.id),
+          slug: String(fb.slug || fb.id),
+          title: String(fb.title || 'Untitled account'),
+          location_short: shortLocationLabel(fb),
+          date_short: relativeTimeLabel(fb.event_date, fb.created_at),
+        })
+      }
+    } catch (e: any) {
+      console.warn('[Clusters] loadClusterReports fallback threw', {
+        message: e && e.message,
+        category: fallbackContext.category,
+        state: fallbackContext.state || null,
+      })
+    }
+  }
+
+  return out
 }
 
 function categoryLabelOf(slug: string): string {
@@ -385,7 +453,13 @@ export default async function handler(
         // V11.18.12 — Sprint 1E. Substance-zone rep-report list.
         // Loaded lazily here per cluster; 1 IN-query per cluster
         // surfaced. The card hides the section when empty.
-        var repReports = await loadClusterReports(supabase, ids)
+        // V11.18.16 — Fix 2. Pass category/state as fallback context so
+        // the helper can scope a recent-reports backup query to the
+        // same shape when the IN-query misses rows.
+        var repReports = await loadClusterReports(supabase, ids, {
+          category: catSlug,
+          state: state,
+        })
 
         clusters.push({
           id: 'geo-' + keyG.replace(/[^a-z0-9]/gi, '-'),
@@ -459,7 +533,12 @@ export default async function handler(
         }).catch(function () { return null })
         var bodyB = haikuBodyB || fallbackBody('temporal_burst', catLabelB, undefined)
         // V11.18.12 — Sprint 1E. Substance-zone rep-report list.
-        var repReportsB = await loadClusterReports(supabase, idsB)
+        // V11.18.16 — Fix 2. Pass category as fallback context (temporal
+        // bursts are cross-location so no state filter); helper can
+        // scope a recent-reports backup query when the IN-query misses.
+        var repReportsB = await loadClusterReports(supabase, idsB, {
+          category: catB,
+        })
         clusters.push({
           id: 'burst-' + catB,
           type: 'temporal_burst',
