@@ -259,11 +259,17 @@ function applyLens(items: ExtendedFeedItem[], lens: TodayLens): ExtendedFeedItem
 interface DiscoverPageProps {
   initialFinding: FindingFeedItem | null
   initialOnThisDate: OnThisDateData | null
+  // V11.18.20 — SSR-bake. ClusterCard joins Finding + OnThisDate on the
+  // pre-paint pipeline so the swipe component's snap-points cover all
+  // three special cards on first forward swipe. See getServerSideProps
+  // below and the splice block in loadFeed(0).
+  initialCluster: ClusterCardData | null
 }
 
 export default function DiscoverPage(props: DiscoverPageProps) {
   var initialFinding = props.initialFinding || null
   var initialOnThisDate = props.initialOnThisDate || null
+  var initialCluster = props.initialCluster || null
   var router = useRouter()
 
   // --- URL-driven lens + category state (panel review IA fix) ---
@@ -311,8 +317,10 @@ export default function DiscoverPage(props: DiscoverPageProps) {
     // user-initiated lens change falls back to the client patterns/list
     // fetch in fetchSpecialCards() (pre-V11.18.10 path).
     // V11.18.14 — same reset for OnThisDate (now also SSR-baked).
+    // V11.18.20 — same reset for Cluster (now also SSR-baked).
     ssrFindingDelivered.current = false
     ssrOnThisDateDelivered.current = false
+    ssrClusterDelivered.current = false
     setTimeout(function () { loadFeed(0) }, 0)
   }
   function handleCategoryChange(next: string | null) {
@@ -334,8 +342,11 @@ export default function DiscoverPage(props: DiscoverPageProps) {
     // when categoryFilter is set anyway) and on a category-clear we
     // want the live client fetch to repopulate.
     // V11.18.14 — same reset for OnThisDate.
+    // V11.18.20 — same reset for Cluster (suppressed under category
+    // filter anyway; on clear we want the client fetch to repopulate).
     ssrFindingDelivered.current = false
     ssrOnThisDateDelivered.current = false
+    ssrClusterDelivered.current = false
     setTimeout(function () { loadFeed(0) }, 0)
   }
 
@@ -659,8 +670,15 @@ export default function DiscoverPage(props: DiscoverPageProps) {
   // category-change paths reset the ref so the next session re-attempts
   // via the client fetch (those paths don't re-run getServerSideProps).
   // V11.18.14 — same gate now also applies to OnThisDate.
+  // V11.18.20 — same gate now also applies to ClusterCard. Founder
+  // reported the geographic cluster card invisible on first forward
+  // swipe (same snap-point staleness race that V11.18.14 fixed for
+  // Finding + OnThisDate). The cluster was left on the old async
+  // `pendingSpecialCards.current.push({card, position: 8})` path.
+  // SSR-bake closes the loop.
   var ssrFindingDelivered = useRef<boolean>(initialFinding != null)
   var ssrOnThisDateDelivered = useRef<boolean>(initialOnThisDate != null)
+  var ssrClusterDelivered = useRef<boolean>(initialCluster != null)
 
   // Diagnostic log only — moved from V11.18.10's mount-seed useEffect.
   // No seeding logic here; that's now synchronous above.
@@ -671,6 +689,11 @@ export default function DiscoverPage(props: DiscoverPageProps) {
         slug: initialFinding && initialFinding.slug,
         hasInitialOnThisDate: !!initialOnThisDate,
         otdId: initialOnThisDate && initialOnThisDate.id,
+        // V11.18.20 — SSR-bake. Surface the cluster delivery so the
+        // diagnostic line reads coherently across all three SSR cards.
+        hasInitialCluster: !!initialCluster,
+        clusterId: initialCluster && initialCluster.id,
+        clusterType: initialCluster && initialCluster.cluster_type,
       })
     }
   }, [])
@@ -912,6 +935,17 @@ export default function DiscoverPage(props: DiscoverPageProps) {
               // the pre-otd array (it'll be at index 5 in the final).
               bakeSpecials.push({ card: initialFinding, position: 4 })
             }
+            // V11.18.20 — SSR-bake. Cluster joins the pre-paint splice
+            // so the swipe component's snap-points cover it on first
+            // forward pass. Position 8 matches the prior client-side
+            // pendingSpecialCards push and stays consistent with the
+            // founder's mental model of the special-card sequence
+            // (OTD at 1 → Finding at 4 → Cluster at 8). Suppressed under
+            // category filter for the same reason as the client path:
+            // clusters cross categories by design.
+            if (ssrClusterDelivered.current && initialCluster && !categoryFilter) {
+              bakeSpecials.push({ card: initialCluster, position: 8 })
+            }
             bakeSpecials.sort(function (a, b) { return b.position - a.position })
             bakeSpecials.forEach(function (s) {
               var pos = Math.min(s.position, merged.length)
@@ -1080,7 +1114,17 @@ export default function DiscoverPage(props: DiscoverPageProps) {
     // Skip cluster injection when a category is active — clusters
     // intentionally cross categories and would break the topic-filter
     // contract.
-    if (!categoryFilter) {
+    //
+    // V11.18.20 — SSR-bake. Cluster is now pre-fetched in
+    // getServerSideProps and baked into the initial items[] array in
+    // loadFeed(0). Skip the client fetch when SSR delivered the card to
+    // avoid double-injection (and to keep snap-points stable on first
+    // forward swipe — the founder's symptom). Falls through to the
+    // client fetch when SSR was empty (no clusters today, server-side
+    // env not configured, or post lens/category/PTR ref reset).
+    if (!categoryFilter && ssrClusterDelivered.current) {
+      console.log('[Discover/Cluster] SSR-delivered — skipping client clusters fetch')
+    } else if (!categoryFilter) {
       fetches.push(
         fetch('/api/discover/clusters')
           .then(function (res) { return res.ok ? res.json() : null })
@@ -1550,8 +1594,10 @@ export default function DiscoverPage(props: DiscoverPageProps) {
       // fetch path. Without clearing this, the post-refresh feed would
       // silently lose its FindingCard.
       // V11.18.14 — same reset for OnThisDate.
+      // V11.18.20 — same reset for Cluster.
       ssrFindingDelivered.current = false
       ssrOnThisDateDelivered.current = false
+      ssrClusterDelivered.current = false
       setTimeout(function () {
         loadFeed(0)
         setTimeout(function () { setRefreshing(false) }, 600)
@@ -2448,7 +2494,7 @@ export const getServerSideProps: GetServerSideProps<DiscoverPageProps> = async f
   var SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
   var SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-    return { props: { initialFinding: null, initialOnThisDate: null } }
+    return { props: { initialFinding: null, initialOnThisDate: null, initialCluster: null } }
   }
 
   var initialFinding: FindingFeedItem | null = null
@@ -2560,13 +2606,13 @@ export const getServerSideProps: GetServerSideProps<DiscoverPageProps> = async f
   // selection rule. On failure → null; the client fetch fires as a
   // safety net (the ssrOnThisDateDelivered ref starts false in that
   // case, opening the client branch in fetchSpecialCards).
+  var base = process.env.NEXT_PUBLIC_SITE_URL || (
+    ctx.req.headers.host
+      ? (ctx.req.headers['x-forwarded-proto'] === 'https' ? 'https://' : 'http://') + ctx.req.headers.host
+      : 'https://beta.discoverparadocs.com'
+  )
   var initialOnThisDate: OnThisDateData | null = null
   try {
-    var base = process.env.NEXT_PUBLIC_SITE_URL || (
-      ctx.req.headers.host
-        ? (ctx.req.headers['x-forwarded-proto'] === 'https' ? 'https://' : 'http://') + ctx.req.headers.host
-        : 'https://beta.discoverparadocs.com'
-    )
     var otdRes: any = await fetch(base + '/api/discover/on-this-date')
     if (otdRes && otdRes.ok) {
       var otdData: any = await otdRes.json()
@@ -2579,9 +2625,56 @@ export const getServerSideProps: GetServerSideProps<DiscoverPageProps> = async f
     initialOnThisDate = null
   }
 
+  // V11.18.20 — SSR-bake. Pre-fetch the day's cluster card via an
+  // internal HTTP call to /api/discover/clusters. The endpoint
+  // groups + scores clusters across categories (geographic / temporal /
+  // category-trend / milestone) and ranks them by report_count; we
+  // reuse it so server + client see the same candidate pool. Selection
+  // here uses a deterministic UTC day-of-year pick so the SSR-baked
+  // cluster matches what a same-day visitor would have seen via the
+  // legacy session-seeded client pick. On failure → null; the client
+  // fetch fires as a safety net (ssrClusterDelivered ref starts false
+  // in that case, opening the client branch in fetchSpecialCards).
+  //
+  // Founder symptom: geographic cluster card invisible on first
+  // forward swipe. Same snap-point staleness race that V11.18.14
+  // fixed for Finding + OnThisDate; cluster was left behind on the
+  // async push path. SSR-bake closes the loop.
+  var initialCluster: ClusterCardData | null = null
+  try {
+    var clusterRes: any = await fetch(base + '/api/discover/clusters')
+    if (clusterRes && clusterRes.ok) {
+      var clusterData: any = await clusterRes.json()
+      if (clusterData && Array.isArray(clusterData.clusters) && clusterData.clusters.length > 0) {
+        // Deterministic UTC day-of-year pick — the same calendar day
+        // returns the same cluster for every visitor, matching the
+        // founder's mental model "today's cluster is X". Falls
+        // gracefully to clusters[0] when the candidate list is 1
+        // long. Note: legacy client path used session_seed for
+        // novelty; the SSR-bake path trades novelty for a stable
+        // first-paint identity, which is the contract the founder is
+        // optimizing for (same as Finding's day-of-year rotation).
+        var nowDt = new Date()
+        var startUtc2 = Date.UTC(nowDt.getUTCFullYear(), 0, 1)
+        var nowUtc2 = Date.UTC(nowDt.getUTCFullYear(), nowDt.getUTCMonth(), nowDt.getUTCDate())
+        var doyC = Math.floor((nowUtc2 - startUtc2) / 86400000) + 1
+        var pickIdxC = doyC % clusterData.clusters.length
+        var picked: any = clusterData.clusters[pickIdxC]
+        // Pin item_type so the renderer routes the card through
+        // ClusteringCard. The cluster route emits the full schema
+        // (cluster_type / type_label / headline / baseline_text /
+        // representative_reports) so a shallow Object.assign is enough.
+        initialCluster = Object.assign({}, picked, { item_type: 'cluster' as const }) as ClusterCardData
+      }
+    }
+  } catch (_e) {
+    // Defensive — fall through to the client fetch in fetchSpecialCards.
+    initialCluster = null
+  }
+
   // Short edge cache. The Finding for a given UTC day is stable;
   // a 60s s-maxage trims server load without staling the rotation.
   ctx.res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=60')
 
-  return { props: { initialFinding: initialFinding, initialOnThisDate: initialOnThisDate } }
+  return { props: { initialFinding: initialFinding, initialOnThisDate: initialOnThisDate, initialCluster: initialCluster } }
 }
