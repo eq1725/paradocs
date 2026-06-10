@@ -240,12 +240,26 @@ function applyLens(items: ExtendedFeedItem[], lens: TodayLens): ExtendedFeedItem
 // pipeline on first paint. Null when SSR couldn't reach Supabase — in
 // that case fetchSpecialCards() falls through to the client-side fetch
 // as before, preserving the pre-V11.18.10 behavior as a safety net.
+//
+// V11.18.14 — Sprint 1E follow-up. SSR-bake fix. The TikTok-grammar
+// swipe component on /discover calculates its snap-points from the
+// initial items[] array. When special cards were injected AFTER first
+// paint (via mount useEffect / Promise.all in fetchSpecialCards), the
+// swipe component's snap-points were STALE — forward swipe jumped past
+// the special-card positions; they only surfaced on swipe-BACK when
+// the component re-evaluated layout. Fix: pre-fetch OnThisDate alongside
+// the Finding so BOTH lands in props, then bake them into items[] in
+// the SAME setItems() call that loads the base feed. Snap-points are
+// then computed once, correctly, from the complete array on first
+// forward pass. LabPromo stays client-side (needs session + tier check).
 interface DiscoverPageProps {
   initialFinding: FindingFeedItem | null
+  initialOnThisDate: OnThisDateData | null
 }
 
 export default function DiscoverPage(props: DiscoverPageProps) {
   var initialFinding = props.initialFinding || null
+  var initialOnThisDate = props.initialOnThisDate || null
   var router = useRouter()
 
   // --- URL-driven lens + category state (panel review IA fix) ---
@@ -292,7 +306,9 @@ export default function DiscoverPage(props: DiscoverPageProps) {
     // V11.18.10 — SSR-delivered finding is a first-paint contract;
     // user-initiated lens change falls back to the client patterns/list
     // fetch in fetchSpecialCards() (pre-V11.18.10 path).
+    // V11.18.14 — same reset for OnThisDate (now also SSR-baked).
     ssrFindingDelivered.current = false
+    ssrOnThisDateDelivered.current = false
     setTimeout(function () { loadFeed(0) }, 0)
   }
   function handleCategoryChange(next: string | null) {
@@ -313,7 +329,9 @@ export default function DiscoverPage(props: DiscoverPageProps) {
     // the SSR pre-fetched Finding is no longer valid (Findings suppress
     // when categoryFilter is set anyway) and on a category-clear we
     // want the live client fetch to repopulate.
+    // V11.18.14 — same reset for OnThisDate.
     ssrFindingDelivered.current = false
+    ssrOnThisDateDelivered.current = false
     setTimeout(function () { loadFeed(0) }, 0)
   }
 
@@ -622,16 +640,23 @@ export default function DiscoverPage(props: DiscoverPageProps) {
   // (swipe-back / scroll-to-bottom). useRef initializers run during
   // render, before any useEffect, so the queue is populated before
   // the first loadFeed completes.
-  var pendingSpecialCards = useRef<{ card: ExtendedFeedItem; position: number }[]>(
-    initialFinding ? [{ card: initialFinding, position: 4 }] : []
-  )
+  //
+  // V11.18.14 — SSR-bake. The FindingCard + OnThisDateCard are no
+  // longer queued here — they're baked directly into items[] in
+  // loadFeed(0) on the initial setItems call, eliminating the
+  // snap-point staleness race. pendingSpecialCards is now used ONLY
+  // for LabPromo placements (which depend on the live should-show
+  // decision + cadence and must stay client-side).
+  var pendingSpecialCards = useRef<{ card: ExtendedFeedItem; position: number }[]>([])
   var specialCardsInjected = useRef(false)
 
   // `ssrFindingDelivered` flips fetchSpecialCards() into skip-client-fetch
   // mode so we don't double-inject. The pull-to-refresh / lens-change /
   // category-change paths reset the ref so the next session re-attempts
   // via the client fetch (those paths don't re-run getServerSideProps).
+  // V11.18.14 — same gate now also applies to OnThisDate.
   var ssrFindingDelivered = useRef<boolean>(initialFinding != null)
+  var ssrOnThisDateDelivered = useRef<boolean>(initialOnThisDate != null)
 
   // Diagnostic log only — moved from V11.18.10's mount-seed useEffect.
   // No seeding logic here; that's now synchronous above.
@@ -640,6 +665,8 @@ export default function DiscoverPage(props: DiscoverPageProps) {
       console.log('[Discover/SSR-finding]', {
         hasInitialFinding: !!initialFinding,
         slug: initialFinding && initialFinding.slug,
+        hasInitialOnThisDate: !!initialOnThisDate,
+        otdId: initialOnThisDate && initialOnThisDate.id,
       })
     }
   }, [])
@@ -856,11 +883,57 @@ export default function DiscoverPage(props: DiscoverPageProps) {
       .then(function (res) { return res.json() })
       .then(function (data) {
         if (data.items && data.items.length > 0) {
-          setItems(function (prev) {
-            var existingIds = new Set(prev.map(function (p) { return p.id }))
-            var newItems = data.items.filter(function (item: ExtendedFeedItem) { return !existingIds.has(item.id) })
-            return offset > 0 ? (prev as ExtendedFeedItem[]).concat(newItems) : data.items
-          })
+          if (offset === 0) {
+            // V11.18.14 — SSR-bake. Splice the SSR-delivered FindingCard
+            // + OnThisDateCard into the initial items array BEFORE the
+            // setItems call, so the swipe component's snap-points are
+            // calculated once from the complete array on first paint.
+            // No more async-injection race. ClusterCard data flows via
+            // feed-v2 (V11.18.13's data path) so no splice needed for
+            // it here. LabPromo stays in fetchSpecialCards() because
+            // its placement requires tier + should-show decisions
+            // that can't run server-side.
+            //
+            // DESC-sorted splice so tail-first inserts don't perturb
+            // earlier target indices in the same pass.
+            var merged: ExtendedFeedItem[] = (data.items as ExtendedFeedItem[]).slice()
+            var bakeSpecials: { card: ExtendedFeedItem; position: number }[] = []
+            if (ssrOnThisDateDelivered.current && initialOnThisDate && !categoryFilter) {
+              bakeSpecials.push({ card: initialOnThisDate, position: 1 })
+            }
+            if (ssrFindingDelivered.current && initialFinding && !categoryFilter) {
+              // After OnThisDate at position 1 shifts everything right,
+              // the Finding's effective render position becomes 5.
+              // Splice index stays 4 — we want it to occupy index 4 in
+              // the pre-otd array (it'll be at index 5 in the final).
+              bakeSpecials.push({ card: initialFinding, position: 4 })
+            }
+            bakeSpecials.sort(function (a, b) { return b.position - a.position })
+            bakeSpecials.forEach(function (s) {
+              var pos = Math.min(s.position, merged.length)
+              merged.splice(pos, 0, s.card)
+            })
+
+            if (typeof window !== 'undefined') {
+              console.log('[Discover/SSR-bake] items_bake_complete', {
+                base_len: data.items.length,
+                final_len: merged.length,
+                finding_idx: merged.findIndex(function (i) { return i.item_type === 'finding' }),
+                otd_idx: merged.findIndex(function (i) { return i.item_type === 'on_this_date' }),
+                cluster_idx: merged.findIndex(function (i) { return i.item_type === 'cluster' }),
+                bake_specials: bakeSpecials.map(function (b) {
+                  return { type: (b.card as any).item_type, position: b.position }
+                }),
+              })
+            }
+            setItems(merged)
+          } else {
+            setItems(function (prev) {
+              var existingIds = new Set(prev.map(function (p) { return p.id }))
+              var newItems = data.items.filter(function (item: ExtendedFeedItem) { return !existingIds.has(item.id) })
+              return (prev as ExtendedFeedItem[]).concat(newItems)
+            })
+          }
           setFeedOffset(data.nextOffset || offset + data.items.length)
           setHasMore(data.hasMore)
           setTotalAvailable(data.totalAvailable || 0)
@@ -906,21 +979,31 @@ export default function DiscoverPage(props: DiscoverPageProps) {
     // surface mixed-category content that breaks the filter.
     var catParam = categoryFilter ? '?category=' + encodeURIComponent(categoryFilter) : ''
 
-    fetches.push(
-      fetch('/api/discover/on-this-date' + catParam)
-        .then(function (res) { return res.ok ? res.json() : null })
-        .then(function (data) {
-          if (data && data.items && data.items.length > 0) {
-            // V7.5 — bumped position 2 → 1 so the on-this-date card
-            // appears as the 2nd card the user swipes to (right after
-            // the Today's Lead phenomenon). This makes the daily-
-            // ritual hook discoverable on the first swipe rather than
-            // the third.
-            pendingSpecialCards.current.push({ card: data.items[0] as OnThisDateData, position: 1 })
-          }
-        })
-        .catch(function () {})
-    )
+    // V11.18.14 — SSR-bake. OnThisDate is now pre-fetched in
+    // getServerSideProps and baked into the initial items[] array in
+    // loadFeed(0). Skip the client fetch when SSR delivered the card
+    // to avoid double-injection. Falls through to the client fetch
+    // when SSR was empty (e.g. no phenomenon matches today's MM-DD)
+    // or after lens/category/pull-to-refresh resets the SSR flag.
+    if (ssrOnThisDateDelivered.current) {
+      console.log('[Discover/OnThisDate] SSR-delivered — skipping client on-this-date fetch')
+    } else {
+      fetches.push(
+        fetch('/api/discover/on-this-date' + catParam)
+          .then(function (res) { return res.ok ? res.json() : null })
+          .then(function (data) {
+            if (data && data.items && data.items.length > 0) {
+              // V7.5 — bumped position 2 → 1 so the on-this-date card
+              // appears as the 2nd card the user swipes to (right after
+              // the Today's Lead phenomenon). This makes the daily-
+              // ritual hook discoverable on the first swipe rather than
+              // the third.
+              pendingSpecialCards.current.push({ card: data.items[0] as OnThisDateData, position: 1 })
+            }
+          })
+          .catch(function () {})
+      )
+    }
 
     // V11.18.1 — Sprint 1A-2. Inject one Finding card at position 4.
     // Rotation is deterministic by day-of-year mod N(published) so
@@ -1433,7 +1516,9 @@ export default function DiscoverPage(props: DiscoverPageProps) {
       // getServerSideProps, so we drop back to the client patterns/list
       // fetch path. Without clearing this, the post-refresh feed would
       // silently lose its FindingCard.
+      // V11.18.14 — same reset for OnThisDate.
       ssrFindingDelivered.current = false
+      ssrOnThisDateDelivered.current = false
       setTimeout(function () {
         loadFeed(0)
         setTimeout(function () { setRefreshing(false) }, 600)
@@ -2292,12 +2377,21 @@ export default function DiscoverPage(props: DiscoverPageProps) {
 //  Caching: short s-maxage so CDN can cache the anon shell + Finding
 //  for 60s without staling the day-of-year rotation noticeably (every
 //  user gets the same Finding for the whole UTC day anyway).
+//
+//  V11.18.14 — SSR-bake. OnThisDate is now ALSO pre-fetched here so
+//  it can be baked into the initial items[] array alongside the
+//  Finding. Both cards bypass the async-injection race that staled
+//  the swipe component's snap-points. Pre-fetch is via an internal
+//  HTTP call to the existing /api/discover/on-this-date endpoint so
+//  the AI-text-date parsing logic stays in one place. LabPromo + the
+//  ClusterCard remain client-side per the constraints docs/
+//  FINDING_CARD_SSR_BAKE.md spells out.
 // =========================================================================
 export const getServerSideProps: GetServerSideProps<DiscoverPageProps> = async function (ctx) {
   var SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
   var SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-    return { props: { initialFinding: null } }
+    return { props: { initialFinding: null, initialOnThisDate: null } }
   }
 
   var initialFinding: FindingFeedItem | null = null
@@ -2402,9 +2496,35 @@ export const getServerSideProps: GetServerSideProps<DiscoverPageProps> = async f
     initialFinding = null
   }
 
+  // V11.18.14 — SSR-bake. Pre-fetch the day's OnThisDate via an
+  // internal HTTP call to the existing endpoint. The AI-text-date
+  // parsing logic over there is non-trivial; rather than duplicate
+  // it here we reuse the endpoint so server + client see the same
+  // selection rule. On failure → null; the client fetch fires as a
+  // safety net (the ssrOnThisDateDelivered ref starts false in that
+  // case, opening the client branch in fetchSpecialCards).
+  var initialOnThisDate: OnThisDateData | null = null
+  try {
+    var base = process.env.NEXT_PUBLIC_SITE_URL || (
+      ctx.req.headers.host
+        ? (ctx.req.headers['x-forwarded-proto'] === 'https' ? 'https://' : 'http://') + ctx.req.headers.host
+        : 'https://beta.discoverparadocs.com'
+    )
+    var otdRes: any = await fetch(base + '/api/discover/on-this-date')
+    if (otdRes && otdRes.ok) {
+      var otdData: any = await otdRes.json()
+      if (otdData && Array.isArray(otdData.items) && otdData.items.length > 0) {
+        initialOnThisDate = otdData.items[0] as OnThisDateData
+      }
+    }
+  } catch (_e) {
+    // Defensive — fall through to the client fetch in fetchSpecialCards.
+    initialOnThisDate = null
+  }
+
   // Short edge cache. The Finding for a given UTC day is stable;
   // a 60s s-maxage trims server load without staling the rotation.
   ctx.res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=60')
 
-  return { props: { initialFinding: initialFinding } }
+  return { props: { initialFinding: initialFinding, initialOnThisDate: initialOnThisDate } }
 }
