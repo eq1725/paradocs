@@ -1513,8 +1513,24 @@ export default function DiscoverPage() {
       // V11.18.1 — Sprint 1A-2. FindingCard as a Today special card.
       // Third-person archival voice; hairline purple top + bottom
       // borders distinguish it from report cards per V2 cross-surface
-      // decision. The card itself links to a representative report.
-      return <FindingCard finding={card as FindingCardData} variant="today_card" isActive={true} />
+      // decision. The card itself links to the Finding detail page
+      // (V11.18.8 — was: a representative report).
+      //
+      // V11.18.8 — Sprint 1D fixes. Render-branch diagnostic. The
+      // founder reported the FindingCard never appearing despite the
+      // V11.18.3 inject log confirming the card landed in the array
+      // at the expected position. This log fires every time a render
+      // attempt reaches the finding branch, so DevTools can confirm
+      // the card actually paints (vs. silently failing inside the
+      // card itself or being stripped by a downstream filter).
+      var findingCardData = card as FindingCardData
+      console.log('[FindingCard render]', {
+        slug: findingCardData.slug,
+        position: idx,
+        variant: 'today_card',
+        headline_preview: (findingCardData.headline || '').slice(0, 60),
+      })
+      return <FindingCard finding={findingCardData} variant="today_card" isActive={true} />
     }
 
     if (card.item_type === 'report' && gateStatus.status.isViewGated) {

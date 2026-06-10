@@ -156,13 +156,20 @@ function prettyFamilyLabel(f: FindingFamilyBreakdown): string {
 
 function resolveHref(finding: Finding, override?: string): string {
   if (override) return override
-  // V11.18.7 — Sprint 1D. Route "See reports →" to the new per-Finding
+  // V11.18.8 — Sprint 1D fixes. Route the footer CTA to the per-Finding
   // detail page at /lab/patterns/[slug]. Sprint 1A–1C routed the CTA
   // to the first representative report (because the detail page did
   // not exist yet); Sprint 1D builds the click-down scholarly layer
   // and migrates all three card variants (rail, grid, today_card) to
-  // route here. The representative reports are now linked from within
-  // the detail page, one click deeper, with title + location + date.
+  // route here. Representative reports are linked from within the
+  // detail page, one click deeper, with title + location + date.
+  //
+  // CTA label updated from "See reports →" to "Read more →" — the
+  // destination is a Finding detail page (prose + breakdown +
+  // commentary), NOT a representative report. "See reports →" was
+  // misleading per founder review; "Read more →" is two words, neutral,
+  // documentary register, and accurately describes the destination
+  // (more context, more data, more sources on the same Finding).
   if (finding && finding.slug) {
     return '/lab/patterns/' + encodeURIComponent(String(finding.slug))
   }
@@ -477,7 +484,7 @@ function RailLayout(props: { finding: Finding; href: string }) {
           href={props.href}
           className="inline-flex items-center gap-1 min-h-[44px] -my-2 py-2 text-[12px] font-medium text-purple-300 hover:text-purple-200 transition-colors shrink-0"
         >
-          See reports
+          Read more
           <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
@@ -543,9 +550,12 @@ function GridLayout(props: { finding: Finding; href: string }) {
           (founder screenshot). The cell is full-width at the smallest
           break, but the FooterCitation on the left can be ~180-200px
           and the long link plus its arrow ran past the card border.
-          The shorter copy fits cleanly at all breaks. The flex layout
-          keeps the citation flexible (min-w-0) and the link non-shrink
-          so the link wraps only if the citation overflows first.
+          V11.18.8 — Sprint 1D fixes. Relabeled from "See reports" to
+          "Read more" — destination is the Finding detail page, NOT a
+          representative report. The shorter copy still fits cleanly
+          at all breaks; the flex layout keeps the citation flexible
+          (min-w-0) and the link non-shrink so the link wraps only if
+          the citation overflows first.
         */}
         <div className="pt-4 border-t border-white/[0.06] flex items-center justify-between gap-3 flex-wrap">
           <div className="min-w-0">
@@ -555,7 +565,7 @@ function GridLayout(props: { finding: Finding; href: string }) {
             href={props.href}
             className="inline-flex items-center gap-1 min-h-[44px] -my-2 py-2 text-[12.5px] font-medium text-purple-300 hover:text-purple-200 transition-colors shrink-0 whitespace-nowrap"
           >
-            See reports
+            Read more
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
