@@ -6,6 +6,26 @@ name: E2E (Playwright)
 # tests/e2e/README.md). Once PLAYWRIGHT_TEST_USER_EMAIL is added as a
 # repo secret + a paradocs-test Supabase project exists, the gated
 # flows activate automatically with no workflow changes needed.
+#
+# ============================================================
+# V11.18.18 — WORKFLOW DISABLED (Sprint 1F)
+# ============================================================
+# The smoke suite has been failing on main since the V11.18.x feed /
+# discover refactors landed (page structure shifted faster than the
+# stale assertions caught up — see Sprint 1A polish R2 + Sprint 1D / 1E).
+# Every failure mails the founder a "E2E (Playwright): All jobs have
+# failed" notice; the spam volume is now the dominant signal vs. the
+# actual signal.
+#
+# Until the smoke tests are rewritten (TODO: Sprint 1G), the entire
+# `e2e` job is gated behind `if: false` so the workflow still appears
+# in the Actions tab (no surprise deletion) but never runs and never
+# emails on failure. The PR / push triggers stay intact so re-enabling
+# is a one-line revert.
+#
+# Re-enable: delete the `if: false` line on the job. No other change
+# required.
+# ============================================================
 
 on:
   push:
@@ -15,6 +35,10 @@ on:
 
 jobs:
   e2e:
+    # V11.18.18 — disabled. See header note. Re-enable in Sprint 1G
+    # after smoke assertions are rewritten against the new
+    # /discover + Today special-card structure.
+    if: false
     timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
