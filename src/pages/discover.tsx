@@ -611,29 +611,36 @@ export default function DiscoverPage(props: DiscoverPageProps) {
   }
 
   // Pending special cards
-  var pendingSpecialCards = useRef<{ card: ExtendedFeedItem; position: number }[]>([])
+  //
+  // V11.18.11 — Sprint 1D SSR fix v2. Seed the SSR-delivered FindingCard
+  // SYNCHRONOUSLY in the useRef initializer (not via a mount useEffect).
+  // V11.18.10 used a mount useEffect, but useEffects run AFTER the
+  // first commit — meaning the existing feed-load useEffect would fire
+  // loadFeed(0) → setItems → injectPendingSpecialCards with an empty
+  // queue, BEFORE the seed effect ran. The Finding got stuck in
+  // pendingSpecialCards.current and only appeared after a re-injection
+  // (swipe-back / scroll-to-bottom). useRef initializers run during
+  // render, before any useEffect, so the queue is populated before
+  // the first loadFeed completes.
+  var pendingSpecialCards = useRef<{ card: ExtendedFeedItem; position: number }[]>(
+    initialFinding ? [{ card: initialFinding, position: 4 }] : []
+  )
   var specialCardsInjected = useRef(false)
 
-  // V11.18.10 — Sprint 1D SSR fix. When `initialFinding` came from
-  // getServerSideProps, push it into the pending queue at mount time
-  // (BEFORE the first loadFeed(0) lands) and flip the
-  // `ssrFindingDelivered` ref so fetchSpecialCards() skips the client
-  // patterns/list fetch and we don't double-inject. The pull-to-refresh
-  // path resets the ref so the next session re-attempts SSR semantics
-  // via the client fetch (since pull-to-refresh doesn't re-run SSR).
+  // `ssrFindingDelivered` flips fetchSpecialCards() into skip-client-fetch
+  // mode so we don't double-inject. The pull-to-refresh / lens-change /
+  // category-change paths reset the ref so the next session re-attempts
+  // via the client fetch (those paths don't re-run getServerSideProps).
   var ssrFindingDelivered = useRef<boolean>(initialFinding != null)
-  var ssrFindingSeededRef = useRef(false)
+
+  // Diagnostic log only — moved from V11.18.10's mount-seed useEffect.
+  // No seeding logic here; that's now synchronous above.
   useEffect(function () {
     if (typeof window !== 'undefined') {
       console.log('[Discover/SSR-finding]', {
         hasInitialFinding: !!initialFinding,
         slug: initialFinding && initialFinding.slug,
       })
-    }
-    if (ssrFindingSeededRef.current) return
-    if (initialFinding) {
-      ssrFindingSeededRef.current = true
-      pendingSpecialCards.current.push({ card: initialFinding, position: 4 })
     }
   }, [])
 
