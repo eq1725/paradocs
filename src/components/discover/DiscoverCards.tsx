@@ -715,7 +715,13 @@ export function PhenomenonCard(props: {
             taxonomy entry. */}
         <div className="inline-flex items-center gap-2 self-start px-2.5 py-1 rounded-full bg-primary-500/15 border border-primary-500/30 text-primary-300">
           <span className="text-[9px] font-semibold uppercase tracking-widest">
-            Phenomenon spotlight
+            {/* V11.18.15 — brand consistency. Eyebrow now matches the
+                `/phenomena` tab + URL slug ("PHENOMENA") instead of the
+                longer marketing label "PHENOMENON SPOTLIGHT". The
+                aria-label and the V11.17.41 internal comments still say
+                "Phenomenon spotlight" because that is the variant's
+                semantic name, not a string the user sees. */}
+            Phenomena
           </span>
         </div>
 

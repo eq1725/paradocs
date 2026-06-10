@@ -1106,17 +1106,46 @@ export default function DiscoverPage(props: DiscoverPageProps) {
       // decision adds the 6/week hard cap + 48h dismiss + 7d paywall
       // cooldowns on top.
       var tierSkip = userTier === 'pro' || userTier === 'enterprise'
-      // V11.18.13 — Sprint 1E fixes. `?preview_labpromo=1` bypasses the
-      // tier_pro short-circuit so the founder + designer can QA the
-      // Today-variant LabPromo without opening a fresh Free account.
-      // Production behavior is unchanged for non-preview navigations.
+      // V11.18.13 → V11.18.15 — `?preview_labpromo=1` lets founder/
+      // designer QA the Today-variant LabPromo without juggling
+      // a Free-tier session.
+      //
+      // V11.18.13 first attempted this by flipping `tierSkip` from
+      // true → false, but the founder reported it still didn't render.
+      // Diagnosis: the override fed back into the normal pipeline, so
+      // FOUR independent gates still applied:
+      //   1. `legacySkip` (`getPromoDismissals() >= 2`) — once the
+      //      founder dismissed the promo twice, the localStorage
+      //      counter suppressed it even when the preview flag was on.
+      //   2. `/api/lab/promo/should-show` returns `should_show: false`
+      //      whenever the 6/week server-side cap is hit, a 48h dismiss
+      //      cooldown is active, or a 7d paywall cooldown is active.
+      //   3. Even on `should_show: true`, `firstPos = max(8, cadence +
+      //      jitter)` puts the promo at index ≥8, and on a 6-12 card
+      //      first page that overshoots `arr.length`, so the splice
+      //      path defers it to a later loadMore() — invisible without
+      //      heavy scrolling.
+      //   4. SSR-bake of V11.18.14 moved OnThisDate + Finding into the
+      //      initial items[] array. LabPromo stayed in
+      //      fetchSpecialCards() (client-side) which runs after the
+      //      first paint, so any late deferral is doubly painful.
+      //
+      // V11.18.15 fix: when the preview flag is set, skip every gate
+      // and inject ONE LabPromo card at a fixed early position (5)
+      // so the founder sees it within the first swipes. Normal
+      // (non-preview) navigations are completely unaffected; the
+      // entire production branch below sits in `else if`.
       var previewLabPromo = router.query.preview_labpromo === '1'
-      if (previewLabPromo && tierSkip) {
-        console.log('[Discover/LabPromo] preview override active — bypassing tier_pro suppression')
-        tierSkip = false
-      }
       var legacySkip = getPromoDismissals() >= 2
-      if (!tierSkip && !legacySkip) {
+      if (previewLabPromo) {
+        console.log('[Discover/LabPromo] preview override — force-injecting at position 5, bypassing tier/legacy/should-show/cadence/cap gates')
+        var previewCard: PromoCardData = {
+          item_type: 'promo',
+          id: 'promo-lab-preview',
+          promo_type: 'research_hub',
+        }
+        pendingSpecialCards.current.push({ card: previewCard, position: 5 })
+      } else if (!tierSkip && !legacySkip) {
         try {
           var decision = await fetchLabPromoShouldShow()
           if (decision.should_show) {
