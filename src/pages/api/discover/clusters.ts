@@ -231,45 +231,49 @@ function relativeTimeLabel(isoEvent: string | null | undefined, isoCreated: stri
 }
 
 // V11.18.12 — Sprint 1E. Pull title/location/date for the first three
-// linked-report IDs of a cluster. Single PostgREST round-trip; the rows
-// are re-ordered to match the input linked_report_ids order (which is
-// already editorially-stable — they're ranked by recency inside each
-// cluster). Defensive: any failure yields [] so the cluster card simply
-// suppresses the substance section.
+// linked-report IDs of a cluster.
 //
-// V11.18.13 — Sprint 1E fixes. Substance zone was rendering empty for
-// the founder. Two mitigations:
-//   1) Drop the redundant inner `status=approved` filter — the linked
-//      IDs ALREADY came from a status=approved selection upstream, and
-//      a between-query status change (rare but possible) was the most
-//      defensible hypothesis for why the join was returning 0 rows.
-//   2) Log a structured warning when the join returns fewer rows than
-//      requested so the cause surfaces in Vercel logs immediately on
-//      the next request rather than silently rendering an empty zone.
+// V11.18.13 / V11.18.16 history retained above. V11.18.19 — Sprint 1G.
+// The founder reported the California UFO cluster still showing an
+// empty substance zone despite V11.18.16's `fallbackContext` backstop.
+// Three hardenings this pass:
 //
-// V11.18.16 — Fix 2. The substance zone is STILL rendering empty in
-// founder QA despite V11.18.13's mitigations. Two further hardenings:
-//   1) When the IN-query returns < 3 rows (the panel-target row count
-//      for the cluster's substance zone), fall back to a category +
-//      location filtered query that pulls the most recent 3 approved
-//      reports matching the cluster's shape. This guarantees the zone
-//      is filled whenever the cluster itself has enough reports, even
-//      when the `linked_report_ids` resolution misses rows (between-
-//      query status changes, deleted rows, etc).
-//   2) Pull the cluster shape (category + state_province) through as
-//      `fallbackContext` so the broader fallback query can be tightly
-//      scoped to the same shape.
+//   1) The fallback ALWAYS runs whenever the IN-query returns < 3
+//      rows. Previously the fallback was gated on
+//      `out.length < 3 && fallbackContext && fallbackContext.category`,
+//      which was correct, but the function signature now refuses to be
+//      called without a category (defensive log + early return). Every
+//      caller in this file already passes a category.
+//
+//   2) The fallback widens from a 7-day window to a 30-day window.
+//      The cluster itself is assembled from a 7-day window (so any
+//      missing IDs are most plausibly between-query status changes or
+//      ingest-side recency drift) but the substance zone is allowed to
+//      pull from a slightly wider band so the card never reads empty
+//      just because the past 7 days were too narrow to refill.
+//
+//   3) A single structured `[loadClusterReports]` log line per
+//      invocation captures the diagnostic the founder asked for —
+//      cluster shape, IN-query count, fallback count, final total.
+//      Lands in Vercel logs even on the success path so the operator
+//      can confirm the backstop fired without grepping multiple lines.
+//
+// Returns up to 3 ClusterRepresentativeReports. May return < 3 (or 0)
+// when both the IN-query and the fallback come up empty (e.g. all
+// linked reports were deleted AND no other reports in the same shape
+// exist within the 30-day window — the cluster will still render but
+// the ClusteringCard's substance zone shows the V11.18.19 placeholder
+// instead of an empty block).
 async function loadClusterReports(
   supabase: any,
   ids: string[],
-  fallbackContext?: { category?: string; state?: string },
+  fallbackContext: { category: string; state?: string; clusterIdForLog?: string },
 ): Promise<ClusterRepresentativeReport[]> {
-  if (!Array.isArray(ids) || ids.length === 0) {
-    // No linked IDs — fall through to the category/state fallback path
-    // below if we have context to scope it.
-  }
   var firstThree = (ids || []).slice(0, 3)
   var out: ClusterRepresentativeReport[] = []
+  var inQueryRowCount = 0
+
+  // ── 1) Resolve the linked IDs (when present). ───────────────────────
   try {
     if (firstThree.length > 0) {
       var repsRes: any = await supabase
@@ -277,14 +281,7 @@ async function loadClusterReports(
         .select('id, slug, title, city, state_province, country, location_text, event_date, created_at, status')
         .in('id', firstThree)
       var rows: any[] = (repsRes && repsRes.data) || []
-      if (rows.length < firstThree.length) {
-        console.warn('[Clusters] loadClusterReports returned fewer rows than requested', {
-          requested: firstThree.length,
-          received: rows.length,
-          ids: firstThree,
-          error: repsRes && repsRes.error ? repsRes.error.message : null,
-        })
-      }
+      inQueryRowCount = rows.length
       var byId: Record<string, any> = {}
       for (var i = 0; i < rows.length; i++) byId[String(rows[i].id)] = rows[i]
       for (var j = 0; j < firstThree.length; j++) {
@@ -300,60 +297,80 @@ async function loadClusterReports(
       }
     }
   } catch (e: any) {
-    console.warn('[Clusters] loadClusterReports threw', {
+    console.warn('[loadClusterReports] in-query threw', {
       message: e && e.message,
       ids: firstThree,
+      cluster: fallbackContext.clusterIdForLog || null,
     })
   }
 
-  // V11.18.16 — Fix 2 fallback path. When the linked-ID resolution
-  // produced fewer than 3 rows AND we have category/state context,
-  // top up the list by pulling the most recent approved reports in
-  // the same shape. De-duped against rows we already have.
-  if (out.length < 3 && fallbackContext && fallbackContext.category) {
-    try {
-      var seenIds: Record<string, boolean> = {}
-      out.forEach(function (r) { seenIds[r.id] = true })
-      var sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-      var query: any = supabase
-        .from('reports')
-        .select('id, slug, title, city, state_province, country, location_text, event_date, created_at')
-        .eq('status', 'approved')
-        .eq('category', fallbackContext.category)
-        .gte('created_at', sevenDaysAgo)
-        .order('created_at', { ascending: false })
-        .limit(8)
-      if (fallbackContext.state) {
-        query = query.eq('state_province', fallbackContext.state)
-      }
-      var fbRes: any = await query
-      var fbRows: any[] = (fbRes && fbRes.data) || []
-      console.warn('[Clusters] loadClusterReports fell back to category/state scoped query', {
-        category: fallbackContext.category,
-        state: fallbackContext.state || null,
-        linked_ids_returned: out.length,
-        fallback_rows: fbRows.length,
+  // ── 2) Fallback. Always runs when the IN-query produced < 3 rows. ──
+  // V11.18.19 — Sprint 1G. Widen to 30 days so the cluster never
+  // renders empty just because the recent-7-days window was thin
+  // and the IN-query missed.
+  var fallbackRowCount = 0
+  if (out.length < 3) {
+    if (!fallbackContext.category) {
+      console.warn('[loadClusterReports] no fallback category — cannot top up empty cluster', {
+        cluster: fallbackContext.clusterIdForLog || null,
+        in_query_returned: inQueryRowCount,
+        out_after_in_query: out.length,
       })
-      for (var k = 0; k < fbRows.length && out.length < 3; k++) {
-        var fb = fbRows[k]
-        if (seenIds[String(fb.id)]) continue
-        seenIds[String(fb.id)] = true
-        out.push({
-          id: String(fb.id),
-          slug: String(fb.slug || fb.id),
-          title: String(fb.title || 'Untitled account'),
-          location_short: shortLocationLabel(fb),
-          date_short: relativeTimeLabel(fb.event_date, fb.created_at),
+    } else {
+      try {
+        var seenIds: Record<string, boolean> = {}
+        out.forEach(function (r) { seenIds[r.id] = true })
+        var thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+        var query: any = supabase
+          .from('reports')
+          .select('id, slug, title, city, state_province, country, location_text, event_date, created_at')
+          .eq('status', 'approved')
+          .eq('category', fallbackContext.category)
+          .gte('created_at', thirtyDaysAgo)
+          .order('created_at', { ascending: false })
+          .limit(12)
+        if (fallbackContext.state) {
+          query = query.eq('state_province', fallbackContext.state)
+        }
+        var fbRes: any = await query
+        var fbRows: any[] = (fbRes && fbRes.data) || []
+        fallbackRowCount = fbRows.length
+        for (var k = 0; k < fbRows.length && out.length < 3; k++) {
+          var fb = fbRows[k]
+          if (seenIds[String(fb.id)]) continue
+          seenIds[String(fb.id)] = true
+          out.push({
+            id: String(fb.id),
+            slug: String(fb.slug || fb.id),
+            title: String(fb.title || 'Untitled account'),
+            location_short: shortLocationLabel(fb),
+            date_short: relativeTimeLabel(fb.event_date, fb.created_at),
+          })
+        }
+      } catch (e: any) {
+        console.warn('[loadClusterReports] fallback threw', {
+          message: e && e.message,
+          category: fallbackContext.category,
+          state: fallbackContext.state || null,
+          cluster: fallbackContext.clusterIdForLog || null,
         })
       }
-    } catch (e: any) {
-      console.warn('[Clusters] loadClusterReports fallback threw', {
-        message: e && e.message,
-        category: fallbackContext.category,
-        state: fallbackContext.state || null,
-      })
     }
   }
+
+  // ── 3) Structured single-line diagnostic — ALWAYS emitted. ─────────
+  // Founder asked for: `cluster=X, in_query=N, fallback=M, total=K`.
+  // This is the single line that surfaces in Vercel logs on every
+  // cluster build so the operator can audit the backstop on demand.
+  console.log('[loadClusterReports]', {
+    cluster: fallbackContext.clusterIdForLog || null,
+    category: fallbackContext.category,
+    state: fallbackContext.state || null,
+    ids_supplied: firstThree.length,
+    in_query: inQueryRowCount,
+    fallback: fallbackRowCount,
+    total: out.length,
+  })
 
   return out
 }
@@ -451,18 +468,20 @@ export default async function handler(
         var body = haikuBody || fallbackBody('geographic_cluster', catLabel, state)
 
         // V11.18.12 — Sprint 1E. Substance-zone rep-report list.
-        // Loaded lazily here per cluster; 1 IN-query per cluster
-        // surfaced. The card hides the section when empty.
         // V11.18.16 — Fix 2. Pass category/state as fallback context so
         // the helper can scope a recent-reports backup query to the
         // same shape when the IN-query misses rows.
+        // V11.18.19 — Sprint 1G. Pass cluster id for the structured
+        // single-line diagnostic the helper now always emits.
+        var clusterIdGeo = 'geo-' + keyG.replace(/[^a-z0-9]/gi, '-')
         var repReports = await loadClusterReports(supabase, ids, {
           category: catSlug,
           state: state,
+          clusterIdForLog: clusterIdGeo,
         })
 
         clusters.push({
-          id: 'geo-' + keyG.replace(/[^a-z0-9]/gi, '-'),
+          id: clusterIdGeo,
           type: 'geographic_cluster',
           // V11.18.13 — Sprint 1E fixes. Emit cluster_type in addition
           // to `type` so the ClusterCardData interface on the
@@ -536,8 +555,11 @@ export default async function handler(
         // V11.18.16 — Fix 2. Pass category as fallback context (temporal
         // bursts are cross-location so no state filter); helper can
         // scope a recent-reports backup query when the IN-query misses.
+        // V11.18.19 — Sprint 1G. Cluster id for structured log line.
+        var clusterIdBurst = 'burst-' + catB
         var repReportsB = await loadClusterReports(supabase, idsB, {
           category: catB,
+          clusterIdForLog: clusterIdBurst,
         })
         clusters.push({
           id: 'burst-' + catB,

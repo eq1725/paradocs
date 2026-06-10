@@ -177,25 +177,25 @@ export function ClusteringCard(props: ClusteringCardProps) {
   var hero = parseBaseline(item.baseline_text)
   var reps = Array.isArray(item.representative_reports) ? item.representative_reports : []
 
-  // V11.18.13 — Sprint 1E fixes. Diagnostic when the substance zone is
-  // suppressed because the API returned no representative reports. The
-  // founder reported the zone consistently empty during Sprint 1E QA;
-  // this surfaces the cause (no representative_reports field at all vs.
-  // empty array vs. some other shape mismatch) in DevTools without
-  // breaking the documentary register on the rendered card.
+  // V11.18.19 — Sprint 1G. The substance zone now ALWAYS renders
+  // something — either the 3-row rep-report list (typical) or a
+  // graceful placeholder (when both the IN-query AND the 30-day
+  // category+state fallback came up empty). This diagnostic stays
+  // because the empty-fallback case is rare and surfaces only when
+  // the corpus genuinely has no recent matching reports for the
+  // cluster shape — useful to know when QA-ing a freshly seeded
+  // cluster or when an ingest pipeline lag is suspected.
   //
-  // V11.18.16 — Fix 2. Sharpened message per the founder's V11.18.16
-  // diagnosis suspect list ("data is wired to the wrong endpoint /
-  // feed-v2 path"). When this fires after V11.18.16 ships, the API
-  // fallback in `/api/discover/clusters.ts` (recent-approved-by-
-  // category+state backstop) also failed — which most likely means
-  // either there ARE no recent reports in the cluster's category
-  // (zero-substance true negative) or the cluster was injected through
-  // a path that bypassed the API entirely (the suspect feed-v2 path).
+  // V11.18.13 / V11.18.16 prior diagnosis kept for context: the
+  // empty zone in those passes was attributed to feed-v2 path / API
+  // bypass + missing fallback context. V11.18.19's `loadClusterReports`
+  // always passes category context, so an empty zone after this fix
+  // means the corpus genuinely has 0 reports matching the cluster
+  // shape in the past 30 days — a true negative.
   React.useEffect(function () {
     if (typeof window !== 'undefined' && reps.length === 0) {
       console.warn(
-        '[ClusteringCard] empty representative_reports — likely feed-v2 path bug',
+        '[ClusteringCard] empty substance zone — both IN-query and 30-day fallback returned 0 rows',
         {
           cluster_id: item.id,
           cluster_type: item.cluster_type,
@@ -249,17 +249,16 @@ export function ClusteringCard(props: ClusteringCardProps) {
         'sm:max-w-lg sm:mx-auto'
       }
     >
-      {/* Left-edge accent rail — single brand-purple bar, no wash.
-          Identifying mark per the V11.17.41 panel memo; kept verbatim
-          in Sprint 1E. */}
+      {/* V11.18.19 — Sprint 1G. Drop the heavy 4px solid + 60px wash
+          combo. Founder review: the heavy brand-purple chrome made
+          the special card read disconnected from neighboring report
+          cards (the Highway Hypnosis card etc.). A single 1px low-
+          opacity accent carries the identifying mark without the ad-
+          chrome feel — matches the FindingCard today_card pass and
+          the visual register of the normal report-card shell. */}
       <div
-        className="absolute top-0 bottom-0 left-0 w-1 pointer-events-none"
-        style={{ background: 'linear-gradient(to right, rgba(144,0,240,0.55), rgba(144,0,240,0))', width: '60px' }}
-        aria-hidden="true"
-      />
-      <div
-        className="absolute top-0 bottom-0 left-0 w-1 pointer-events-none"
-        style={{ background: '#9000F0' }}
+        className="absolute top-0 bottom-0 left-0 w-px pointer-events-none"
+        style={{ background: 'rgba(144,0,240,0.35)' }}
         aria-hidden="true"
       />
       {/* V11.18.16 — Fix 4. Apple-aligned polish: subtle top-to-bottom
@@ -328,12 +327,16 @@ export function ClusteringCard(props: ClusteringCardProps) {
           </h2>
         )}
 
-        {/* SUBSTANCE ZONE — Sprint 1E NEW.
+        {/* SUBSTANCE ZONE — Sprint 1E + V11.18.19 Sprint 1G fix.
             3-row representative-report list. "IN THIS CLUSTER" small-
-            caps label + hairline rule + tappable rows. The whole list
-            is suppressed when no rep reports are returned — the card
-            then leans on the hero + headline + footer. */}
-        {reps.length > 0 && (
+            caps label + hairline rule + tappable rows. When no rep
+            reports are returned (both the IN-query AND the 30-day
+            fallback came up empty — rare but possible when the cluster
+            is brand-new + ingestion-side rows haven't propagated), the
+            card now renders a graceful placeholder + retry instead of
+            collapsing the zone to nothing. The founder reported the
+            empty-zone-with-no-explanation case in V11.18.18 QA. */}
+        {reps.length > 0 ? (
           <div className="mb-4 max-w-[34ch]">
             <div className="text-[10px] sm:text-[10.5px] font-sans font-semibold uppercase tracking-[0.22em] text-gray-400 pb-1.5 border-b border-white/[0.18] mb-3 inline-block">
               In this cluster
@@ -369,6 +372,29 @@ export function ClusteringCard(props: ClusteringCardProps) {
                 )
               })}
             </ul>
+          </div>
+        ) : (
+          // V11.18.19 — Sprint 1G. Graceful empty-state placeholder.
+          // Both the IN-query AND the 30-day category+state fallback
+          // returned nothing — render a quiet documentary line so the
+          // zone isn't a void, plus a small "Browse all <category>"
+          // link as a never-dead-end. The /explore?category= route
+          // exists for every cluster's category.
+          <div className="mb-4 max-w-[34ch]">
+            <div className="text-[10px] sm:text-[10.5px] font-sans font-semibold uppercase tracking-[0.22em] text-gray-400 pb-1.5 border-b border-white/[0.18] mb-3 inline-block">
+              In this cluster
+            </div>
+            <p className="text-[12.5px] text-gray-400 leading-relaxed mb-2">
+              Reports for this cluster will appear here as the archive indexes them.
+            </p>
+            <a
+              href={'/explore?category=' + encodeURIComponent(item.category)}
+              onClick={function (e) { e.stopPropagation() }}
+              className="inline-flex items-center gap-1 text-[12px] font-medium text-purple-300 hover:text-purple-200 transition-colors"
+            >
+              Browse all {categoryLabel}
+              <ArrowRight className="w-3.5 h-3.5" />
+            </a>
           </div>
         )}
 

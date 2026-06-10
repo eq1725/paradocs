@@ -1,24 +1,45 @@
 'use client'
 
+// V11.18.19 — Sprint 1G — FindingCard prose-first reorder + visual
+// consistency with normal report cards.
+//
+// Per founder review (V11.18.19): the V11.18.18 Gaia voice rewrite
+// landed the prose, but the layout still reads as data-first. Gaia
+// readers don't care about percentages on the card — they want the
+// qualitative finding stated plainly, and the data is for the click-
+// down. Reorder:
+//   - eyebrow → headline → INTERPRETIVE PROSE (the wow, leads the
+//     read) → secondary data zone (collapsible "See the numbers" on
+//     today_card / grid; hidden entirely on rail) → footer.
+//   - drop the heavy brand-purple top + bottom hairlines on the
+//     today_card variant — they read as ad-chrome rather than as a
+//     documentary artifact. Subtle border + dark surface only, same
+//     visual register as a normal report card. Left-edge brand-purple
+//     accent retained at lower opacity as the only identifying mark.
+//
 // V11.18.2 — Sprint 1A polish — FindingCard
 //
 // Editorial / data-illustration redesign of the corpus-grounded Finding
 // artifact (V2 roadmap §2.3). Same three variants:
 //   - `rail`        — compact horizontal-rail unit (~300px wide) used by
-//                     PatternsRail on /lab
-//   - `grid`        — fills column on /lab/patterns static grid page; all
-//                     three family stats fully visible
+//                     PatternsRail on /lab on mobile; ALSO used in the
+//                     V11.18.19 PatternsRail desktop 2-col grid variant
+//                     (sized to the cell rather than scrolled past).
+//   - `grid`        — fills column on /lab/patterns static grid page; the
+//                     full FindingCard with data zone available behind the
+//                     "See the numbers" disclosure.
 //   - `today_card`  — full-bleed swipe card sized for the Today feed,
-//                     hero stat treatment, hairline brand-purple top + bottom
-//                     borders to differentiate from report cards
+//                     prose-led, data behind a collapsible disclosure.
 //
 // Visual register (founder pass — June 2026):
 //   - Documentary / archival, not promotional. No exclamation, no spooky,
 //     no playful gradients, no second-person body voice (the personalized
 //     overlay slab is the one exception per V2 §2.3).
-//   - Hero stat treatment per variant: the LARGEST family % is rendered
-//     numerically large (Spotify Wrapped reference); secondary families
-//     are smaller bars beneath.
+//   - V11.18.19 — Prose-led: the interpretive sentence is now the visual
+//     anchor on every variant. The hero % + per-family bars + denominator
+//     live behind a "See the numbers" disclosure on today_card and grid;
+//     rail hides them entirely. This preserves data for researchers
+//     without leading the card with it.
 //   - Eyebrow is small-caps hairline-underlined, not a filled pill.
 //   - Footer cites "Source: Paradocs Archive · NNN,NNN accounts"
 //     with a thin vertical rule for gravitas.
@@ -44,7 +65,7 @@
 import React from 'react'
 import Link from 'next/link'
 import {
-  ArrowRight,
+  ArrowRight, ChevronDown, ChevronUp,
   Ghost, Eye, Brain, Sparkles, Atom, Moon, Footprints, Radio, Church,
   Circle, Share2, Check,
 } from 'lucide-react'
@@ -119,6 +140,14 @@ interface FindingCardProps {
   href?: string
   /** today_card variant uses this to play swipe-in animation. */
   isActive?: boolean
+  /**
+   * V11.18.19 — Sprint 1G. When true on the `rail` variant, the card
+   * uses the desktop-grid shape — w-full + max-height + line-clamped
+   * prose — so the same card body can ride either the mobile
+   * horizontal scroll OR the desktop 2-column grid that PatternsRail
+   * switches to at ≥1024px. Ignored on other variants.
+   */
+  desktopGrid?: boolean
 }
 
 // V11.18.2 — Sprint 1A polish. Eyebrow copy upgrade. Database stores
@@ -635,50 +664,144 @@ function ReportExcerptSlab(props: { preview: RepresentativeReportPreview }) {
   )
 }
 
-// ─── Variants ────────────────────────────────────────────────────────
-
-function RailLayout(props: { finding: Finding; href: string }) {
+// ─── "See the numbers" disclosure (V11.18.19 — Sprint 1G) ────────────
+//
+// V11.18.19 — Sprint 1G. The Gaia prose now leads every card. The data
+// zone (hero %, per-family bars, denominator) drops behind a
+// disclosure so researchers can still see the receipts without the
+// card opening with a stats grid. Default collapsed; persists open
+// state per-Finding inside the same render but resets on remount —
+// the Today swipe deck remounts on every cycle so the cards re-open
+// fresh, which the panel ratified as "the data should never lead;
+// any explicit open is a research intent we honor while the card is
+// visible, not across sessions."
+//
+// On rail variant this disclosure is suppressed entirely (no data
+// zone at all per the V11.18.19 brief — rail has limited vertical
+// space and the Gaia register asks for prose-only on the rail).
+function NumbersDisclosure(props: {
+  finding: Finding
+  variant: Variant
+  defaultOpen?: boolean
+}) {
   var f = props.finding
+  var v = props.variant
+  var [open, setOpen] = React.useState<boolean>(!!props.defaultOpen)
+  if (v === 'rail') return null
   var hero = pickHero(f.phen_families)
   var secondaries = hero
     ? f.phen_families.filter(function (x) { return x.family_slug !== hero!.family_slug })
     : f.phen_families
+  // The button copy intentionally avoids "stats" / "data" — Gaia
+  // register asks for plain English. "See the numbers" is the
+  // Helena-cleared label.
+  var btnLabel = open ? 'Hide the numbers' : 'See the numbers'
+  var Icon = open ? ChevronUp : ChevronDown
+  var btnTextSize =
+    v === 'today_card'
+      ? 'text-[11.5px] sm:text-[12px]'
+      : 'text-[11px] sm:text-[11.5px]'
+  return (
+    <div className="mt-1">
+      <button
+        type="button"
+        onClick={function (e) {
+          e.preventDefault()
+          e.stopPropagation()
+          setOpen(function (x) { return !x })
+        }}
+        aria-expanded={open}
+        className={
+          'inline-flex items-center gap-1.5 ' + btnTextSize + ' font-sans uppercase tracking-[0.16em] ' +
+          'text-gray-500 hover:text-gray-300 transition-colors min-h-[36px] -my-1 py-1'
+        }
+      >
+        <Icon className="w-3 h-3" />
+        {btnLabel}
+      </button>
+      {open && (
+        <div className="mt-3 max-w-[34ch]">
+          {hero && (
+            <div className="mb-3">
+              <HeroStat hero={hero} variant={v} />
+            </div>
+          )}
+          {secondaries.length > 0 && (
+            <div className="mb-2">
+              {secondaries.map(function (fam) {
+                return <CategoryBar key={fam.family_slug} f={fam} variant={v} muted />
+              })}
+            </div>
+          )}
+          <p className="text-[11.5px] italic leading-snug text-gray-500">
+            {prettyDenominatorLabel(f)}
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Variants ────────────────────────────────────────────────────────
+
+function RailLayout(props: { finding: Finding; href: string; desktopGrid?: boolean }) {
+  var f = props.finding
   var overlay = f.user_overlay && f.user_overlay.matches >= 1 ? f.user_overlay : null
+  // V11.18.19 — Sprint 1G. Rail variant goes prose-only. No hero
+  // numeric, no per-family bars, no denominator italic on the card —
+  // the Gaia register asks the rail to read like a small documentary
+  // observation, not a study result. Researchers click into the
+  // detail page for the receipts; the rail is the headline + the prose.
+  //
+  // V11.18.19 — Sprint 1G. `desktopGrid` flips the rail card into the
+  // PatternsRail desktop 2-column-grid shape — fills its cell (w-full),
+  // shorter max-height, no shrink-0, so the same card body works in
+  // both the mobile horizontal scroll AND the desktop scannable grid.
+  // Mobile retains the fixed 300/324px width + shrink-0 so the rail
+  // scrolls horizontally as before.
+  var dg = !!props.desktopGrid
+  var shellSizing = dg
+    ? 'w-full max-h-[260px] sm:max-h-[280px]'
+    : 'w-[300px] sm:w-[324px] min-h-[280px] shrink-0'
   return (
     <article
       className={
-        'relative flex flex-col w-[300px] sm:w-[324px] min-h-[400px] shrink-0 ' +
+        'relative flex flex-col ' + shellSizing + ' ' +
         'rounded-xl border border-gray-800 bg-gray-950/70 overflow-hidden'
       }
       aria-label={'Finding: ' + f.headline}
     >
-      {/* Brand-purple hairline at the top — distinguishes from neighboring rail cards. */}
-      <div aria-hidden="true" className="absolute inset-x-0 top-0 h-px" style={{ background: '#9000F0' }} />
+      {/* V11.18.19 — Sprint 1G. Drop the heavy brand-purple top hairline;
+          a subtle left-edge accent (low-opacity) carries the
+          "this is a Patterns artifact" signal without the ad-chrome
+          feel the founder flagged. Matches the visual register of
+          normal report cards. */}
+      <div
+        aria-hidden="true"
+        className="absolute top-0 bottom-0 left-0 w-px pointer-events-none"
+        style={{ background: 'rgba(144,0,240,0.35)' }}
+      />
 
-      <div className="flex flex-col gap-4 p-5 pb-4">
+      <div className="flex flex-col gap-3 p-5 pb-4 min-h-0">
         <Eyebrow type={f.eyebrow_type} size="sm" />
 
         <h3
-          className="font-display text-[20px] sm:text-[22px] leading-[1.2] tracking-tight text-white"
+          className="font-display text-[18px] sm:text-[20px] leading-[1.2] tracking-tight text-white"
         >
           {f.headline}
         </h3>
 
-        {hero && <HeroStat hero={hero} variant="rail" />}
-
-        {secondaries.length > 0 && (
-          <div className="mt-1">
-            {secondaries.map(function (fam) {
-              return <CategoryBar key={fam.family_slug} f={fam} variant="rail" muted />
-            })}
-          </div>
-        )}
-
-        <p className="text-[11.5px] sm:text-[12px] italic leading-snug text-gray-400">
-          {prettyDenominatorLabel(f)}
-        </p>
-
-        <p className="text-[12.5px] sm:text-[13.5px] text-gray-300 leading-relaxed">
+        {/* V11.18.19 — Sprint 1G. Prose leads, no data zone. The
+            interpretive sentence is the card on the rail. Clamp to 5
+            lines on the desktop-grid shape so the cards stay scannable
+            in the 2-column grid; mobile keeps the prose untruncated
+            since the card height is the rail's height. */}
+        <p
+          className={
+            'text-[13px] sm:text-[14px] text-gray-200 leading-relaxed ' +
+            (dg ? 'line-clamp-5' : '')
+          }
+        >
           {f.interpretive_sentence}
         </p>
 
@@ -710,8 +833,14 @@ function GridLayout(props: { finding: Finding; href: string }) {
       }
       aria-label={'Finding: ' + f.headline}
     >
-      {/* Brand-purple hairline at the top, full width — editorial header rule. */}
-      <div aria-hidden="true" className="absolute inset-x-0 top-0 h-px" style={{ background: '#9000F0' }} />
+      {/* V11.18.19 — Sprint 1G. Drop the heavy full-width brand-purple
+          top hairline. Subtle left-edge accent only — same visual
+          register as a normal report card on /discover. */}
+      <div
+        aria-hidden="true"
+        className="absolute top-0 bottom-0 left-0 w-px pointer-events-none"
+        style={{ background: 'rgba(144,0,240,0.35)' }}
+      />
 
       <div className="flex flex-col gap-5 p-6 sm:p-7">
         {/* Sprint 1C — Eyebrow on the left, family icon set on the right.
@@ -729,24 +858,18 @@ function GridLayout(props: { finding: Finding; href: string }) {
           {f.headline}
         </h3>
 
-        {/* In grid mode all three families are visible as bars (the cell
-            is wide enough), with the largest pre-promoted via sort. */}
-        <div className="mt-1">
-          {f.phen_families
-            .slice()
-            .sort(function (a, b) { return b.pct - a.pct })
-            .map(function (fam, i) {
-              return <CategoryBar key={fam.family_slug} f={fam} variant="grid" muted={i !== 0} />
-            })}
-        </div>
-
-        <p className="text-[12px] italic leading-snug text-gray-400">
-          {prettyDenominatorLabel(f)}
-        </p>
-
+        {/* V11.18.19 — Sprint 1G. Prose leads (was: bars + denominator
+            led). The interpretive sentence is the wow; the bars and the
+            denominator follow behind the "See the numbers" disclosure. */}
         <p className="text-[13.5px] sm:text-[14.5px] text-gray-200 leading-relaxed">
           {f.interpretive_sentence}
         </p>
+
+        {/* V11.18.19 — Sprint 1G. Data zone behind a disclosure. The
+            grid page (/lab/patterns) is the research surface so the
+            disclosure defaults closed, matching the rest of the card
+            register; researchers click to open. */}
+        <NumbersDisclosure finding={f} variant="grid" />
 
         {overlay && <PersonalizedOverlay overlay={overlay} />}
 
@@ -783,15 +906,11 @@ function GridLayout(props: { finding: Finding; href: string }) {
 
 function TodayCardLayout(props: { finding: Finding; href: string; isActive?: boolean }) {
   var f = props.finding
-  var hero = pickHero(f.phen_families)
-  var secondaries = hero
-    ? f.phen_families.filter(function (x) { return x.family_slug !== hero!.family_slug })
-    : f.phen_families
   var overlay = f.user_overlay && f.user_overlay.matches >= 1 ? f.user_overlay : null
   // V11.18.12 — Sprint 1E. Substance-zone preview slab. Falls through
   // to null when the catalogue row has no representative_report_ids or
   // the API lookup failed; the card then suppresses the slab and lets
-  // the headline + hero + bars + footer fill the viewport.
+  // the headline + prose + rep-report excerpt + footer fill the viewport.
   var preview = f.representative_report_preview || null
 
   // V11.18.12 — Sprint 1E. The card has three hit targets:
@@ -850,22 +969,18 @@ function TodayCardLayout(props: { finding: Finding; href: string; isActive?: boo
         'sm:max-w-lg sm:mx-auto'
       }
     >
-      {/* Hairline edges — V2 cross-surface decision. Distinct from
-          report cards via 1px purple top + bottom borders. */}
-      <div aria-hidden="true" className="absolute inset-x-0 top-0 h-px" style={{ background: '#9000F0' }} />
-      <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-px" style={{ background: '#9000F0' }} />
+      {/* V11.18.19 — Sprint 1G. Per founder review the heavy 1px purple
+          top + bottom borders + the full top-to-bottom left+right side
+          rails read as ad-chrome rather than as a documentary artifact,
+          making the special card look disconnected from normal report
+          cards. Drop the top + bottom hairlines entirely. Keep ONE
+          quiet left-edge accent (lower opacity, narrower) as the only
+          identifying mark — same visual register as the report-card
+          shell on /discover. */}
       <div
         aria-hidden="true"
         className="absolute top-0 bottom-0 left-0 w-px pointer-events-none"
-        style={{ background: 'rgba(144,0,240,0.45)' }}
-      />
-      {/* V11.18.13 — Sprint 1E fixes. Right edge hairline, mirrors the
-          left, so the constrained card reads as a deliberate column at
-          tablet + desktop widths rather than a clipped mobile card. */}
-      <div
-        aria-hidden="true"
-        className="absolute top-0 bottom-0 right-0 w-px pointer-events-none"
-        style={{ background: 'rgba(144,0,240,0.45)' }}
+        style={{ background: 'rgba(144,0,240,0.35)' }}
       />
 
       <div
@@ -895,27 +1010,19 @@ function TodayCardLayout(props: { finding: Finding; href: string; isActive?: boo
           {f.headline}
         </h2>
 
-        {hero && (
-          <div className="mb-4 max-w-[34ch]">
-            <HeroStat hero={hero} variant="today_card" />
-          </div>
-        )}
-
-        {secondaries.length > 0 && (
-          <div className="mb-4 max-w-[34ch]">
-            {secondaries.map(function (fam) {
-              return <CategoryBar key={fam.family_slug} f={fam} variant="today_card" muted />
-            })}
-          </div>
-        )}
-
-        <p className="text-[12.5px] italic leading-snug text-gray-400 max-w-[34ch] mb-3">
-          {prettyDenominatorLabel(f)}
-        </p>
-
-        <p className="text-[14px] sm:text-[15px] text-gray-200 leading-relaxed max-w-[34ch] mb-4">
+        {/* V11.18.19 — Sprint 1G. Prose-first reorder. The Gaia
+            interpretive sentence now leads the read; hero %, per-family
+            bars, and denominator move behind a "See the numbers"
+            disclosure beneath. The card is no longer a data card with
+            a prose footnote — it's a prose card with a research
+            disclosure beneath. */}
+        <p className="text-[15px] sm:text-[16px] text-gray-100 leading-relaxed max-w-[34ch] mb-4">
           {f.interpretive_sentence}
         </p>
+
+        <div className="mb-4 max-w-[34ch]">
+          <NumbersDisclosure finding={f} variant="today_card" />
+        </div>
 
         {/* V11.18.12 — Sprint 1E. Substance zone — representative report
             excerpt slab. Routes to /report/<slug> (NOT the Finding
@@ -987,5 +1094,5 @@ export default function FindingCard(props: FindingCardProps) {
   if (variant === 'grid') {
     return <GridLayout finding={props.finding} href={href} />
   }
-  return <RailLayout finding={props.finding} href={href} />
+  return <RailLayout finding={props.finding} href={href} desktopGrid={!!props.desktopGrid} />
 }
