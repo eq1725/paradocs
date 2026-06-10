@@ -88,6 +88,10 @@ import type { TodayLens } from '@/components/discover/TodayHeader'
 import { GestureTutorial, isGestureTutorialComplete, resetGestureTutorial } from '@/components/discover/GestureTutorial'
 import { EndOfFeedCard } from '@/components/discover/EndOfFeedCard'
 import { SkeletonCard } from '@/components/discover/SkeletonCard'
+// V11.18.17 — desktop 3-column layout. OnThisWeekRail fills the
+// previously-empty left margin at ≥1024px with the 6 most-recent
+// approved reports. Mobile + tablet are unaffected (hidden lg:flex).
+import { OnThisWeekRail } from '@/components/discover/OnThisWeekRail'
 // V11.18.x — removed per UI_SHIPPING_ROADMAP_V2 Sprint 1A deletes
 //   TodayGridMode (desktop grid overlay) — the toggle + overlay are gone.
 // V11.18.x — 200K catalogued-accounts eyebrow per UI_SHIPPING_ROADMAP_V2 Sprint 1A additions.
@@ -1915,7 +1919,10 @@ export default function DiscoverPage(props: DiscoverPageProps) {
   var rabbitHoleCards = getRabbitHoleCards()
   var totalForCounter = totalAvailable > 0 ? totalAvailable : displayItems.length
 
-  // Loading state — skeleton card instead of generic spinner
+  // Loading state — skeleton card instead of generic spinner.
+  // V11.18.17 — also surfaces the 3-column shell at lg+ so the
+  // page doesn't snap from "narrow centred skeleton" to "3-column
+  // populated layout" once the feed lands.
   if (loading && !showOnboarding && displayItems.length === 0) {
     return (
       <>
@@ -1927,8 +1934,11 @@ export default function DiscoverPage(props: DiscoverPageProps) {
             feedbackLabel={null}
             showShortcutsToggle={false}
           />
-          <div className="flex-1 px-5 sm:px-6 md:px-8 lg:px-10 py-6 max-w-2xl mx-auto w-full">
-            <SkeletonCard />
+          <div className="flex-1 flex">
+            <OnThisWeekRail />
+            <div className="flex-1 px-5 sm:px-6 md:px-8 lg:px-10 py-6 sm:max-w-lg sm:mx-auto lg:max-w-2xl lg:mx-auto xl:max-w-3xl w-full">
+              <SkeletonCard />
+            </div>
           </div>
         </div>
       </>
@@ -1994,8 +2004,26 @@ export default function DiscoverPage(props: DiscoverPageProps) {
             overflow-y-auto so capping the row doesn't lose content;
             it just lets the sidebar scroll internally when needed.
             On mobile (<lg) the sidebar is hidden so the cap is
-            a no-op; we gate it lg+ to be safe regardless. */}
+            a no-op; we gate it lg+ to be safe regardless.
+
+            V11.18.17 — desktop 3-column fix. Pre-V11.18.17 the
+            lg+ viewport showed a constrained ~512px-768px centre
+            column flanked by an empty left margin and the
+            Connected Cases sidebar on the right — looked
+            unfinished on any monitor wider than a tablet. The
+            OnThisWeekRail (added below) now fills the left
+            column with the 6 most-recent approved reports so
+            both sides of the centre feed carry substance. The
+            row layout itself is unchanged (flex row, internally-
+            scrollable sidebars) so existing positioning logic
+            and the max-h cap continue to behave. Mobile/tablet
+            untouched — both sidebars are `hidden lg:flex` and
+            only mount their fetches when visible. */}
         <div className="flex-1 flex lg:max-h-[calc(100vh-6.5rem)]">
+          {/* Left sidebar — desktop only. "On this week" feed of
+              the 6 most-recent approved reports (V11.18.17). */}
+          <OnThisWeekRail />
+
           {/* Card pane — V5-next: height-capped at md+ via today-card-pane-cap. */}
           <div
             className="flex-1 relative overflow-hidden cursor-grab lg:max-w-2xl lg:mx-auto xl:mx-auto xl:max-w-3xl today-card-pane-cap"
