@@ -180,7 +180,16 @@ function applyLens(items: ExtendedFeedItem[], lens: TodayLens): ExtendedFeedItem
     return items.filter(function (it) {
       // Always include the actual on-this-date cards; otherwise pick items
       // whose first_reported_date matches today's month/day (best-effort).
-      if (it.item_type === 'on_this_date' || it.item_type === 'promo') return true
+      // V11.18.9 — also pass through 'finding' and 'cluster' special cards.
+      // Pre-V11.18.9 this branch only allow-listed 'on_this_date' + 'promo',
+      // which silently stripped any FindingCard or ClusterCard that the
+      // injector had splat into items[] — explaining why the FindingCard
+      // never reached the render branch when the user was on the
+      // 'on-this-date' lens. Consistent with the 'photo-video' branch
+      // above (line 170), which already passes through all four special
+      // card kinds.
+      if (it.item_type === 'on_this_date' || it.item_type === 'promo'
+        || it.item_type === 'finding' || it.item_type === 'cluster') return true
       var today = new Date()
       var md = (today.getMonth() + 1) + '-' + today.getDate()
       if (it.item_type === 'phenomenon') {
@@ -311,21 +320,66 @@ export default function DiscoverPage() {
   // Safety: if dedup would empty the feed, we keep the seen items so
   // the user never lands on a "nothing here" wall.
   var lensFiltered = applyLens(items, lens)
+  // V11.18.9 — diagnostic logs at each filter step in the items →
+  // displayItems pipeline. The render-branch log added in V11.18.8
+  // (line ~1527) never fired for the FindingCard despite the inject
+  // log confirming the card landed in items[]; these step-level logs
+  // surface exactly which filter is stripping it on the founder's
+  // device. Each log emits the count of `finding` entries in/out so
+  // a single look at DevTools tells you the answer.
   var displayItems = (function () {
     void seenIdsVersion  // re-eval when version bumps
     var seen = seenIdsRef.current
+    var lensFindingCount = lensFiltered.filter(function (it) { return it && it.item_type === 'finding' }).length
+    var itemsFindingCount = items.filter(function (it) { return it && it.item_type === 'finding' }).length
+    if (typeof window !== 'undefined' && (itemsFindingCount !== lensFindingCount || itemsFindingCount > 0)) {
+      console.log('[Discover/filter:applyLens]', {
+        lens: lens,
+        items_in: items.length,
+        items_out: lensFiltered.length,
+        finding_in: itemsFindingCount,
+        finding_out: lensFindingCount,
+        stripped: itemsFindingCount - lensFindingCount,
+      })
+    }
     var afterDedup = lensFiltered.filter(function (it) {
       if (!it || !it.id) return true
       if (it.item_type !== 'report') return true
       return !seen.has(it.id)
     })
+    var dedupFindingCount = afterDedup.filter(function (it) { return it && it.item_type === 'finding' }).length
+    if (typeof window !== 'undefined' && (dedupFindingCount !== lensFindingCount || lensFindingCount > 0)) {
+      console.log('[Discover/filter:dedup]', {
+        items_in: lensFiltered.length,
+        items_out: afterDedup.length,
+        finding_in: lensFindingCount,
+        finding_out: dedupFindingCount,
+        stripped: lensFindingCount - dedupFindingCount,
+        seen_size: seen.size,
+      })
+    }
     // Don't strand the user. If the dedup ate everything, show the
     // full list so they have something to read — they're returning
     // for more, not less.
     var base = afterDedup.length === 0 ? lensFiltered : afterDedup
     var q = (searchQuery || '').trim().toLowerCase()
-    if (!q) return base
-    return base.filter(function (it) {
+    if (!q) {
+      var baseFindingCount = base.filter(function (it) { return it && it.item_type === 'finding' }).length
+      if (typeof window !== 'undefined' && baseFindingCount > 0) {
+        var findingIdx = -1
+        for (var bi = 0; bi < base.length; bi++) {
+          var bit: any = base[bi]
+          if (bit && bit.item_type === 'finding') { findingIdx = bi; break }
+        }
+        console.log('[Discover/filter:final]', {
+          base_len: base.length,
+          finding_count: baseFindingCount,
+          finding_idx: findingIdx,
+        })
+      }
+      return base
+    }
+    var afterSearch = base.filter(function (it) {
       var hay = ''
       if (it.item_type === 'phenomenon') {
         var p = it as PhenomenonItem
@@ -338,6 +392,16 @@ export default function DiscoverPage() {
       }
       return hay.indexOf(q) >= 0
     })
+    if (typeof window !== 'undefined') {
+      var searchFindingCount = afterSearch.filter(function (it) { return it && it.item_type === 'finding' }).length
+      console.log('[Discover/filter:search]', {
+        query: q,
+        items_in: base.length,
+        items_out: afterSearch.length,
+        finding_out: searchFindingCount,
+      })
+    }
+    return afterSearch
   })()
 
   // V10.7.E.17 — pre-fetch every visible video card's poster JPEG
@@ -1505,6 +1569,20 @@ export default function DiscoverPage() {
   function renderCardContent() {
     if (atEndOfFeed) return <EndOfFeedCard cardsSeen={Math.max(idx, maxSeen, displayItems.length)} user={user} />
     if (!card) return null
+    // V11.18.9 — render-entry diagnostic. The V11.18.8 finding-branch
+    // log only fires when card.item_type === 'finding'. If a card with a
+    // surprising item_type (e.g. undefined or a typo) is reaching render,
+    // it would silently fall through every branch and render `null`. This
+    // log surfaces every card the render function sees so the operator
+    // can confirm in DevTools exactly which item_type lands at idx N.
+    if (typeof window !== 'undefined') {
+      console.log('[Discover/render-entry]', {
+        idx: idx,
+        item_type: (card as any).item_type,
+        id: card.id,
+        slug: (card as any).slug || null,
+      })
+    }
 
     if (card.item_type === 'cluster') return <ClusteringCard item={card as ClusterCardData} isActive={true} />
     if (card.item_type === 'on_this_date') return <OnThisDateCard item={card as OnThisDateData} isActive={true} />
