@@ -163,6 +163,23 @@ export function ClusteringCard(props: ClusteringCardProps) {
   var hero = parseBaseline(item.baseline_text)
   var reps = Array.isArray(item.representative_reports) ? item.representative_reports : []
 
+  // V11.18.13 — Sprint 1E fixes. Diagnostic when the substance zone is
+  // suppressed because the API returned no representative reports. The
+  // founder reported the zone consistently empty during Sprint 1E QA;
+  // this surfaces the cause (no representative_reports field at all vs.
+  // empty array vs. some other shape mismatch) in DevTools without
+  // breaking the documentary register on the rendered card.
+  React.useEffect(function () {
+    if (typeof window !== 'undefined' && reps.length === 0) {
+      console.warn('[ClusteringCard] substance zone suppressed — no representative reports', {
+        cluster_id: item.id,
+        cluster_type: item.cluster_type,
+        linked_count: Array.isArray(item.linked_report_ids) ? item.linked_report_ids.length : 0,
+        has_reps_field: Object.prototype.hasOwnProperty.call(item, 'representative_reports'),
+      })
+    }
+  }, [item.id])
+
   // V11.18.12 — Sprint 1E. The card has up to (1 + reps.length) hit
   // targets: each rep row is a real <a> to /report/<slug>; the outer
   // card click takes the user to /explore?category=<slug>. We use the
@@ -192,7 +209,17 @@ export function ClusteringCard(props: ClusteringCardProps) {
       role="link"
       tabIndex={0}
       aria-label={typeLabel + ': ' + displayHeadline}
-      className="block h-full w-full relative overflow-hidden bg-gray-950 group cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-purple-500/40"
+      // V11.18.13 — Sprint 1E fixes. Apply the same mobile-portrait
+      // max-width treatment as FindingCard today_card so the two special
+      // cards read as a coherent family at tablet + desktop widths. See
+      // FindingCard TodayCardLayout for the rationale; both cards top
+      // out at max-w-[34ch] internally, so an unconstrained outer card
+      // stretches edge-to-edge with awkward whitespace gutters.
+      className={
+        'block h-full w-full relative overflow-hidden bg-gray-950 group cursor-pointer ' +
+        'focus:outline-none focus-visible:ring-1 focus-visible:ring-purple-500/40 ' +
+        'sm:max-w-lg sm:mx-auto'
+      }
     >
       {/* Left-edge accent rail — single brand-purple bar, no wash.
           Identifying mark per the V11.17.41 panel memo; kept verbatim

@@ -669,8 +669,15 @@ export default function DiscoverPage(props: DiscoverPageProps) {
   function loadUserTier(uid: string) {
     // .single() returns a thenable; the catch chain isn't typed so we wrap in
     // try via Promise.resolve() to keep TS happy without changing semantics.
+    // V11.18.13 — Sprint 1E fixes. Swapped .single() → .maybeSingle() to
+    // silence the chronic 400 GET /profiles?select=subscription_tier the
+    // founder was seeing in DevTools. PostgREST returns a 4xx body when
+    // .single() is called and either zero rows match OR the row exists
+    // but RLS hides it; .maybeSingle() returns null on either case
+    // without surfacing the request as an HTTP error. The "free" default
+    // already covers the null branch in the success path below.
     Promise.resolve(
-      supabase.from('profiles').select('subscription_tier').eq('id', uid).single()
+      supabase.from('profiles').select('subscription_tier').eq('id', uid).maybeSingle()
     )
       .then(function (r: any) {
         var t = r?.data?.subscription_tier || 'free'
@@ -687,6 +694,16 @@ export default function DiscoverPage(props: DiscoverPageProps) {
   // any localStorage streak count to their server-side user_streaks
   // record via /api/user/streak-bootstrap, then clear localStorage so
   // the bootstrap doesn't fire repeatedly.
+  // V11.18.13 — Sprint 1E fixes. Pass Authorization: Bearer <access_token>
+  // on every server call so the server-side auth helper finds the session
+  // even when the cookie jar hasn't fully hydrated yet. Without this we
+  // were seeing chronic 401s from /api/user/streak + /streak-bootstrap +
+  // /api/push/claim-anon-subscriptions on first-paint after sign-in —
+  // the user object is set from supabase.auth.getSession() but the
+  // SSR-helper cookie can lag the JS state by one tick. We also fully
+  // verify session existence via supabase.auth.getSession() inside the
+  // effect so we never hit the endpoints when the user has signed out
+  // between mount and effect run.
   useEffect(function () {
     if (!user?.id) {
       // Anonymous — use localStorage streak
@@ -700,61 +717,75 @@ export default function DiscoverPage(props: DiscoverPageProps) {
     // streak. If a count was tracked client-side, migrate it.
     var pendingAnonDays = readAnonStreak()
 
-    function fetchServerStreak() {
-      return fetch('/api/user/streak')
-        .then(function (res) { return res.ok ? res.json() : null })
-        .then(function (data) {
-          if (aborted) return
-          if (data && data.streak && typeof data.streak.current_streak === 'number') {
-            setStreakDays(data.streak.current_streak)
-          }
-        })
-        .catch(function () {})
-    }
-
-    if (pendingAnonDays >= 1) {
-      fetch('/api/user/streak-bootstrap', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ anon_days: pendingAnonDays }),
-      })
-        .then(function (res) { return res.ok ? res.json() : null })
-        .then(function (data) {
-          // Whether migrated or skipped, clear localStorage so we
-          // don't keep re-bootstrapping on every visit.
-          clearAnonStreak()
-          if (aborted) return
-          // Read fresh server state after bootstrap completes.
-          return fetchServerStreak()
-        })
-        .catch(function () {
-          // Bootstrap failed — still try to fetch server streak. Don't
-          // clear localStorage so a retry can happen on the next visit.
-          if (!aborted) fetchServerStreak()
-        })
-    } else {
-      fetchServerStreak()
-    }
-
-    // V9.4.9 — claim any anonymous push subscriptions for this user.
-    // The anon_client_id is set the first time pushNotifications.ts
-    // requests permission. If the user subscribed anonymously, then
-    // signed in, this attributes their existing push_subscriptions
-    // row to their user_id. Idempotent — calling on every sign-in
-    // is fine; second call updates 0 rows.
-    try {
-      var anonClientId = (typeof window !== 'undefined')
-        ? localStorage.getItem('paradocs_anon_client_id')
-        : null
-      if (anonClientId) {
-        fetch('/api/push/claim-anon-subscriptions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ anon_client_id: anonClientId }),
-        }).catch(function () {})
+    supabase.auth.getSession().then(function (sessionResult) {
+      if (aborted) return
+      var session = sessionResult && sessionResult.data ? sessionResult.data.session : null
+      if (!session?.access_token) {
+        // Session disappeared between mount and effect — bail silently
+        // so we don't fire the auth-gated endpoints and produce 401
+        // noise in the console.
+        return
       }
-    } catch (e) {}
+      var authHeaders: Record<string, string> = {
+        'Authorization': 'Bearer ' + session.access_token,
+      }
+
+      function fetchServerStreak() {
+        return fetch('/api/user/streak', { headers: authHeaders })
+          .then(function (res) { return res.ok ? res.json() : null })
+          .then(function (data) {
+            if (aborted) return
+            if (data && data.streak && typeof data.streak.current_streak === 'number') {
+              setStreakDays(data.streak.current_streak)
+            }
+          })
+          .catch(function () {})
+      }
+
+      if (pendingAnonDays >= 1) {
+        fetch('/api/user/streak-bootstrap', {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders),
+          body: JSON.stringify({ anon_days: pendingAnonDays }),
+        })
+          .then(function (res) { return res.ok ? res.json() : null })
+          .then(function (_data) {
+            // Whether migrated or skipped, clear localStorage so we
+            // don't keep re-bootstrapping on every visit.
+            clearAnonStreak()
+            if (aborted) return
+            // Read fresh server state after bootstrap completes.
+            return fetchServerStreak()
+          })
+          .catch(function () {
+            // Bootstrap failed — still try to fetch server streak. Don't
+            // clear localStorage so a retry can happen on the next visit.
+            if (!aborted) fetchServerStreak()
+          })
+      } else {
+        fetchServerStreak()
+      }
+
+      // V9.4.9 — claim any anonymous push subscriptions for this user.
+      // The anon_client_id is set the first time pushNotifications.ts
+      // requests permission. If the user subscribed anonymously, then
+      // signed in, this attributes their existing push_subscriptions
+      // row to their user_id. Idempotent — calling on every sign-in
+      // is fine; second call updates 0 rows.
+      try {
+        var anonClientId = (typeof window !== 'undefined')
+          ? localStorage.getItem('paradocs_anon_client_id')
+          : null
+        if (anonClientId) {
+          fetch('/api/push/claim-anon-subscriptions', {
+            method: 'POST',
+            headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders),
+            credentials: 'include',
+            body: JSON.stringify({ anon_client_id: anonClientId }),
+          }).catch(function () {})
+        }
+      } catch (e) {}
+    })
 
     return function () { aborted = true }
   }, [user?.id])
@@ -992,6 +1023,15 @@ export default function DiscoverPage(props: DiscoverPageProps) {
       // decision adds the 6/week hard cap + 48h dismiss + 7d paywall
       // cooldowns on top.
       var tierSkip = userTier === 'pro' || userTier === 'enterprise'
+      // V11.18.13 — Sprint 1E fixes. `?preview_labpromo=1` bypasses the
+      // tier_pro short-circuit so the founder + designer can QA the
+      // Today-variant LabPromo without opening a fresh Free account.
+      // Production behavior is unchanged for non-preview navigations.
+      var previewLabPromo = router.query.preview_labpromo === '1'
+      if (previewLabPromo && tierSkip) {
+        console.log('[Discover/LabPromo] preview override active — bypassing tier_pro suppression')
+        tierSkip = false
+      }
       var legacySkip = getPromoDismissals() >= 2
       if (!tierSkip && !legacySkip) {
         try {

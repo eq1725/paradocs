@@ -51,6 +51,10 @@ interface ClusterRepresentativeReport {
 interface ClusterCard {
   id: string
   type: 'geographic_cluster' | 'temporal_burst' | 'category_trend' | 'milestone'
+  // V11.18.13 — Sprint 1E fixes. Alias of `type` so the consumer
+  // ClusteringCard.tsx interface (which uses `cluster_type`) gets the
+  // value through Object.assign in discover.tsx.
+  cluster_type: 'geographic_cluster' | 'temporal_burst' | 'category_trend' | 'milestone'
   type_label: string
   headline: string
   body: string
@@ -232,6 +236,16 @@ function relativeTimeLabel(isoEvent: string | null | undefined, isoCreated: stri
 // already editorially-stable — they're ranked by recency inside each
 // cluster). Defensive: any failure yields [] so the cluster card simply
 // suppresses the substance section.
+//
+// V11.18.13 — Sprint 1E fixes. Substance zone was rendering empty for
+// the founder. Two mitigations:
+//   1) Drop the redundant inner `status=approved` filter — the linked
+//      IDs ALREADY came from a status=approved selection upstream, and
+//      a between-query status change (rare but possible) was the most
+//      defensible hypothesis for why the join was returning 0 rows.
+//   2) Log a structured warning when the join returns fewer rows than
+//      requested so the cause surfaces in Vercel logs immediately on
+//      the next request rather than silently rendering an empty zone.
 async function loadClusterReports(
   supabase: any,
   ids: string[],
@@ -243,8 +257,15 @@ async function loadClusterReports(
       .from('reports')
       .select('id, slug, title, city, state_province, country, location_text, event_date, created_at, status')
       .in('id', firstThree)
-      .eq('status', 'approved')
     var rows: any[] = (repsRes && repsRes.data) || []
+    if (rows.length < firstThree.length) {
+      console.warn('[Clusters] loadClusterReports returned fewer rows than requested', {
+        requested: firstThree.length,
+        received: rows.length,
+        ids: firstThree,
+        error: repsRes && repsRes.error ? repsRes.error.message : null,
+      })
+    }
     var byId: Record<string, any> = {}
     for (var i = 0; i < rows.length; i++) byId[String(rows[i].id)] = rows[i]
     var out: ClusterRepresentativeReport[] = []
@@ -260,7 +281,11 @@ async function loadClusterReports(
       })
     }
     return out
-  } catch (_e) {
+  } catch (e: any) {
+    console.warn('[Clusters] loadClusterReports threw', {
+      message: e && e.message,
+      ids: firstThree,
+    })
     return []
   }
 }
@@ -365,6 +390,13 @@ export default async function handler(
         clusters.push({
           id: 'geo-' + keyG.replace(/[^a-z0-9]/gi, '-'),
           type: 'geographic_cluster',
+          // V11.18.13 — Sprint 1E fixes. Emit cluster_type in addition
+          // to `type` so the ClusterCardData interface on the
+          // ClusteringCard component (which expects `cluster_type`) gets
+          // the value through Object.assign in discover.tsx. Without
+          // this the milestone-dot conditional was always false; not a
+          // substance-zone blocker but corrects a quiet shape drift.
+          cluster_type: 'geographic_cluster',
           type_label: TYPE_LABEL.geographic_cluster,
           headline: headline,
           body: body,
@@ -431,6 +463,8 @@ export default async function handler(
         clusters.push({
           id: 'burst-' + catB,
           type: 'temporal_burst',
+          // V11.18.13 — Sprint 1E fixes. See geographic_cluster above.
+          cluster_type: 'temporal_burst',
           type_label: TYPE_LABEL.temporal_burst,
           headline: headlineB,
           body: bodyB,
@@ -458,9 +492,13 @@ export default async function handler(
     // Top 5 to feed the variety logic in discover.tsx.
     clusters = clusters.slice(0, 5)
 
-    // 10-minute CDN cache. Within a session the variety logic picks
+    // V11.18.13 — Sprint 1E fixes. Dropped the CDN cache from 10 min to
+    // 60 s. The longer TTL was caching pre-V11.18.12 cluster shapes
+    // (without `representative_reports`) for the founder during QA; a
+    // shorter TTL means a deploy of a new shape propagates within a
+    // minute rather than ten. Within a session the variety logic picks
     // one cluster from this list via sessionSeed % length.
-    res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=1800')
+    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300')
 
     return res.status(200).json({ clusters: clusters })
   } catch (error) {

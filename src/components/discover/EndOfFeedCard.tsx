@@ -18,6 +18,11 @@
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Compass, Map as MapIcon, PenLine } from 'lucide-react'
+// V11.18.13 — Sprint 1E fixes. Pass an Authorization: Bearer access_token
+// header on the streak fetch so the server-side auth helper finds the
+// session even when SSR cookies haven't fully hydrated. Matches the
+// same fix applied in /discover for /api/user/streak chronic 401s.
+import { supabase } from '@/lib/supabase'
 
 interface StreakData {
   current_streak: number
@@ -34,13 +39,23 @@ export function EndOfFeedCard(props: {
   useEffect(function () {
     if (!props.user?.id) return
     var aborted = false
-    fetch('/api/user/streak')
-      .then(function (res) { return res.ok ? res.json() : null })
-      .then(function (data) {
-        if (aborted) return
-        if (data && data.streak) setStreak(data.streak)
+    // V11.18.13 — Sprint 1E fixes. Verify session + attach access_token
+    // before hitting the streak endpoint so we don't get the chronic
+    // 401 noise on first paint after sign-in.
+    supabase.auth.getSession().then(function (sessionResult) {
+      if (aborted) return
+      var session = sessionResult && sessionResult.data ? sessionResult.data.session : null
+      if (!session?.access_token) return
+      fetch('/api/user/streak', {
+        headers: { 'Authorization': 'Bearer ' + session.access_token },
       })
-      .catch(function () {})
+        .then(function (res) { return res.ok ? res.json() : null })
+        .then(function (data) {
+          if (aborted) return
+          if (data && data.streak) setStreak(data.streak)
+        })
+        .catch(function () {})
+    })
     return function () { aborted = true }
   }, [props.user?.id])
 

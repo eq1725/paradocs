@@ -834,7 +834,21 @@ function TodayCardLayout(props: { finding: Finding; href: string; isActive?: boo
       role="link"
       tabIndex={0}
       aria-label={'Finding: ' + f.headline}
-      className="block h-full w-full relative overflow-hidden bg-gray-950 group cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-purple-500/40"
+      // V11.18.13 — Sprint 1E fixes. Constrain the card to a mobile-
+      // portrait grammar at tablet + desktop widths. Without the
+      // sm:max-w-lg + mx-auto pair the card stretches edge-to-edge on
+      // ≥640px viewports while its inner content tops out at max-w-[34ch]
+      // (~510px), leaving an awkward whitespace gutter on the right.
+      // The founder-approved fix per the panel memo is option B: preserve
+      // the mobile grammar, just cap the card width and center it. We
+      // also pad the wider viewports with a hairline outside the card
+      // background so the centering reads intentional rather than
+      // accidentally-empty.
+      className={
+        'block h-full w-full relative overflow-hidden bg-gray-950 group cursor-pointer ' +
+        'focus:outline-none focus-visible:ring-1 focus-visible:ring-purple-500/40 ' +
+        'sm:max-w-lg sm:mx-auto'
+      }
     >
       {/* Hairline edges — V2 cross-surface decision. Distinct from
           report cards via 1px purple top + bottom borders. */}
@@ -843,6 +857,14 @@ function TodayCardLayout(props: { finding: Finding; href: string; isActive?: boo
       <div
         aria-hidden="true"
         className="absolute top-0 bottom-0 left-0 w-px pointer-events-none"
+        style={{ background: 'rgba(144,0,240,0.45)' }}
+      />
+      {/* V11.18.13 — Sprint 1E fixes. Right edge hairline, mirrors the
+          left, so the constrained card reads as a deliberate column at
+          tablet + desktop widths rather than a clipped mobile card. */}
+      <div
+        aria-hidden="true"
+        className="absolute top-0 bottom-0 right-0 w-px pointer-events-none"
         style={{ background: 'rgba(144,0,240,0.45)' }}
       />
 
