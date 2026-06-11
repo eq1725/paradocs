@@ -436,9 +436,29 @@ export default async function handler(
         geoGroups[key].push(r)
       })
 
-      for (var keyG of Object.keys(geoGroups)) {
-        var group = geoGroups[keyG]
-        if (group.length < 3) continue
+      // V11.18.21 — Surgical fix #1. Sort + slice BEFORE the Haiku
+      // loop. The endpoint only ever serves 5 clusters via
+      // sessionSeed % length, but the prior code built a Haiku finding
+      // for EVERY (state, category) group with ≥ 3 reports — 64+
+      // serial 12s-timeout Haiku calls in production, vs the 15s
+      // Vercel function ceiling. We now take the top 8 by report_count
+      // (a 5-card pool + small headroom for the slice-by-N picker)
+      // and only call Haiku for those. See
+      // docs/CLUSTERS_ENDPOINT_DIAGNOSIS.md for the full trace.
+      var topGeographic = Object.keys(geoGroups)
+        .map(function (k) { return { key: k, group: geoGroups[k] } })
+        .filter(function (e) { return e.group.length >= 3 })
+        .sort(function (a, b) { return b.group.length - a.group.length })
+        .slice(0, 8)
+
+      // V11.18.21 — Surgical fix #2. Promise.all the per-cluster work.
+      // Within a cluster the Haiku call and the rep-report fetch are
+      // independent; across clusters everything is independent. Run
+      // them concurrently so total wall-clock collapses to
+      // max(Haiku) ≈ 1–3s rather than 8 × (Haiku + Supabase RTT).
+      var geographicCards = await Promise.all(topGeographic.map(async function (entry) {
+        var keyG = entry.key
+        var group = entry.group
         var parts = keyG.split('|')
         var state = parts[0]
         var catSlug = parts[1]
@@ -454,33 +474,33 @@ export default async function handler(
         var weeklyAvg = trailingTotal > 0 ? trailingTotal / 3 : 0  // 3 prior weeks (week 0 = current)
         var baselineText = baselineLineFromRatio(group.length, weeklyAvg)
 
-        // v2 — Haiku finding sentence. Falls back to a quiet templated
-        // body when Haiku is unavailable or returns INSUFFICIENT.
-        var haikuBody = await generateClusterFinding({
-          cluster_type: 'geographic_cluster',
-          category_label: catLabel,
-          location_summary: locationLabel,
-          report_count: group.length,
-          time_range: 'Past 7 days',
-          linked_report_ids: ids,
-        }).catch(function () { return null })
+        var clusterIdGeo = 'geo-' + keyG.replace(/[^a-z0-9]/gi, '-')
+
+        // V11.18.21 — Inner Promise.all. Haiku finding + rep-report
+        // fetch run side by side. Both already swallow errors
+        // (`.catch(() => null)` / try/catch in helper) so a single
+        // failure can't reject the whole cluster.
+        var pair = await Promise.all([
+          generateClusterFinding({
+            cluster_type: 'geographic_cluster',
+            category_label: catLabel,
+            location_summary: locationLabel,
+            report_count: group.length,
+            time_range: 'Past 7 days',
+            linked_report_ids: ids,
+          }).catch(function () { return null }),
+          loadClusterReports(supabase, ids, {
+            category: catSlug,
+            state: state,
+            clusterIdForLog: clusterIdGeo,
+          }),
+        ])
+        var haikuBody = pair[0]
+        var repReports = pair[1]
 
         var body = haikuBody || fallbackBody('geographic_cluster', catLabel, state)
 
-        // V11.18.12 — Sprint 1E. Substance-zone rep-report list.
-        // V11.18.16 — Fix 2. Pass category/state as fallback context so
-        // the helper can scope a recent-reports backup query to the
-        // same shape when the IN-query misses rows.
-        // V11.18.19 — Sprint 1G. Pass cluster id for the structured
-        // single-line diagnostic the helper now always emits.
-        var clusterIdGeo = 'geo-' + keyG.replace(/[^a-z0-9]/gi, '-')
-        var repReports = await loadClusterReports(supabase, ids, {
-          category: catSlug,
-          state: state,
-          clusterIdForLog: clusterIdGeo,
-        })
-
-        clusters.push({
+        var card: ClusterCard = {
           id: clusterIdGeo,
           type: 'geographic_cluster',
           // V11.18.13 — Sprint 1E fixes. Emit cluster_type in addition
@@ -504,7 +524,12 @@ export default async function handler(
           generated_at: nowIso,
           headline_legacy: group.length + ' ' + catLabel + ' reports from ' + state,
           subheadline_legacy: 'A concentration of activity detected in ' + state + ' over the past week.',
-        })
+        }
+        return card
+      }))
+
+      for (var gi = 0; gi < geographicCards.length; gi++) {
+        clusters.push(geographicCards[gi])
       }
     }
 
@@ -535,33 +560,50 @@ export default async function handler(
         monthlyByCat[r.category] = (monthlyByCat[r.category] || 0) + 1
       })
 
-      for (var catB of Object.keys(weeklyByCat)) {
+      // V11.18.21 — Surgical fix #1 (temporal-burst arm). Filter the
+      // candidates THEN sort + cap to top 4 before any Haiku work.
+      // Categories with the largest weekly counts win ties — same
+      // shape as the geographic arm.
+      var topBursts = Object.keys(weeklyByCat)
+        .filter(function (catB) {
+          var weeklyAvgB = (monthlyByCat[catB] || 0) / 4
+          var thisWeek = weeklyByCat[catB]
+          return thisWeek > weeklyAvgB * 1.5 && thisWeek >= 5
+        })
+        .sort(function (a, b) { return weeklyByCat[b] - weeklyByCat[a] })
+        .slice(0, 4)
+
+      // V11.18.21 — Surgical fix #2 (temporal-burst arm). Promise.all
+      // across the (small) burst pool; inner Promise.all for
+      // Haiku + rep-report fetch.
+      var burstCards = await Promise.all(topBursts.map(async function (catB) {
         var weeklyAvgB = (monthlyByCat[catB] || 0) / 4
         var thisWeek = weeklyByCat[catB]
-        if (!(thisWeek > weeklyAvgB * 1.5 && thisWeek >= 5)) continue
         var catLabelB = categoryLabelOf(catB)
         var headlineB = headlineFor('temporal_burst', catLabelB, thisWeek, undefined, 'Past 7 days')
         var baselineB = baselineLineFromRatio(thisWeek, weeklyAvgB)
         var idsB = weeklyIdsByCat[catB] || []
-        var haikuBodyB = await generateClusterFinding({
-          cluster_type: 'temporal_burst',
-          category_label: catLabelB,
-          report_count: thisWeek,
-          time_range: 'Past 7 days',
-          linked_report_ids: idsB,
-        }).catch(function () { return null })
-        var bodyB = haikuBodyB || fallbackBody('temporal_burst', catLabelB, undefined)
-        // V11.18.12 — Sprint 1E. Substance-zone rep-report list.
-        // V11.18.16 — Fix 2. Pass category as fallback context (temporal
-        // bursts are cross-location so no state filter); helper can
-        // scope a recent-reports backup query when the IN-query misses.
-        // V11.18.19 — Sprint 1G. Cluster id for structured log line.
         var clusterIdBurst = 'burst-' + catB
-        var repReportsB = await loadClusterReports(supabase, idsB, {
-          category: catB,
-          clusterIdForLog: clusterIdBurst,
-        })
-        clusters.push({
+
+        var pairB = await Promise.all([
+          generateClusterFinding({
+            cluster_type: 'temporal_burst',
+            category_label: catLabelB,
+            report_count: thisWeek,
+            time_range: 'Past 7 days',
+            linked_report_ids: idsB,
+          }).catch(function () { return null }),
+          loadClusterReports(supabase, idsB, {
+            category: catB,
+            clusterIdForLog: clusterIdBurst,
+          }),
+        ])
+        var haikuBodyB = pairB[0]
+        var repReportsB = pairB[1]
+
+        var bodyB = haikuBodyB || fallbackBody('temporal_burst', catLabelB, undefined)
+
+        var card: ClusterCard = {
           id: 'burst-' + catB,
           type: 'temporal_burst',
           // V11.18.13 — Sprint 1E fixes. See geographic_cluster above.
@@ -579,7 +621,12 @@ export default async function handler(
           generated_at: nowIso,
           headline_legacy: catLabelB + ' activity surging',
           subheadline_legacy: thisWeek + ' reports this week.',
-        })
+        }
+        return card
+      }))
+
+      for (var bi = 0; bi < burstCards.length; bi++) {
+        clusters.push(burstCards[bi])
       }
     }
 
@@ -593,17 +640,32 @@ export default async function handler(
     // Top 5 to feed the variety logic in discover.tsx.
     clusters = clusters.slice(0, 5)
 
-    // V11.18.13 — Sprint 1E fixes. Dropped the CDN cache from 10 min to
-    // 60 s. The longer TTL was caching pre-V11.18.12 cluster shapes
-    // (without `representative_reports`) for the founder during QA; a
-    // shorter TTL means a deploy of a new shape propagates within a
-    // minute rather than ten. Within a session the variety logic picks
-    // one cluster from this list via sessionSeed % length.
-    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300')
+    // V11.18.21 — Surgical fix #3. Bump CDN cache from 60s → 1 hour
+    // with a 5-minute SWR. Clusters are weekly-rollup shapes that
+    // drift over hours/days, not seconds — the 60s TTL was tuned for
+    // V11.18.13's tight QA loop and now mostly serves a hot
+    // fallback-mask for the cold-path timeout. A 1-hour edge cache
+    // slashes load on the function dramatically and is safe for the
+    // cadence at which geographic clusters actually shift.
+    // `public` so Vercel's edge actually honours it; `stale-while-
+    // revalidate=300` gives the next user a fresh response within
+    // five minutes of expiry without ever waiting on a cold rebuild.
+    res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=300')
 
     return res.status(200).json({ clusters: clusters })
   } catch (error) {
     console.error('[Clusters] Error:', error)
     return res.status(500).json({ error: 'Internal error' })
   }
+}
+
+// V11.18.21 — Surgical fix #4. Bump the Vercel function ceiling to
+// 30s. With fixes #1+#2 the endpoint should respond in 3–5s on a
+// cold execution, but this is belt+suspenders — a one-off Haiku
+// stall at the 12s client-side timeout still has 18s of headroom
+// instead of blowing past the platform default (10–15s on Pro Node)
+// mid-response. No other route on /api/discover/* sets maxDuration
+// so this is local to clusters and reversible.
+export const config = {
+  maxDuration: 30,
 }
