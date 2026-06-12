@@ -299,8 +299,21 @@ function validateAccount(acc: ExtractedAccount, snip: CaSnippet): { ok: true } |
   const gf = acc.genre_flags || {};
   if (gf.fiction_suspected) return { ok: false, reason: 'fiction_suspected' };
   if (gf.advertisement) return { ok: false, reason: 'advertisement' };
+  // V11.18.24 — deterministic period-language backstop. The June 12 sweep
+  // found the model self-flags period_sensitive unreliably (0 of 893 flagged;
+  // 17 had period racial terms in modern text, mostly inside embedded
+  // verbatim quotes). The model is an unreliable self-reporter, so we also
+  // check the MODERN text (title+summary+body) against a lexicon and force
+  // the flag on — held for human review by pd-bulk-approve, never dropped.
+  if (PERIOD_TERM_LEXICON.test(`${acc.modern_title} ${acc.modern_summary} ${acc.modern_body}`)) {
+    acc.genre_flags = { ...gf, period_sensitive: true };
+  }
   return { ok: true };
 }
+
+// Period racial/ethnic terms that must not pass into modern text unflagged.
+// Word-boundary anchored; extend as review surfaces more.
+const PERIOD_TERM_LEXICON = /\b(negro(es)?|colored (man|woman|people|folks?)|darke?y(s|ies)?|chinam[ae]n|injun(s)?|redskin(s)?|half-breed(s)?|savage (tribe|race|blood)|coolie(s)?|pickaninn(y|ies)|mulatto(es)?)\b/i;
 
 // ─────────────────────────────────────────────────────────────────────
 // SLUG (identical to nderf-mass-ingest.ts / pd-text-ingest.ts)

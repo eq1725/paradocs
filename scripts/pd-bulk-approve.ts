@@ -55,7 +55,10 @@ async function main() {
     if (r.metadata?.genre_flags?.period_sensitive === true) add(r, 'period_sensitive_language');
     if (r.metadata?.genre_flags?.retold_folklore === true) add(r, 'retold_folklore');
     if (r.event_date == null && !APPROVE_DATELESS) add(r, 'no_event_date_determinable');
-    if ((r.description || '').length < 700) add(r, 'short_body');
+    // V11.18.24 — source-aware floor: newspaper briefs are naturally short
+    // (CA extraction validates >=400 chars and founder-sampled 570-620 char
+    // rows read as complete accounts). Book depositions keep the 700 floor.
+    if ((r.description || '').length < (cfg!.sourceType === 'chronicling-america' ? 450 : 700)) add(r, 'short_body');
     if ((r.title || '').length > 100) add(r, 'long_title');
   }
   const flagged = pending.filter(r => flags.has(r.id));

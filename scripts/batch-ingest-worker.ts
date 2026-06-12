@@ -441,6 +441,12 @@ async function main() {
       .select('id, title, summary, description, category, location_name, country, state_province, city, event_date, source_type, source_label, tags')
       .eq('status', args.status)
       .is('paradocs_narrative', null)
+      // V11.18.24 — QC-hold guard. Rows flagged for founder review by
+      // pd-bulk-approve (metadata.qc_flag) must NOT be swept up by the
+      // backfill's pending_review auto-promote path (Path B) — they stay
+      // held until a human approves them, at which point a later
+      // --status approved pass generates their AI fields.
+      .is('metadata->qc_flag', null)
       .order('created_at', { ascending: true })
       .order('id', { ascending: true })
       .range(rangeStart, rangeEnd)
