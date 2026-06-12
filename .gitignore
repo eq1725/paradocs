@@ -117,3 +117,23 @@ missing-images.csv
 
 # tilde-suffixed backup files some editors leave behind
 *~
+# PD/CA ingest session artifacts (June 2026)
+outputs/ca-ocr-cache/
+outputs/ca-shards/
+outputs/ca-extract-batches/
+outputs/pd-*
+outputs/phantasms-*
+outputs/spr-*
+outputs/duchas-*
+outputs/qc-holds-dump.json
+outputs/classify-*.log
+outputs/classify-resume-driver.ts
+outputs/persist-remaining.ts
+outputs/spr-bulk-approve.ts
+outputs/spr-qc-*.py
+outputs/jspr-vol20-inspect.txt
+outputs/keepalive-test.txt
+outputs/batch-narrative-*.log
+outputs/ca-probe*.json
+outputs/duchas-tpc.html
+outputs/ca-harvest-state.json

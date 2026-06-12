@@ -42,6 +42,40 @@ import { ArrowLeft, Bookmark, BookmarkCheck, Share2, Loader2, TrendingUp, FileTe
 // silently dropping the Marker registration).
 import dynamic from 'next/dynamic'
 import { type LocationPrecision } from './ReportLocationMap'
+// V11.18.23 — render-only country centroid fallback for country-only rows
+// (the engine deliberately stores NULL coords for those; see mapCoords).
+import countryCentroids from '../../lib/ingestion/utils/country-centroids.json'
+
+// Lazy name/code → centroid index built once per bundle. The JSON is keyed
+// by ISO code with { name, lat, lng, aliases } values; reports rows mostly
+// carry the canonical NAME ("France") and often a NULL country_code.
+let centroidIndex: Map<string, { lat: number; lng: number }> | null = null
+function lookupCountryCentroid(
+  country?: string | null,
+  countryCode?: string | null
+): { lat: number; lng: number } | null {
+  if (!country && !countryCode) return null
+  if (!centroidIndex) {
+    centroidIndex = new Map()
+    for (const [code, v] of Object.entries(countryCentroids as Record<string, any>)) {
+      if (!v || typeof v !== 'object' || typeof v.lat !== 'number') continue
+      const entry = { lat: v.lat, lng: v.lng }
+      centroidIndex.set(code.toLowerCase(), entry)
+      if (typeof v.name === 'string') centroidIndex.set(v.name.toLowerCase(), entry)
+      if (Array.isArray(v.aliases)) for (const a of v.aliases) centroidIndex.set(String(a).toLowerCase(), entry)
+    }
+    // Common DB variants not guaranteed in the aliases lists
+    const us = centroidIndex.get('us') || centroidIndex.get('united states')
+    if (us) { centroidIndex.set('usa', us); centroidIndex.set('united states of america', us) }
+    const uk = centroidIndex.get('gb') || centroidIndex.get('united kingdom')
+    if (uk) { centroidIndex.set('uk', uk); centroidIndex.set('england', uk); centroidIndex.set('scotland', uk); centroidIndex.set('wales', uk) }
+  }
+  return (
+    (countryCode ? centroidIndex.get(String(countryCode).toLowerCase()) : undefined) ||
+    (country ? centroidIndex.get(String(country).toLowerCase()) : undefined) ||
+    null
+  )
+}
 const ReportLocationMap = dynamic(() => import('./ReportLocationMap'), { ssr: false })
 // V11.17.39 — null-location header backdrop. Real maplibre map (same
 // dataviz-dark style as ReportLocationMap per V11.17.88 unify — the
@@ -286,6 +320,18 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
   // is a fuzzy pin, not a real address" flag. The render-side
   // COUNTRY_CENTROIDS table from V10.7.I has been removed — we just
   // read what the DB gives us.
+  //
+  // V11.18.23 — render-side country-centroid fallback. The V10.8.C
+  // assumption ("engine fills lat/lng for every row") broke when the
+  // V11.17.x geo posture deliberately stopped synthesizing country
+  // centroids into the DB (to prevent fake pin-clumping on the global
+  // map). Result: ~700 approved country-only rows (Flammarion France
+  // cases, etc.) fell through to the null-location backdrop instead of
+  // framing their country. Fix: when the row has no coords but DOES
+  // have a country, resolve a RENDER-ONLY centroid from the shared
+  // country-centroids.json (never written back to the DB) and mark it
+  // fromFallback so mapPrecisionResolved keeps precision='country' —
+  // halo + country-fit zoom, no pin.
   const mapCoords = useMemo(() => {
     // V11.17.39 — Supabase REST returns numeric DB columns as STRINGS in
     // some response paths. Previous strict `typeof === 'number'` check
@@ -299,6 +345,11 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
     if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) {
       const synthetic = (report as any).coords_synthetic === true
       return { lat, lng, fromFallback: synthetic }
+    }
+    // V11.18.23 — country-only fallback (see comment above).
+    const centroid = lookupCountryCentroid(report?.country, (report as any)?.country_code)
+    if (centroid) {
+      return { lat: centroid.lat, lng: centroid.lng, fromFallback: true }
     }
     return null
   }, [report])

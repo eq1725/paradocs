@@ -16,6 +16,13 @@ import { redditV2Adapter } from './reddit-v2';
 import { youtubeAdapter } from './youtube';
 import { newsAdapter } from './news';
 import { erowidAdapter } from './erowid';
+// Session 12: National folklore archives
+import { duchasAdapter } from './duchas';
+// Session 12: historical parapsychology (public domain)
+import { sprAdapter } from './spr';
+// Session 13: generic public-domain book corpora (config-driven; see
+// src/lib/ingestion/pd-sources.config.ts)
+import { pdTextAdapter } from './pd-text';
 
 // Registry of all available adapters
 const adapters: Record<string, SourceAdapter> = {
@@ -34,6 +41,15 @@ const adapters: Record<string, SourceAdapter> = {
   youtube: youtubeAdapter,
   news: newsAdapter,
   // erowid: erowidAdapter, // DISABLED — requires written permission from Erowid Center before scraping. Email sent April 2026. Re-enable once approved.
+  // FACTS+LINK ONLY — Dúchas data is CC BY-NC 4.0 (© NFC, UCD). Adapter stores no
+  // transcript text. Clean-room narrative enrichment stays disabled pending
+  // written permission from NFC/Gaois (see scripts/duchas-narrative-enrich.ts).
+  duchas: duchasAdapter,
+  // Session 12: historical parapsychology (public domain)
+  spr: sprAdapter,
+  // Session 13: generic public-domain text corpora — config { sourceKey }
+  // selects the work from PD_SOURCES (barrett, flammarion-unknown, …).
+  'pd-text': pdTextAdapter,
   // Future adapters:
   // mufon: mufonAdapter,
   // podcasts: podcastAdapter,
@@ -64,4 +80,9 @@ export {
   youtubeAdapter,
   newsAdapter,
   erowidAdapter,
+  // Session 12
+  duchasAdapter,
+  sprAdapter,
+  // Session 13
+  pdTextAdapter,
 };

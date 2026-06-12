@@ -97,7 +97,13 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 var COPYRIGHT_TRUNCATE_THRESHOLD = 2000;
 var COPYRIGHT_TRUNCATE_SUFFIX = '… [truncated by Paradocs at 2000 chars; see source URL for full original]';
 
-function capDescriptionForStorage(raw: string | null | undefined): {
+// V11.18.22 — public-domain bypass: sources whose adapters set
+// metadata.public_domain === true (e.g. SPR Phantasms of the Living, 1886 —
+// authors d. 1888/1901/1910) carry no copyright, so the Option-A cap is
+// legally unnecessary and we store the full body. The sha256 audit hash is
+// still recorded for provenance. Sprint 3 (Option B full-strip) must likewise
+// exempt rows where metadata.public_domain = true.
+function capDescriptionForStorage(raw: string | null | undefined, publicDomain?: boolean): {
   description: string | null;
   source_body_sha256: string | null;
 } {
@@ -105,6 +111,9 @@ function capDescriptionForStorage(raw: string | null | undefined): {
     return { description: raw == null ? null : '', source_body_sha256: null };
   }
   var hash = crypto.createHash('sha256').update(raw, 'utf8').digest('hex');
+  if (publicDomain === true) {
+    return { description: raw, source_body_sha256: hash };
+  }
   if (raw.length > COPYRIGHT_TRUNCATE_THRESHOLD) {
     return {
       description: raw.substring(0, COPYRIGHT_TRUNCATE_THRESHOLD) + COPYRIGHT_TRUNCATE_SUFFIX,
@@ -849,7 +858,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
           // re-fetched from the same source produces the same SHA-256 and
           // the same truncated body, so this is a no-op rewrite after the
           // first ingest.
-          var cappedUpdate = capDescriptionForStorage(report.description);
+          var cappedUpdate = capDescriptionForStorage(report.description, report.metadata?.public_domain === true);
           // Exact source match — update existing report
           const { error: updateError } = await supabase
             .from('reports')
@@ -1128,7 +1137,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
           // capped.description is what gets persisted (truncated when
           // length > 2000); capped.source_body_sha256 backs the future
           // IP-counsel verification path.
-          var capped = capDescriptionForStorage(report.description);
+          var capped = capDescriptionForStorage(report.description, report.metadata?.public_domain === true);
           // Build insert data with optional structured fields
           const insertData: Record<string, any> = {
               title: finalTitle,
