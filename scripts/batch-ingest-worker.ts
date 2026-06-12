@@ -664,12 +664,21 @@ async function main() {
         var anomalyKeepPending = false
         try {
           var assessRes = await (supabase.from('reports') as any)
-            .select('paradocs_assessment')
+            .select('paradocs_assessment, metadata')
             .eq('id', reportId)
             .single()
           var acRaw = assessRes.data && assessRes.data.paradocs_assessment
             ? (assessRes.data.paradocs_assessment as any).anomalous_content_check
             : null
+          // V11.18.25 — public-domain historical sources demote to
+          // pending_review instead of silently archiving. The gate's
+          // 'news_summary' genre is calibrated on firsthand web posts;
+          // period newspaper/book material is INHERENTLY third-person
+          // reportage, so the gate systematically over-archives genuine
+          // witness-sighting reports from these sources (June 12: 319 of
+          // 762 CA rows culled, ~half wrongly). A human (or the triage
+          // pass) makes the final call from the review queue.
+          var isPdSource = !!(assessRes.data && assessRes.data.metadata && assessRes.data.metadata.public_domain === true)
           if (acRaw && typeof acRaw === 'object') {
             var acAnomalous = typeof acRaw.anomalous === 'string' ? acRaw.anomalous : null
             var acConfidence = typeof acRaw.confidence === 'number' ? acRaw.confidence : 0
@@ -679,7 +688,21 @@ async function main() {
             // prompt calibration (clear-mundane cases now land at
             // 0.80-0.95 with worked examples covering loud-boom alone,
             // missing-time keepers, paired-chill keepers).
-            if (acAnomalous === 'no' && acConfidence >= 0.75) {
+            if (acAnomalous === 'no' && acConfidence >= 0.75 && isPdSource) {
+              // V11.18.25 — PD-source demotion path (see comment above).
+              anomalyKeepPending = true
+              try {
+                var meta = (assessRes.data && assessRes.data.metadata) || {}
+                var qcFlags = Array.isArray(meta.qc_flag) ? meta.qc_flag : []
+                if (qcFlags.indexOf('anomaly_gate_review') < 0) qcFlags.push('anomaly_gate_review')
+                await (supabase.from('reports') as any)
+                  .update({ status: 'pending_review', metadata: Object.assign({}, meta, { qc_flag: qcFlags }), updated_at: new Date().toISOString() })
+                  .eq('id', reportId)
+                console.log('  • ' + reportId + ' demoted to pending_review (anomaly gate, PD source — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2) + ')')
+              } catch (demoteErr: any) {
+                console.warn('  ! ' + reportId + ' anomaly demote failed: ' + (demoteErr?.message || demoteErr))
+              }
+            } else if (acAnomalous === 'no' && acConfidence >= 0.75) {
               anomalyAutoArchive = true
               try {
                 var archiveRes = await (supabase.from('reports') as any)
