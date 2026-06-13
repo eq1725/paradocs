@@ -4863,7 +4863,13 @@
           "piasa bird",
           "giant bird",
           "big bird (cryptozoological)",
-          "piasa"
+          "piasa",
+          "giant eagle",
+          "enormous eagle",
+          "monster eagle",
+          "seven-foot eagle",
+          "huge bird",
+          "enormous bird"
         ],
         "evidenceRules": [
           "The narrator describes a first-hand or close-witness encounter with or experience involving Thunderbird",
@@ -5876,6 +5882,82 @@
           "NOT a generic mention, fictional plot, pop-culture reference, movie/TV/book/game recap, or second-hand discussion of Spring Heeled Jack"
         ],
         "description": "A humanoid cryptid with glowing eyes and metallic claws that terrorized Victorian England through superhuman leaping ability."
+      },
+      {
+        "slug": "sea-serpent",
+        "name": "Sea Serpent",
+        "keywords": [
+          "sea serpent",
+          "sea monster",
+          "sea dragon",
+          "marine serpent",
+          "great sea serpent",
+          "atlantic sea serpent",
+          "horned marine creature",
+          "humped sea creature",
+          "serpentine sea",
+          "ocean serpent",
+          "sequential humps"
+        ],
+        "evidenceRules": [
+          "The narrator describes a first-hand or close-witness encounter with a Sea Serpent",
+          "The account includes EXPLICIT PARANORMAL MARKERS that distinguish it from an unidentified-but-mundane marine creature: anomalous behavior (intelligent malevolent pursuit of vessels, impossible movement against current/wind, vanishing or dematerializing), impossible physiology (multi-humped sequential form impossible for known cetaceans, glowing/luminous attributes, size far exceeding any biological maximum >100ft, anatomical features impossible for any known species), or supernatural framing (immunity to harpoons/bullets, supernatural intelligence)",
+          "REJECT mundane unknown-species reports: 'large unfamiliar creature,' '30-foot fish or whale,' 'unknown marine animal seen briefly,' creatures washed ashore that resemble large eel/shark/turtle/cetacean, fishing-steamer collisions with large unknown animals — these are zoological mysteries, not Paradocs cryptids",
+          "REJECT aggressive-but-plausible animal behavior (whales attacking schooners, large eels striking sailors) without additional paranormal markers",
+          "NOT a generic mention, fictional plot, pop-culture reference, movie/TV/book/game recap, or second-hand discussion of Sea Serpent"
+        ],
+        "description": "Elongated marine cryptid reported worldwide whose accounts include explicit paranormal markers — impossible sequential-humped morphology, intelligent malevolent pursuit, immunity to weapons, or behavior inconsistent with any known cetacean — distinguishing it from mundane unidentified-large-marine-animal reports."
+      },
+      {
+        "slug": "wild-man",
+        "name": "Wild Man",
+        "keywords": [
+          "wild man",
+          "wild woman",
+          "wild men",
+          "wildman",
+          "hairy man",
+          "hairy creature",
+          "hairy hominid",
+          "wild man of winsted",
+          "wild man of the woods",
+          "superhuman strength wild",
+          "immune to bullets wild",
+          "vampiric wild man",
+          "drains livestock"
+        ],
+        "evidenceRules": [
+          "The narrator describes a first-hand or close-witness encounter with a Wild Man",
+          "The account includes EXPLICIT PARANORMAL MARKERS that distinguish it from a mundane vagrant, hermit, escaped-asylum-inmate, or feral-child report: hair-covered bipedal humanoid with impossible attributes (>7ft tall, superhuman strength or speed, immunity to gunfire or capture by supernatural rather than evasive means), supernatural behaviors (vanishing into thin air, leaping impossible distances, glowing eyes, vampiric exsanguination of livestock), or folkloric supernatural framing",
+          "REJECT mundane wild-man reports: 'naked man caught in woods' (= vagrant/hermit), 'bearded figure flees through woods' (= just a person), 'wild man eludes posse' (= human fugitive), thefts attributed to 'wild man' (= human criminal), feral children, escaped asylum inmates, men in animal skins behaving rationally — these are zoological/human mysteries, not Paradocs cryptids",
+          "NOT a regional named variant (Bigfoot, Appalachian Wildman, Sheepsquatch, Mogollon Monster) — those have their own entries",
+          "NOT a generic mention, fictional plot, pop-culture reference, movie/TV/book/game recap, or second-hand discussion of Wild Man"
+        ],
+        "description": "Hair-covered humanoid reported from rural woodlands whose accounts include explicit paranormal markers (superhuman strength, immunity to gunfire, impossible size, vampiric exsanguination, supernatural evasion) distinguishing it from mundane vagrant, hermit, or feral-human reports."
+      },
+      {
+        "slug": "giant-serpent",
+        "name": "Giant Serpent",
+        "keywords": [
+          "silver serpent",
+          "monster serpent",
+          "scaled serpent",
+          "color-changing snake",
+          "luminous serpent",
+          "vanishing serpent",
+          "intelligent serpent pursuit",
+          "bulletproof snake",
+          "two-headed serpent paranormal"
+        ],
+        "evidenceRules": [
+          "The narrator describes a first-hand or close-witness encounter with a Giant Serpent",
+          "The account includes EXPLICIT PARANORMAL MARKERS that distinguish it from a mundane rare-large-snake report: luminous or color-changing scales with no biological precedent (silver, glowing, shifts hue without ambient cause), vanishing when shot at or under fire, intelligent pursuit of humans, immunity to weapons, supernatural size combined with anomalous behavior (e.g., returning after being killed), or impossible morphology beyond known polycephalic curiosities",
+          "REJECT mundane unknown-snake reports: '20-foot snake in swamp' (= rare large boa/python/rat-snake), a large rattlesnake (= just a rattlesnake), a snake coiling around someone's leg (= ordinary snake behavior), an actual two-headed rattlesnake specimen (= real zoological curiosity, not paranormal), a glass snake or legless lizard with known autotomy — these are zoological mysteries, not Paradocs cryptids",
+          "NOT a regional named cryptid (Giant Anaconda, Megaconda, Mongolian Death Worm)",
+          "NOT a Sea Serpent (separate marine entry) or freshwater lake monster",
+          "NOT a generic mention, fictional plot, pop-culture reference, or naturalist's report of a normal large native snake"
+        ],
+        "description": "Outsized serpent whose accounts include explicit paranormal markers — luminous/color-changing scales, vanishing under fire, intelligent pursuit, immunity to weapons, or impossible morphology — distinguishing it from mundane rare-large-snake reports."
       }
     ]
   }
