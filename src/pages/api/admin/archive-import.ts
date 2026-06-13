@@ -388,8 +388,6 @@ async function processBatch(posts: ArcticShiftPost[]): Promise<ImportResult> {
             insertData.latitude = resolved.latitude
             insertData.longitude = resolved.longitude
             insertData.metadata.location_precision = resolved.location_precision
-            // V11.17.83 — propagate centroid-fallback signal.
-            insertData.coords_synthetic = resolved.coords_synthetic === true
           }
         } catch { /* leave insertData.location_name null */ }
       }

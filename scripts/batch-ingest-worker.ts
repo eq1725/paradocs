@@ -170,47 +170,9 @@ interface BatchRequest {
   }
 }
 
-// V11.17.77 — Unicode surrogate-pair sanitizer.
-// Reddit (and some YouTube) ingest occasionally carries orphan UTF-16
-// surrogate halves in report text — a high surrogate (U+D800–U+DBFF)
-// without its required low surrogate (U+DC00–U+DFFF), or vice versa.
-// JSON.stringify happily serializes these as \uD83D etc., but Anthropic's
-// JSON parser rejects the entire batch with:
-//   "no low surrogate in string: line 1 column X"
-// One bad character in a 5,000-report batch kills all 5,000. This
-// sanitizer strips orphan halves before serialization. Well-formed
-// surrogate pairs (valid emoji, CJK supplementary, etc.) are preserved.
-function stripLoneSurrogates(s: string | null | undefined): string {
-  if (s == null) return ''
-  return s
-    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')
-    .replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '')
-}
-
-function sanitizeReportForBatch(report: any): any {
-  // Defensive clone — never mutate the caller's report object.
-  var clean: any = Object.assign({}, report)
-  var fields = ['title', 'summary', 'description', 'location_name',
-                'country', 'state_province', 'city', 'source_label']
-  for (var i = 0; i < fields.length; i++) {
-    var f = fields[i]
-    if (typeof clean[f] === 'string') {
-      clean[f] = stripLoneSurrogates(clean[f])
-    }
-  }
-  // tags is string[]; sanitize each.
-  if (Array.isArray(clean.tags)) {
-    clean.tags = clean.tags.map(function (t: any) {
-      return typeof t === 'string' ? stripLoneSurrogates(t) : t
-    })
-  }
-  return clean
-}
-
 function buildBatchRequest(report: any): BatchRequest {
-  var safeReport = sanitizeReportForBatch(report)
   return {
-    custom_id: safeReport.id,
+    custom_id: report.id,
     params: {
       model: HAIKU_MODEL,
       max_tokens: MAX_TOKENS,
@@ -221,89 +183,13 @@ function buildBatchRequest(report: any): BatchRequest {
           cache_control: { type: 'ephemeral' },
         },
       ],
-      messages: [{ role: 'user', content: buildConsolidatedUserPrompt(safeReport) }],
+      messages: [{ role: 'user', content: buildConsolidatedUserPrompt(report) }],
       temperature: TEMPERATURE,
     },
   }
 }
 
-// V11.17.81 — orphan-surrogate strippers used by submitBatch().
-//
-// stripOrphanSurrogatesString: walks a string's UTF-16 code units, drops
-// any orphan high (D800-DBFF) or low (DC00-DFFF) surrogate, preserves
-// well-formed pairs intact.
-function stripOrphanSurrogatesString(s: string): string {
-  var out = ''
-  for (var i = 0; i < s.length; i++) {
-    var code = s.charCodeAt(i)
-    // high surrogate
-    if (code >= 0xD800 && code <= 0xDBFF) {
-      var next = i + 1 < s.length ? s.charCodeAt(i + 1) : 0
-      if (next >= 0xDC00 && next <= 0xDFFF) {
-        out += s[i] + s[i + 1]
-        i++
-      }
-      // else: orphan high — drop
-    } else if (code >= 0xDC00 && code <= 0xDFFF) {
-      // orphan low — drop
-    } else {
-      out += s[i]
-    }
-  }
-  return out
-}
-
-// deepStripOrphanSurrogates: recursively walks any JSON-serializable value
-// and sanitizes every string. Arrays / plain objects are cloned with
-// sanitized children. Other values pass through unchanged.
-function deepStripOrphanSurrogates(v: any): any {
-  if (v == null) return v
-  if (typeof v === 'string') return stripOrphanSurrogatesString(v)
-  if (Array.isArray(v)) return v.map(deepStripOrphanSurrogates)
-  if (typeof v === 'object') {
-    var out: any = {}
-    for (var k in v) {
-      if (Object.prototype.hasOwnProperty.call(v, k)) {
-        out[k] = deepStripOrphanSurrogates(v[k])
-      }
-    }
-    return out
-  }
-  return v
-}
-
-// stripOrphanSurrogateEscapes: defensive second pass on the serialized
-// JSON text. JSON.stringify emits orphan surrogates as literal "\uXXXX"
-// escape sequences. Strip orphan high-surrogate escapes (not followed by
-// a low-surrogate escape) and orphan low-surrogate escapes (not preceded
-// by a high-surrogate escape).
-function stripOrphanSurrogateEscapes(json: string): string {
-  return json
-    .replace(/\\u[dD][89aAbB][0-9a-fA-F]{2}(?!\\u[dD][cCdDeEfF][0-9a-fA-F]{2})/g, '')
-    .replace(/(?<!\\u[dD][89aAbB][0-9a-fA-F]{2})\\u[dD][cCdDeEfF][0-9a-fA-F]{2}/g, '')
-}
-
 async function submitBatch(requests: BatchRequest[]): Promise<{ batch_id: string } | { error: string }> {
-  // V11.17.81 — Unicode sanitization, finally correct.
-  //
-  // What I got wrong in V11.17.80:
-  //   JSON.stringify SERIALIZES orphan surrogates as ASCII escape sequences
-  //   (literal text "\uD800") in the output, NOT as raw UTF-16 code units.
-  //   So my prior regex that looked for code-unit surrogates in the post-
-  //   stringify string never matched. Same column number error every run
-  //   because the orphan slipped through unscathed.
-  //
-  // Two-layer fix that's actually correct:
-  //   1. Deep-sanitize EVERY string value in the request tree before
-  //      JSON.stringify. Recursive walk, regardless of field name. This
-  //      catches orphans before they have a chance to be escaped.
-  //   2. Post-stringify, also strip any remaining orphan ESCAPE SEQUENCES
-  //      (literal "\uXXXX" text) — defensive coverage in case a string
-  //      somehow gets reinterpreted between sanitize and stringify.
-  var cleanRequests = deepStripOrphanSurrogates(requests)
-  var bodyStr = JSON.stringify({ requests: cleanRequests })
-  bodyStr = stripOrphanSurrogateEscapes(bodyStr)
-
   var resp = await fetch(BATCH_API_URL, {
     method: 'POST',
     headers: {
@@ -312,7 +198,7 @@ async function submitBatch(requests: BatchRequest[]): Promise<{ batch_id: string
       'anthropic-version': '2023-06-01',
       'anthropic-beta': 'message-batches-2024-09-24',
     },
-    body: bodyStr,
+    body: JSON.stringify({ requests: requests }),
   })
 
   if (!resp.ok) {
@@ -441,12 +327,6 @@ async function main() {
       .select('id, title, summary, description, category, location_name, country, state_province, city, event_date, source_type, source_label, tags')
       .eq('status', args.status)
       .is('paradocs_narrative', null)
-      // V11.18.24 — QC-hold guard. Rows flagged for founder review by
-      // pd-bulk-approve (metadata.qc_flag) must NOT be swept up by the
-      // backfill's pending_review auto-promote path (Path B) — they stay
-      // held until a human approves them, at which point a later
-      // --status approved pass generates their AI fields.
-      .is('metadata->qc_flag', null)
       .order('created_at', { ascending: true })
       .order('id', { ascending: true })
       .range(rangeStart, rangeEnd)
@@ -664,59 +544,31 @@ async function main() {
         var anomalyKeepPending = false
         try {
           var assessRes = await (supabase.from('reports') as any)
-            .select('paradocs_assessment, metadata')
+            .select('paradocs_assessment')
             .eq('id', reportId)
             .single()
           var acRaw = assessRes.data && assessRes.data.paradocs_assessment
             ? (assessRes.data.paradocs_assessment as any).anomalous_content_check
             : null
-          // V11.18.25 — public-domain historical sources demote to
-          // pending_review instead of silently archiving. The gate's
-          // 'news_summary' genre is calibrated on firsthand web posts;
-          // period newspaper/book material is INHERENTLY third-person
-          // reportage, so the gate systematically over-archives genuine
-          // witness-sighting reports from these sources (June 12: 319 of
-          // 762 CA rows culled, ~half wrongly). A human (or the triage
-          // pass) makes the final call from the review queue.
-          var isPdSource = !!(assessRes.data && assessRes.data.metadata && assessRes.data.metadata.public_domain === true)
           if (acRaw && typeof acRaw === 'object') {
             var acAnomalous = typeof acRaw.anomalous === 'string' ? acRaw.anomalous : null
             var acConfidence = typeof acRaw.confidence === 'number' ? acRaw.confidence : 0
             var acGenre = typeof acRaw.genre === 'string' ? acRaw.genre : ''
-            // V11.17.100 — anomaly gate tightening. Auto-archive cutoff
-            // lowered 0.9 → 0.75 to match the sharper V11.17.100 Haiku
-            // prompt calibration (clear-mundane cases now land at
-            // 0.80-0.95 with worked examples covering loud-boom alone,
-            // missing-time keepers, paired-chill keepers).
-            if (acAnomalous === 'no' && acConfidence >= 0.75 && isPdSource) {
-              // V11.18.25 — PD-source demotion path (see comment above).
-              anomalyKeepPending = true
-              try {
-                var meta = (assessRes.data && assessRes.data.metadata) || {}
-                var qcFlags = Array.isArray(meta.qc_flag) ? meta.qc_flag : []
-                if (qcFlags.indexOf('anomaly_gate_review') < 0) qcFlags.push('anomaly_gate_review')
-                await (supabase.from('reports') as any)
-                  .update({ status: 'pending_review', metadata: Object.assign({}, meta, { qc_flag: qcFlags }), updated_at: new Date().toISOString() })
-                  .eq('id', reportId)
-                console.log('  • ' + reportId + ' demoted to pending_review (anomaly gate, PD source — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2) + ')')
-              } catch (demoteErr: any) {
-                console.warn('  ! ' + reportId + ' anomaly demote failed: ' + (demoteErr?.message || demoteErr))
-              }
-            } else if (acAnomalous === 'no' && acConfidence >= 0.75) {
+            if (acAnomalous === 'no' && acConfidence >= 0.9) {
               anomalyAutoArchive = true
               try {
                 var archiveRes = await (supabase.from('reports') as any)
                   .update({ status: 'archived', updated_at: new Date().toISOString() })
                   .eq('id', reportId)
                 if (!archiveRes.error) {
-                  console.log('  ↓ ' + reportId + ' auto-archived (V11.17.100 anomaly gate — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2) + ')')
+                  console.log('  ↓ ' + reportId + ' auto-archived (V11.17.46 anomaly gate — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2) + ')')
                 }
               } catch (archiveErr: any) {
                 console.warn('  ! ' + reportId + ' anomaly auto-archive failed: ' + (archiveErr?.message || archiveErr))
               }
-            } else if (acAnomalous === 'no' && acConfidence >= 0.7 && acConfidence < 0.75) {
+            } else if (acAnomalous === 'no' && acConfidence >= 0.7 && acConfidence < 0.9) {
               anomalyKeepPending = true
-              console.log('  • ' + reportId + ' kept at pending_review (V11.17.100 anomaly gate — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2) + ')')
+              console.log('  • ' + reportId + ' kept at pending_review (V11.17.46 anomaly gate — genre=' + (acGenre || 'unspecified') + ' conf=' + acConfidence.toFixed(2) + ')')
             }
           }
         } catch (anomalyErr: any) {
@@ -955,14 +807,10 @@ async function logBatchCost(
 ): Promise<void> {
   try {
     await supabase.from('paradocs_narrative_cost_log').insert({
-      // V11.17.84 — service column tags the batch path so the unified
-      // cost-summary endpoint can attribute it correctly.
-      service: 'consolidated-batch',
       report_id: reportId,
       model: HAIKU_MODEL + ' (consolidated-batch)',
       input_tokens: inputTokens,
       output_tokens: outputTokens,
-      cache_creation_tokens: cacheCreationTokens,
       cost_usd: costUsd,
       status: status === 'completed' ? 'completed' : 'failed',
       reason: reason,

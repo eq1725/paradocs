@@ -6,13 +6,15 @@
  * pending_review before V11.18.26's expanded lexicon. (1895 has no pending_review
  * rows so it's a no-op there.)
  *
- * Four pattern-based passes, in order, default DRY RUN. Pass --apply to write.
+ * Five pattern-based passes, in order, default DRY RUN. Pass --apply to write.
  *
  *   (1) Expanded PERIOD_TERM_LEXICON backstop → metadata.genre_flags.period_sensitive=true
  *       (forces pd-bulk-approve.ts hold via its period_sensitive check).
  *   (2) Airship-wave hoax detection → metadata.qc_flag append 'airship_wave_hoax_review'.
  *   (3) Wildlife / debunked / "turned out to be mundane" → 'wildlife_or_debunked_review'.
  *   (4) Bad-geocode sanity check (nonsense city/state pairs) → 'bad_geocode_review'.
+ *   (5) Mundane weather / freak-of-nature / ambiguous wildlife (Task-B family,
+ *       matches ca-systemic-sweep.ts) → 'mundane_event_review'.
  *
  * IDEMPOTENT — each pass checks existing flag state before appending. Re-running
  * the script on already-fixed rows is a no-op.
@@ -205,6 +207,30 @@ function badGeocodeReason(city: string | null, state: string | null): string | n
   return `${city}, ${state} — known states: ${allowed.join('/')}`;
 }
 
+// ── (5) mundane weather / freaks-of-nature / ambiguous wildlife ──
+// Mirrors the three regex families in scripts/ca-systemic-sweep.ts. Any match
+// here appends qc_flag 'mundane_event_review' so the row surfaces in the held
+// queue instead of shipping unreviewed. No archive — review-only.
+const MFW_WEATHER_RE = /struck by lightning|lightning struck|bolt of lightning|thunderbolt struck|killed by lightning|injured by lightning/i;
+const MFW_ANOMALOUS_FRAMING_RE = /\b(apparition|ghost|presentiment|vision|premonition|unexplained|mysterious|spectral|phantom)\b/i;
+const MFW_FREAK_RE = /winged (trout|fish|snake|frog|toad|cat|dog|rabbit|chicken)|two-headed|three-headed|double-headed|monstrous birth|freak (of nature|calf|fish)|albino (deer|squirrel|crow)|preserve(d)? in (alcohol|spirits)|exhibited at (the )?(fair|carnival|museum)|curiosity hunters|exhibit as a curiosity|on exhibition at|on display at|specimen (will be|is being) exhibited/i;
+const MFW_WILDLIFE_VERB_RE = /(whale|shark|porpoise|dolphin|seal|otter|moose|elk|deer|bear|wolf|panther|wildcat|bobcat|fox|owl|eagle|hawk|alligator|crocodile|snake|octopus|squid) (seen|sighted|spotted|reported|observed|encountered)/i;
+const MFW_ANOMALOUS_WILDLIFE_RE = /glowing|luminous|spectral|phantom|enormous (size|head|teeth|jaws)|impossible|unknown species|never seen before|defies (known|classification)/i;
+
+function mundaneFreakOrWildlifeMatch(title: string, body: string, category: string | null): string | null {
+  const full = title + '\n' + body;
+  if (MFW_WEATHER_RE.test(full) && !MFW_ANOMALOUS_FRAMING_RE.test(full)) {
+    return `weather=${full.match(MFW_WEATHER_RE)![0]}`;
+  }
+  if (MFW_FREAK_RE.test(full)) {
+    return `freak=${full.match(MFW_FREAK_RE)![0]}`;
+  }
+  if (category === 'cryptids' && MFW_WILDLIFE_VERB_RE.test(body) && !MFW_ANOMALOUS_WILDLIFE_RE.test(body)) {
+    return `wildlife=${body.match(MFW_WILDLIFE_VERB_RE)![0]}`;
+  }
+  return null;
+}
+
 // ── types ────────────────────────────────────────────────────────────────────
 interface Row {
   id: string;
@@ -220,6 +246,7 @@ interface Row {
   location_name: string | null;
   metadata: any;
   status: string | null;
+  category: string | null;
 }
 
 function bodyText(r: Row): string {
@@ -261,7 +288,7 @@ async function fetchAll(): Promise<Row[]> {
     'id', 'title', 'description', 'summary', 'answer_line',
     'paradocs_narrative', 'original_report_id',
     'city', 'state_province', 'country', 'location_name',
-    'metadata', 'status',
+    'metadata', 'status', 'category',
   ].join(',');
   while (true) {
     const { data, error } = await sb.from('reports').select(select)
@@ -343,6 +370,7 @@ async function main() {
     airship:  {} as Record<string, number>,
     wildlife: {} as Record<string, number>,
     geocode:  {} as Record<string, number>,
+    mundane:  {} as Record<string, number>,
   };
   function bump(check: keyof typeof counts, year: string) {
     counts[check][year] = (counts[check][year] || 0) + 1;
@@ -397,33 +425,48 @@ async function main() {
     console.log(`[bad_geocode]     ${p.year} ${r.id} :: ${(r.title || '').slice(0, 60)} :: ${reason}`);
   }
 
+  // ── pass (5): mundane weather / freaks-of-nature / ambiguous wildlife ──
+  for (const r of rows) {
+    const reason = mundaneFreakOrWildlifeMatch(r.title || '', bodyText(r), r.category);
+    if (!reason) continue;
+    if (hasFlag(r.metadata, 'mundane_event_review')) continue;  // idempotent
+    const p = planFor(r);
+    p.qcFlagsToAdd.push('mundane_event_review');
+    p.reasons.push(`mundane: ${reason}`);
+    bump('mundane', p.year);
+    console.log(`[mundane]         ${p.year} ${r.id} :: ${(r.title || '').slice(0, 80)} :: ${reason}`);
+  }
+
   // ── summary table ──
   const allYears = Array.from(new Set([
     ...Object.keys(counts.period),
     ...Object.keys(counts.airship),
     ...Object.keys(counts.wildlife),
     ...Object.keys(counts.geocode),
+    ...Object.keys(counts.mundane),
     ...Object.keys(yearTotals),
   ])).sort();
 
   console.log('');
   console.log('═══ per-check × per-year ═══');
-  console.log('year    | period | airship | wildlife | geocode | total-scanned');
-  console.log('--------+--------+---------+----------+---------+--------------');
+  console.log('year    | period | airship | wildlife | geocode | mundane | total-scanned');
+  console.log('--------+--------+---------+----------+---------+---------+--------------');
   for (const y of allYears) {
     const p = counts.period[y]   || 0;
     const a = counts.airship[y]  || 0;
     const w = counts.wildlife[y] || 0;
     const g = counts.geocode[y]  || 0;
+    const m = counts.mundane[y]  || 0;
     const t = yearTotals[y]      || 0;
-    console.log(`${y.padEnd(7)} | ${String(p).padStart(6)} | ${String(a).padStart(7)} | ${String(w).padStart(8)} | ${String(g).padStart(7)} | ${String(t).padStart(13)}`);
+    console.log(`${y.padEnd(7)} | ${String(p).padStart(6)} | ${String(a).padStart(7)} | ${String(w).padStart(8)} | ${String(g).padStart(7)} | ${String(m).padStart(7)} | ${String(t).padStart(13)}`);
   }
   const totP = Object.values(counts.period).reduce((a, b) => a + b, 0);
   const totA = Object.values(counts.airship).reduce((a, b) => a + b, 0);
   const totW = Object.values(counts.wildlife).reduce((a, b) => a + b, 0);
   const totG = Object.values(counts.geocode).reduce((a, b) => a + b, 0);
-  console.log('--------+--------+---------+----------+---------+--------------');
-  console.log(`TOTAL   | ${String(totP).padStart(6)} | ${String(totA).padStart(7)} | ${String(totW).padStart(8)} | ${String(totG).padStart(7)} | ${String(rows.length).padStart(13)}`);
+  const totM = Object.values(counts.mundane).reduce((a, b) => a + b, 0);
+  console.log('--------+--------+---------+----------+---------+---------+--------------');
+  console.log(`TOTAL   | ${String(totP).padStart(6)} | ${String(totA).padStart(7)} | ${String(totW).padStart(8)} | ${String(totG).padStart(7)} | ${String(totM).padStart(7)} | ${String(rows.length).padStart(13)}`);
   console.log('');
   console.log(`unique rows touched: ${plans.size}`);
   console.log(`mode:                ${APPLY ? 'APPLY' : 'DRY RUN — no writes'}`);

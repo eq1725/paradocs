@@ -9,13 +9,6 @@
  * across ALL pages (public + dashboard).
  *
  * Desktop header nav is unchanged.
- *
- * V11.17.68 Tier 2A — Added Upgrade pill in the header for free-tier
- * users. Hidden for paid (Basic / Pro). Also suppressed on /pricing
- * and /account/subscription themselves to avoid navigation loops. Per
- * PRICING_SUBSCRIPTION_PANEL.md §6 the global header is the only
- * "you could upgrade" chrome we want bleeding into catalogue browsing;
- * everything else lives in-context on the gated affordance.
  */
 
 import React, { useState, useEffect } from 'react'
@@ -41,7 +34,6 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const router = useRouter()
   const [user, setUser] = useState<Profile | null>(null)
-  const [tierName, setTierName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -71,33 +63,8 @@ export default function Layout({ children }: LayoutProps) {
           .eq('id', session.user.id)
           .single()
         setUser(data)
-
-        // V11.17.68 Tier 2A — resolve tier name for the Upgrade pill.
-        // Done in a separate query so a join failure can't blank the
-        // user object. Best-effort; failures default to null (treated
-        // as "free" by the pill suppression logic).
-        try {
-          const profileWithTier: any = data
-          if (profileWithTier && profileWithTier.current_tier_id) {
-            const { data: tierData } = await (supabase
-              .from('subscription_tiers') as any)
-              .select('name')
-              .eq('id', profileWithTier.current_tier_id)
-              .single()
-            if (tierData && tierData.name) {
-              setTierName(tierData.name as string)
-            } else {
-              setTierName('free')
-            }
-          } else {
-            setTierName('free')
-          }
-        } catch (_tierErr) {
-          setTierName(null)
-        }
       } else {
         setUser(null)
-        setTierName(null)
       }
     } catch (error) {
       console.error('Error checking user:', error)
@@ -192,22 +159,6 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* Right section */}
             <div className="flex items-center gap-3">
-              {/* V11.17.68 Tier 2A — Upgrade pill for free users only.
-                  Hidden for paid users (Basic / Pro) and suppressed on
-                  /pricing + /account/subscription themselves to avoid
-                  navigation loops. Documentary register, brand-purple
-                  text on transparent background — quiet, not aggressive. */}
-              {!loading && user && (tierName === 'free' || tierName === null) &&
-                router.pathname !== '/pricing' &&
-                router.pathname !== '/account/subscription' && (
-                <Link
-                  href="/pricing"
-                  className="hidden sm:inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium text-purple-300 hover:text-white hover:bg-purple-500/10 border border-purple-500/30 hover:border-purple-400/60 transition-colors"
-                >
-                  Upgrade
-                </Link>
-              )}
-
               {/* T1.9 — Notifications bell. Authenticated only; renders
                   the user_notifications dropdown. Placed before avatar
                   so it's consistently to the left of the user menu on
@@ -344,11 +295,6 @@ export default function Layout({ children }: LayoutProps) {
                 <li><Link href="/explore?category=ufo_uap" className="hover:text-white">UFO Sightings</Link></li>
                 <li><Link href="/explore?category=cryptid" className="hover:text-white">Cryptids</Link></li>
                 <li><Link href="/explore?category=ghost_haunting" className="hover:text-white">Ghosts</Link></li>
-                {/* V11.18.3 — Sprint 1A polish round 2. Discoverability
-                    link for the standalone /lab/patterns grid. Without
-                    this entry plus the PatternsRail header link, the
-                    grid is reachable only by typing the URL. */}
-                <li><Link href="/lab/patterns" className="hover:text-white">Patterns</Link></li>
                 <li><Link href="/map" className="hover:text-white">Map</Link></li>
                 <li><Link href="/explore?mode=search" className="hover:text-white">Search</Link></li>
               </ul>
@@ -359,7 +305,6 @@ export default function Layout({ children }: LayoutProps) {
                 <li><Link href="/start" className="hover:text-white">Submit Report</Link></li>
                 <li><Link href="/discover" className="hover:text-white">Today</Link></li>
                 <li><Link href="/lab" className="hover:text-white">My Record</Link></li>
-                <li><Link href="/pricing" className="hover:text-white">Pricing</Link></li>
                 <li><Link href="/about" className="hover:text-white">About</Link></li>
               </ul>
             </div>
