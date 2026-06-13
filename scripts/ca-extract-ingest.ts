@@ -313,7 +313,7 @@ function validateAccount(acc: ExtractedAccount, snip: CaSnippet): { ok: true } |
 
 // Period racial/ethnic terms that must not pass into modern text unflagged.
 // Word-boundary anchored; extend as review surfaces more.
-const PERIOD_TERM_LEXICON = /\b(negro(es)?|colored (man|woman|people|folks?)|darke?y(s|ies)?|chinam[ae]n|injun(s)?|redskin(s)?|half-breed(s)?|savage (tribe|race|blood)|coolie(s)?|pickaninn(y|ies)|mulatto(es)?)\b/i;
+const PERIOD_TERM_LEXICON = /\b(negro(es)?|negress(es)?|colored (man|men|woman|women|people|folks?|boys?|girls?|church|preacher|preachers|congregation|servant|servants)|darke?y(s|ies)?|mammy|coon(s)?|chinam[ae]n|chinee|injun(s)?|redskin(s)?|papoose(s)?|squaw(s)?|hottentot(s)?|half-breed(s)?|savage (tribe|race|blood)|coolie(s)?|pickaninn(y|ies)|mulatto(es)?|oriental(s)?|japs?(?!an))\b/i;
 
 // ─────────────────────────────────────────────────────────────────────
 // SLUG (identical to nderf-mass-ingest.ts / pd-text-ingest.ts)
