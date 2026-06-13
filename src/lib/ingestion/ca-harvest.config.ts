@@ -40,11 +40,16 @@ export interface CaSearchTerm {
   enabled: boolean;
   /** Optional founder note shown in logs. */
   note?: string;
+  /** Cap on search-result pages fetched per term×year. Default = harvester's
+   *  --max-pages (5). Set to 1 to preserve a noisy term as taxonomy harvest
+   *  but cap its budget impact. */
+  maxPages?: number;
 }
 
 /** Categories mirror PhenomenonCategory values used at extraction time. */
 export const CA_TERM_SETS: Record<string, CaSearchTerm[]> = {
   ghosts_hauntings: [
+    // Core apparition / haunting events
     { phrase: 'saw a ghost', quality: 'high', enabled: true },
     { phrase: 'saw the ghost', quality: 'high', enabled: true },
     { phrase: 'ghost story', quality: 'medium', enabled: true, note: 'also matches fiction columns — extractor genre-flags those' },
@@ -55,9 +60,19 @@ export const CA_TERM_SETS: Record<string, CaSearchTerm[]> = {
     { phrase: 'ghostly figure', quality: 'high', enabled: true },
     { phrase: 'ghostly visitor', quality: 'high', enabled: true },
     { phrase: 'haunted by the ghost', quality: 'high', enabled: true },
+    // V11.18.30 additions — ghosts/apparitions
+    { phrase: 'spirit photograph', quality: 'high', enabled: true, note: 'NEW: Victorian spirit-photography wave (1860s+)' },
+    { phrase: 'phantom rider', quality: 'high', enabled: true, note: 'NEW: classic apparition trope, frequent in Western papers' },
+    { phrase: 'phantom carriage', quality: 'high', enabled: true, note: 'NEW: death-omen tradition' },
+    { phrase: 'apparition of', quality: 'high', enabled: true, note: 'NEW: "apparition of his late wife" style narrative leads' },
+    { phrase: 'vision of the dead', quality: 'high', enabled: true, note: 'NEW: post-mortem visitation reports' },
+    { phrase: 'ghostly procession', quality: 'high', enabled: true, note: 'NEW: phantom-funeral/parade folklore' },
+    { phrase: 'seance', quality: 'medium', enabled: true, note: 'NEW: spiritualism-era seance reportage; some sensationalism noise' },
+    { phrase: 'materialization', quality: 'medium', enabled: true, note: 'NEW: spiritualist medium phenomena; also chemistry-textbook word' },
   ],
 
   psychic_phenomena: [
+    // Core psychic vocabulary
     { phrase: 'strange dream', quality: 'high', enabled: true },
     { phrase: 'premonition', quality: 'high', enabled: true },
     { phrase: 'telepathy', quality: 'medium', enabled: true, note: 'post-1882 vocabulary; earlier years yield ~0' },
@@ -65,26 +80,40 @@ export const CA_TERM_SETS: Record<string, CaSearchTerm[]> = {
     { phrase: 'second sight', quality: 'high', enabled: true },
     { phrase: 'death warning', quality: 'high', enabled: true },
     { phrase: 'presentiment', quality: 'high', enabled: true },
-    { phrase: 'prophetic dream', quality: 'high', enabled: true },
-    { phrase: 'mental telegraphy', quality: 'high', enabled: false, note: 'Mark Twain coinage; tiny but pristine yield — enable for deep sweeps' },
+    // 'prophetic dream' DROPPED V11.18.30 — replaced by 'prophetic vision' + 'psychic dream'
+    { phrase: 'mental telegraphy', quality: 'high', enabled: true, note: 'Mark Twain coinage; tiny but pristine yield — ENABLED V11.18.30' },
+    // V11.18.30 additions — psychic
+    { phrase: 'crisis apparition', quality: 'high', enabled: true, note: 'NEW: SPR-era technical term; dying-relative-appears trope' },
+    { phrase: 'death bed vision', quality: 'high', enabled: true, note: 'NEW: end-of-life experience reports' },
+    { phrase: 'voice from beyond', quality: 'high', enabled: true, note: 'NEW: spiritualist + ghost-encounter framing' },
+    { phrase: 'prophetic vision', quality: 'high', enabled: true, note: 'NEW: replaces prophetic dream; more newspaper-typical' },
+    { phrase: 'psychic dream', quality: 'high', enabled: true, note: 'NEW: complement to prophetic vision' },
+    { phrase: 'trance', quality: 'medium', enabled: true, note: 'NEW: medium-trance / fortune-teller noise; extractor genre-flags' },
   ],
 
   ufos_aliens: [
+    // Core sky-anomaly terms
     { phrase: 'airship', quality: 'medium', enabled: true, note: 'GOLD in 1896-97 (mystery airship wave); aviation noise after ~1903' },
-    { phrase: 'strange lights in the sky', quality: 'high', enabled: true },
+    // 'strange lights in the sky', 'meteor mystery', 'strange object in the sky' DROPPED V11.18.30 (low yield / noisy)
     { phrase: 'mysterious light', quality: 'high', enabled: true },
-    { phrase: 'meteor mystery', quality: 'high', enabled: true },
-    { phrase: 'strange object in the sky', quality: 'high', enabled: true },
     { phrase: 'lights in the heavens', quality: 'medium', enabled: false, note: 'religious-metaphor heavy; bench first' },
+    // V11.18.30 additions — UFO/sky
+    { phrase: 'mystery airship', quality: 'high', enabled: true, note: 'NEW: tighter than bare "airship", high 1896-97 yield' },
+    { phrase: 'unidentified airship', quality: 'high', enabled: true, note: 'NEW: pre-UFO terminology' },
+    { phrase: 'mysterious sky lights', quality: 'high', enabled: true, note: 'NEW: replaces "strange lights in the sky"' },
+    { phrase: 'aerial phantom', quality: 'high', enabled: true, note: 'NEW: rare but pristine signal' },
   ],
 
   cryptids: [
-    { phrase: 'sea serpent', quality: 'high', enabled: true },
-    { phrase: 'wild man', quality: 'medium', enabled: true, note: 'period hominid label; some "wild man of Borneo" sideshow ads' },
+    // 'monster seen', 'lake monster' DROPPED V11.18.30 (founder-editorial)
+    { phrase: 'sea serpent', quality: 'high', enabled: true, maxPages: 1, note: 'DOWNGRADED V11.18.30 to maxPages=1: preserve as taxonomy harvest, cap budget' },
+    { phrase: 'wild man', quality: 'medium', enabled: true, maxPages: 1, note: 'DOWNGRADED V11.18.30 to maxPages=1: period hominid label; sideshow ad noise' },
     { phrase: 'strange animal', quality: 'high', enabled: true },
-    { phrase: 'monster seen', quality: 'high', enabled: true },
     { phrase: 'strange creature', quality: 'high', enabled: true },
-    { phrase: 'lake monster', quality: 'high', enabled: true },
+    // V11.18.30 additions — cryptids (paranormal-marker phrases only)
+    { phrase: 'phantom dog', quality: 'high', enabled: true, note: 'NEW: ghost-dog folklore (Black Shuck etc.)' },
+    { phrase: 'phantom horse', quality: 'high', enabled: true, note: 'NEW: spectral-horse encounters' },
+    { phrase: 'flying serpent', quality: 'high', enabled: true, note: 'NEW: aerial-cryptid reports' },
   ],
 };
 
