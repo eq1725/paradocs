@@ -1647,7 +1647,7 @@ export default function StartPage() {
 
                     {showBrowseCategories && (
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {Object.entries(CATEGORY_CONFIG).map(function (entry) {
+                        {Object.entries(CATEGORY_CONFIG).filter(function (entry) { return !(entry[1] as any).hidden }).map(function (entry) {
                           var key = entry[0]
                           var config = entry[1]
                           return (
@@ -2179,7 +2179,7 @@ export default function StartPage() {
                             {showAllRelated && (
                               <div className="max-h-72 overflow-y-auto space-y-3 p-3 bg-white/5 rounded-lg border border-white/10">
                                 {Object.entries(CATEGORY_CONFIG)
-                                  .filter(function (entry) { return entry[0] !== draft.category })
+                                  .filter(function (entry) { return entry[0] !== draft.category && !(entry[1] as any).hidden })
                                   .map(function (entry) {
                                     var catKey = entry[0]
                                     var catConfig = entry[1]

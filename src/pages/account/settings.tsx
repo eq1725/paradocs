@@ -1215,6 +1215,7 @@ export default function SettingsPage() {
             {/* Category grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {(Object.entries(CATEGORY_CONFIG) as [PhenomenonCategory, typeof CATEGORY_CONFIG[PhenomenonCategory]][])
+                .filter(([, config]) => !config.hidden)
                 .map(([key, config]) => {
                   const isSelected = localInterests.includes(key)
                   return (

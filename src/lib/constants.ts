@@ -11,6 +11,10 @@ export const CATEGORY_CONFIG: Record<PhenomenonCategory, {
   bgColor: string
   icon: string
   description: string
+  /** When true, the category is retired: excluded from browse/filter surfaces.
+   *  The key stays in the config (types + any residual data still resolve a
+   *  label/icon) but it is no longer offered to users. */
+  hidden?: boolean
 }> = {
   // Panel-feedback (May 2026 — 5th round): labels use the
   // straightforward branded form ("UFOs & Aliens", "Ghosts &
@@ -59,6 +63,11 @@ export const CATEGORY_CONFIG: Record<PhenomenonCategory, {
     description: 'Near-death experiences, shared death experiences, deathbed visions, and OBEs.'
   },
   perception_sensory: {
+    // V11.18.33 — RETIRED. Content was a sleep-paralysis corpus recategorized
+    // into psychological_experiences (Sleep Paralysis's home); the 414 early
+    // clinical/optical-illusion phenomena are archived. Hidden from all
+    // browse/filter surfaces; key retained so any residual rows still resolve.
+    hidden: true,
     label: 'Perception & Sensory',
     color: 'text-cyan-400',
     bgColor: 'bg-cyan-400/20',

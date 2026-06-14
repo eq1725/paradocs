@@ -367,6 +367,7 @@ export default function NewJournalEntryPage() {
           <label className="block text-gray-300 text-sm font-medium mb-2">Related Categories</label>
           <div className="flex flex-wrap gap-2">
             {(Object.entries(CATEGORY_CONFIG) as [PhenomenonCategory, typeof CATEGORY_CONFIG[PhenomenonCategory]][])
+              .filter(([, config]) => !config.hidden)
               .map(([key, config]) => (
                 <button
                   key={key}

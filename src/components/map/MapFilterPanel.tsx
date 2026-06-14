@@ -35,7 +35,7 @@ interface MapFilterPanelProps {
   omitPinnedSection?: boolean
 }
 
-const categories = Object.entries(CATEGORY_CONFIG) as [PhenomenonCategory, typeof CATEGORY_CONFIG[PhenomenonCategory]][]
+const categories = (Object.entries(CATEGORY_CONFIG) as [PhenomenonCategory, typeof CATEGORY_CONFIG[PhenomenonCategory]][]).filter(function(e) { return !e[1].hidden })
 
 /**
  * V11.17.10 — Pinned filter chips (Search + Categories) extracted as

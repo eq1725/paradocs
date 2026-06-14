@@ -19,7 +19,7 @@ export default function CategoryFilter({
   showCounts = false,
   counts
 }: CategoryFilterProps) {
-  const categories = Object.entries(CATEGORY_CONFIG) as [PhenomenonCategory, typeof CATEGORY_CONFIG[PhenomenonCategory]][]
+  const categories = (Object.entries(CATEGORY_CONFIG) as [PhenomenonCategory, typeof CATEGORY_CONFIG[PhenomenonCategory]][]).filter(function(e) { return !e[1].hidden })
 
   return (
     <div className="relative sm:static">

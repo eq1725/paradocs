@@ -762,7 +762,7 @@ function ExploreBrowseMode() {
       try {
         // Category counts + latest title per category — one query per category
         // Using head:true count queries to avoid Supabase's default row limit
-        var catKeys = Object.keys(CATEGORY_CONFIG)
+        var catKeys = Object.keys(CATEGORY_CONFIG).filter(function(k) { return !(CATEGORY_CONFIG as any)[k].hidden })
         var countPromises = catKeys.map(function(cat) {
           return supabase
             .from('reports')
@@ -1377,7 +1377,7 @@ function ExploreBrowseMode() {
               </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {Object.entries(CATEGORY_CONFIG).map(function(entry) {
+              {Object.entries(CATEGORY_CONFIG).filter(function(entry) { return !(entry[1] as any).hidden }).map(function(entry) {
                 var key = entry[0]
                 var config = entry[1]
                 var accent = CATEGORY_ACCENT[key] || CATEGORY_ACCENT.psychological_experiences

@@ -20,6 +20,7 @@ interface WelcomeOnboardingProps {
 }
 
 const INTEREST_CATEGORIES = Object.entries(CATEGORY_CONFIG)
+  .filter(([, val]) => !val.hidden)
   .map(([key, val]) => ({
     key: key as PhenomenonCategory,
     label: val.label,
