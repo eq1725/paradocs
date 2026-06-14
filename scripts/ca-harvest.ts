@@ -113,7 +113,16 @@ const NON_ALPHA_DROP = 0.4;            // >40% non-alpha chars = table/figure OC
 const FICTION_WINDOW = 600;            // chars around hit checked for fiction markers
 const EST_EXTRACT_COST_PER_SNIPPET = 0.0009; // consolidated Haiku batch call
 
-const STATE_FILE = path.resolve(process.cwd(), 'outputs/ca-harvest-state.json');
+// STATE_FILE is the only single-writer artifact. SHARD_DIR is safe to share
+// across processes (shards are named <slug>-<year>.json, so year-partitioned
+// workers never touch the same file) and OCR_CACHE_DIR is content-addressed
+// by pageId (idempotent writes). To run multiple harvester PROCESSES in
+// parallel (see scripts/ca-harvest-parallel.sh), give each worker its own
+// state file via CA_STATE_FILE so they don't clobber each other's progress.
+// Empty/unset CA_STATE_FILE preserves the original single-stream behavior.
+const STATE_FILE = process.env.CA_STATE_FILE
+  ? path.resolve(process.cwd(), process.env.CA_STATE_FILE)
+  : path.resolve(process.cwd(), 'outputs/ca-harvest-state.json');
 const SHARD_DIR = path.resolve(process.cwd(), 'outputs/ca-shards');
 const OCR_CACHE_DIR = path.resolve(process.cwd(), 'outputs/ca-ocr-cache');
 

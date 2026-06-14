@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  V11.18.31 — CA tranche-one ingest daemon (launchd LaunchAgent).
+
+  Runs scripts/ca-ingest-daemon.sh as a long-lived loop: harvest wave →
+  extract wave → sleep, repeat, until you create the STOP file. Targets
+  ~50k approved across 1898-1928 over ~5-10 days unattended.
+
+  KeepAlive→SuccessfulExit=false means launchd relaunches the daemon if it
+  CRASHES or the laptop reboots, but does NOT relaunch after a clean STOP
+  (exit 0). To stop the daemon for good:
+      touch ~/paradocs/outputs/ca-daemon.STOP   # daemon exits cleanly
+      launchctl unload ~/Library/LaunchAgents/com.paradocs.ca-ingest.plist
+      rm ~/paradocs/outputs/ca-daemon.STOP      # so a future load can run
+
+  This file is a TEMPLATE. launchd does NOT expand $HOME inside plists, so
+  USER_HOME must be made literal before install (the sed below does that).
+
+  Install (set WORKERS to the probe's recommended P first — see the
+  EnvironmentVariables block below):
+    sed "s|USER_HOME|$HOME|g" scripts/com.paradocs.ca-ingest.plist \
+      > ~/Library/LaunchAgents/com.paradocs.ca-ingest.plist
+    launchctl load ~/Library/LaunchAgents/com.paradocs.ca-ingest.plist
+    launchctl list | grep paradocs            # verify it's running
+
+  Tail progress:
+    tail -f ~/paradocs/outputs/ca-daemon-$(date +%Y%m%d).log
+
+  Uninstall:
+    touch ~/paradocs/outputs/ca-daemon.STOP
+    launchctl unload ~/Library/LaunchAgents/com.paradocs.ca-ingest.plist
+    rm ~/Library/LaunchAgents/com.paradocs.ca-ingest.plist
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.paradocs.ca-ingest</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>USER_HOME/paradocs/scripts/ca-ingest-daemon.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>USER_HOME/paradocs</string>
+
+  <!-- Start as soon as it's loaded (it's a long-lived daemon). -->
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- Relaunch on crash/reboot, but NOT after a clean STOP (exit 0). -->
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+
+  <!-- Don't hammer-respawn if it keeps failing fast. -->
+  <key>ThrottleInterval</key>
+  <integer>60</integer>
+
+  <!-- launchd-level stdout/stderr; the daemon also writes its own dated log. -->
+  <key>StandardOutPath</key>
+  <string>USER_HOME/paradocs/outputs/launchd-ca-ingest.log</string>
+  <key>StandardErrorPath</key>
+  <string>USER_HOME/paradocs/outputs/launchd-ca-ingest.err</string>
+
+  <!-- nvm-installed Node (matches com.paradocs.classifier-daily). launchd
+       doesn't source ~/.zshrc, so the node bin path must be explicit.
+       Update the version if you upgrade Node via nvm.
+       WORKERS = the probe's recommended concurrency P (start at 2). -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>USER_HOME/.nvm/versions/node/v20.18.1/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>WORKERS</key>
+    <string>1</string>
+    <key>YEARS</key>
+    <string>1898-1928</string>
+    <key>TERMS</key>
+    <string>all</string>
+    <key>MAX_COST_USD</key>
+    <string>30</string>
+  </dict>
+</dict>
+</plist>
