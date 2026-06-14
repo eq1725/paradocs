@@ -101,6 +101,45 @@ type CaCategory = (typeof ALLOWED_CATEGORIES)[number];
 
 const BATCH_DIR = path.resolve(process.cwd(), 'outputs/ca-extract-batches');
 
+// ── SEEN-FINGERPRINT LEDGER (V11.18.32) ──────────────────────────────
+// The DB-fingerprint dedup (existingShas) only knows about snippets that
+// became rows — i.e. snippets the extractor ACCEPTED. Snippets the model
+// REJECTS (fiction, quote-not-verbatim, empty, etc.) leave no DB trace, so
+// on every re-run over the same shard glob they were re-submitted to Haiku
+// and re-rejected — ~95% of a daemon wave's spend was re-litigating known
+// rejects. This ledger records EVERY snippet whose batch request succeeded
+// (accepted AND rejected — both deterministic at temp 0.2), so later runs
+// skip them. Plain append-only file, one sha256 per line; unset env keeps
+// the default path. Crash-safe (append) and trivially mergeable.
+const SEEN_LEDGER = process.env.CA_SEEN_LEDGER
+  ? path.resolve(process.cwd(), process.env.CA_SEEN_LEDGER)
+  : path.resolve(process.cwd(), 'outputs/ca-extract-seen.ndjson');
+
+function loadSeenLedger(): Set<string> {
+  const seen = new Set<string>();
+  if (!fs.existsSync(SEEN_LEDGER)) return seen;
+  try {
+    const txt = fs.readFileSync(SEEN_LEDGER, 'utf8');
+    for (const line of txt.split('\n')) { const s = line.trim(); if (s) seen.add(s); }
+  } catch (e: any) {
+    console.warn('[ca-extract] seen-ledger read failed (' + (e?.message || e) + ') — treating as empty');
+  }
+  return seen;
+}
+
+/** Append shas not already in `known` to the ledger; mutate `known` to match. */
+function appendSeen(shas: Iterable<string>, known: Set<string>): void {
+  const fresh: string[] = [];
+  for (const s of shas) { if (s && !known.has(s)) { known.add(s); fresh.push(s); } }
+  if (fresh.length === 0) return;
+  try {
+    fs.mkdirSync(path.dirname(SEEN_LEDGER), { recursive: true });
+    fs.appendFileSync(SEEN_LEDGER, fresh.join('\n') + '\n');
+  } catch (e: any) {
+    console.warn('[ca-extract] seen-ledger append failed (' + (e?.message || e) + ') — dedup will not persist this run');
+  }
+}
+
 const SYSTEM_PROMPT = `You are an editor for Paradocs, a documentary archive of anomalous experiences. Your input is an OCR text snippet cut from a named, dated US newspaper page (1789–1963; the paper name, date, and place are given). OCR noise (broken words, stray characters) is expected — read through it.
 
 TASK: Decide whether the snippet contains at least one GENUINE REPORTED ANOMALOUS EXPERIENCE — a witnessed event reported as fact (a named or described person saw/heard/experienced something anomalous at a real time and place). The following do NOT count: fiction or serialized stories, poetry, advertisements (incl. fortune-teller/clairvoyant ads and patent-medicine copy), joke or humor columns, folklore retold purely as entertainment with no witness, and skeptical essays that discuss the topic without any witness account.
@@ -139,6 +178,8 @@ Rules:
 interface CliArgs {
   shards: string[];
   dryRun: boolean;
+  audit: boolean;
+  backfillLedger: boolean;
   limit: number;
   maxCostUsd: number;
   pollIntervalSec: number;
@@ -150,20 +191,24 @@ function parseArgs(): CliArgs {
   const argv = process.argv.slice(2);
   const shards: string[] = [];
   const args: CliArgs = {
-    shards, dryRun: false, limit: 0, maxCostUsd: 25,
+    shards, dryRun: false, audit: false, backfillLedger: false, limit: 0, maxCostUsd: 25,
     pollIntervalSec: 30, maxWaitSec: 5400, resume: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--shard') shards.push(argv[++i]);
     else if (a === '--dry-run') args.dryRun = true;
+    else if (a === '--audit') args.audit = true;
+    else if (a === '--backfill-ledger') args.backfillLedger = true;
     else if (a === '--limit') args.limit = parseInt(argv[++i], 10) || 0;
     else if (a === '--max-cost') args.maxCostUsd = parseFloat(argv[++i]) || 25;
     else if (a === '--poll-interval') args.pollIntervalSec = parseInt(argv[++i], 10) || 30;
     else if (a === '--max-wait') args.maxWaitSec = parseInt(argv[++i], 10) || 5400;
     else if (a === '--resume') args.resume = argv[++i];
     else if (a === '--help' || a === '-h') {
-      console.log('Usage: tsx scripts/ca-extract-ingest.ts --shard <file|glob> [--dry-run] [--limit N] [--max-cost 25] [--poll-interval 30] [--resume batch_id]');
+      console.log('Usage: tsx scripts/ca-extract-ingest.ts --shard <file|glob> [--dry-run] [--audit] [--backfill-ledger] [--limit N] [--max-cost 25] [--poll-interval 30] [--resume batch_id]');
+      console.log('  --audit           Full dedup pre-pass (DB + seen-ledger), report would-submit/skip + cost, then exit. No spend, no inserts.');
+      console.log('  --backfill-ledger Mark every snippet in the given shards as already-seen in the ledger, then exit. One-time migration.');
       process.exit(0);
     }
   }
@@ -499,10 +544,24 @@ async function main() {
   console.log('[ca-extract] est cost: $' + estTotal.toFixed(4) + ' (~$' + perReq.toFixed(6) + '/snippet, sys ~' + sysTokens + ' tok cached, user avg ~' + avgUserTokens + ' tok)');
 
   if (args.dryRun) {
-    console.log('DRY RUN — would submit ' + jobs.length + ' batch requests. No AI, no DB.');
+    console.log('DRY RUN — would submit ' + jobs.length + ' batch requests (NO dedup applied — use --audit for the real would-submit count). No AI, no DB.');
     for (const j of jobs.slice(0, 3)) {
       console.log('  sample ' + j.baseId + ' [' + j.snip.hitTerm + ']: ' + j.snip.snippet.slice(0, 160).replace(/\n/g, ' ') + '…');
     }
+    return;
+  }
+
+  if (args.backfillLedger) {
+    // One-time migration: mark every snippet in the given shards as seen.
+    // Safe ONLY when every current snippet has already been extracted at
+    // least once (e.g. after the daemon's in-flight wave finishes). After
+    // this, the next run skips all of them and only pays for NEW harvest.
+    const before = loadSeenLedger();
+    const beforeN = before.size;
+    appendSeen(jobs.map(j => j.sha256), before);
+    console.log('[ca-extract] --backfill-ledger: ledger ' + beforeN + ' → ' + before.size +
+      ' shas (+' + (before.size - beforeN) + ' from ' + jobs.length + ' loaded snippets)');
+    console.log('[ca-extract] ledger: ' + SEEN_LEDGER);
     return;
   }
 
@@ -564,17 +623,48 @@ async function main() {
       from += 1000;
     }
   }
-  console.log('[ca-extract] dedup: ' + existingIds.size + ' existing ids, ' + existingShas.size + ' fingerprints');
+  const seenShas = loadSeenLedger();
+  console.log('[ca-extract] dedup: ' + existingIds.size + ' existing ids, ' + existingShas.size +
+    ' DB fingerprints, ' + seenShas.size + ' seen-ledger fingerprints');
 
+  // Skip a snippet if it became a row (existingShas/Ids) OR was already
+  // processed in a prior run, accepted or rejected (seenShas). The ledger is
+  // what stops rejected snippets from being re-extracted on every wave.
+  let skipDbSha = 0, skipDbId = 0, skipLedger = 0;
   let pending = jobs.filter(j => {
-    if (existingShas.has(j.sha256) || existingIds.has(j.baseId + '-1')) { totals.skippedDup++; return false; }
+    const dbHit = existingShas.has(j.sha256) || existingIds.has(j.baseId + '-1');
+    const ledgerHit = seenShas.has(j.sha256);
+    if (dbHit || ledgerHit) {
+      totals.skippedDup++;
+      if (existingShas.has(j.sha256)) skipDbSha++; else if (existingIds.has(j.baseId + '-1')) skipDbId++;
+      if (ledgerHit && !dbHit) skipLedger++;
+      return false;
+    }
     return true;
   });
-  console.log('[ca-extract] ' + pending.length + ' snippets to extract (' + totals.skippedDup + ' already ingested)');
+  console.log('[ca-extract] ' + pending.length + ' snippets to extract (' + totals.skippedDup +
+    ' skipped: ' + (skipDbSha + skipDbId) + ' already-ingested, ' + skipLedger + ' seen-but-rejected-before)');
+
+  if (args.audit) {
+    const submitN = pending.length;
+    const auditCost = sysTokens / 1e6 * HAIKU_CACHE_WRITE_BATCH + perReq * submitN;
+    console.log('\n=== AUDIT (no submit, no inserts, $0 spend) ===');
+    console.log('  loaded:            ' + jobs.length);
+    console.log('  skip already-ingested (DB sha/id): ' + (skipDbSha + skipDbId));
+    console.log('  skip seen-but-rejected (ledger):   ' + skipLedger);
+    console.log('  WOULD SUBMIT:      ' + submitN);
+    console.log('  projected cost:    $' + auditCost.toFixed(4) + ' (~$' + perReq.toFixed(6) + '/snippet)');
+    console.log('================================================');
+    return;
+  }
   if (pending.length === 0) { printSummary(totals); return; }
 
   const jobIndex = new Map<string, SnippetJob>();
   for (const j of pending) jobIndex.set(j.customId, j);
+
+  // Snippets whose batch request SUCCEEDED (accepted or rejected) get added
+  // here, then flushed to the ledger after each batch so future runs skip them.
+  const processedShas = new Set<string>();
 
   // ── Insert one validated account ───────────────────────────────────
   async function insertAccount(job: SnippetJob, acc: ExtractedAccount, n: number): Promise<void> {
@@ -675,10 +765,16 @@ async function main() {
       await logCost(null, job.baseId, usage.input_tokens || 0, usage.output_tokens || 0, usage.cache_creation_input_tokens || 0, usage.cache_read_input_tokens || 0, cost);
 
       if (row.result?.type !== 'succeeded') {
+        // Infrastructure failure (errored/expired/canceled) — NOT deterministic.
+        // Don't mark seen, so it retries on a later run.
         totals.rejectionReasons['batch_request_' + (row.result?.type || 'failed')] =
           (totals.rejectionReasons['batch_request_' + (row.result?.type || 'failed')] || 0) + 1;
         continue;
       }
+      // The model returned a response. Whatever the outcome below (accepted,
+      // rejected, empty, unparseable), it's deterministic at temp 0.2, so mark
+      // this snippet seen — future runs skip it instead of re-paying for it.
+      processedShas.add(job.sha256);
       const text: string = row.result.message?.content?.[0]?.text || '';
       const m = text.match(/\{[\s\S]*\}/);
       if (!m) { totals.rejectionReasons['no_json'] = (totals.rejectionReasons['no_json'] || 0) + 1; continue; }
@@ -700,6 +796,9 @@ async function main() {
         await insertAccount(job, acc, n);
       }
     }
+    // Persist this batch's processed snippets so future runs skip them
+    // (this is the fix for re-extracting rejected snippets every wave).
+    appendSeen(processedShas, seenShas);
   }
 
   // ── Poll helper ─────────────────────────────────────────────────────
