@@ -168,6 +168,60 @@ for (const countryCode of Object.keys(stateCentroids)) {
   }
 }
 
+// ── Title-casing for place names (V11.18.34) ─────────────────────────
+// Exception-aware: capitalizes all-lowercase tokens ("west sacramento" →
+// "West Sacramento", "pennsylvania" → "Pennsylvania") but PRESERVES any
+// token that already contains an uppercase letter — so "McKinney",
+// "DeKalb", "PA", "NYC", "iPhone" pass through untouched. Handles hyphen
+// and apostrophe subtokens ("winston-salem" → "Winston-Salem", "o'fallon"
+// → "O'Fallon") and the "Mc" prefix on all-lower input ("mckinney" →
+// "McKinney"). Idempotent: re-running on already-cased text is a no-op.
+function capPlaceWord(tok: string): string {
+  if (!tok) return tok
+  if (/[A-Z]/.test(tok)) return tok                 // already has a capital → preserve
+  if (/^mc[a-z]{2,}$/.test(tok)) return 'Mc' + tok.charAt(2).toUpperCase() + tok.slice(3)
+  const m = tok.match(/^([a-z])(.*)$/)              // leading lowercase letter?
+  return m ? m[1].toUpperCase() + m[2] : tok        // else (number/punct lead) leave as-is
+}
+
+export function smartTitleCase(s: string | null | undefined): string | null {
+  if (s == null) return null
+  return s
+    .split(/(\s+)/)
+    .map(part =>
+      /^\s*$/.test(part)
+        ? part
+        : part.split(/([-'])/).map(sub => (sub === '-' || sub === "'" ? sub : capPlaceWord(sub))).join(''),
+    )
+    .join('')
+}
+
+// Stopwords/fragments that signal a `city` value is a parse artifact, not a
+// real place name ("the, WI", "an upscale, CT", "and around Louisville").
+const PLACE_FRAGMENT_STOPWORDS = new Set([
+  'the', 'a', 'an', 'some', 'and', 'or', 'near', 'around', 'upstate', 'downtown',
+  'northeastern', 'northern', 'southern', 'eastern', 'western', 'central', 'rural',
+  'rual', 'outside', 'various', 'unknown', 'my', 'our', 'several', 'approximately',
+  'approx', 'off', 'along', 'between', 'somewhere', 'about', 'remote', 'roughly',
+])
+
+// V11.18.35 — reject obvious garbage `city` extractions (over-captured
+// descriptive phrases, stopword fragments, citation refs, coordinate/altitude
+// blobs). Conservative: only rejects clear artifacts so real places pass.
+export function isLikelyPlaceName(city: string | null | undefined): boolean {
+  if (!city) return false
+  const c = String(city).trim()
+  if (c.length < 2 || c.length > 40) return false          // too short / over-captured phrase
+  if (!/[a-zA-Z]/.test(c)) return false                     // no letters
+  if (/\d{3,}/.test(c)) return false                        // altitudes / coords ("20,000 feet…")
+  if (/^(vol|pp|ch|fig|p|no)\.?\s/i.test(c)) return false   // citation fragment
+  const words = c.split(/\s+/)
+  if (words.length > 5) return false                        // descriptive phrase, not a name
+  if (PLACE_FRAGMENT_STOPWORDS.has(words[0].toLowerCase())) return false
+  if (/^(north|south|east|west|northeast|northwest|southeast|southwest|northern|southern|eastern|western|central|upstate|downtown)$/i.test(c)) return false
+  return true
+}
+
 // ── Public entry point ────────────────────────────────────────────
 
 export async function normalizeLocation(
@@ -219,7 +273,12 @@ export async function normalizeLocation(
     stateName = String(raw.state_province).trim()
   }
 
-  const city = raw.city ? String(raw.city).trim() : null
+  // V11.18.35 — reject garbage city extractions up front (over-captured
+  // phrases, stopword fragments, citations). Nulling here means the geocoding
+  // ladder below falls back to state/region precision instead of geocoding a
+  // non-place — and we never store a fake city. (Real places pass the filter.)
+  let city = raw.city ? String(raw.city).trim() : null
+  if (city && !isLikelyPlaceName(city)) city = null
 
   // ── 3. Geocoding ladder ──────────────────────────────────────────
   let latitude: number | null = null
@@ -377,12 +436,16 @@ export async function normalizeLocation(
     locationName = parts.length ? parts.join(', ') : null
   }
 
+  // V11.18.34 — title-case the human-facing place strings on the way out
+  // (geocoding above already ran on the original-case values; MapTiler and
+  // the state/country lookups are case-insensitive, so this only affects
+  // what gets stored/displayed). Idempotent + exception-aware.
   return {
-    city: city || null,
-    state_province: stateName,
+    city: smartTitleCase(city) || null,
+    state_province: smartTitleCase(stateName),
     country: countryName,
     country_code: countryCode,
-    location_name: locationName,
+    location_name: smartTitleCase(locationName),
     latitude,
     longitude,
     location_precision: precision,

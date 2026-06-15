@@ -122,6 +122,40 @@ fi
 PCT=$(node -e "console.log(($ALLCOST/$BUDGET*100).toFixed(0))" 2>/dev/null || echo "?")
 PROGNOTE=""; [ "$INPROG" = "yes" ] && PROGNOTE="  (a wave is mid-flight; its numbers aren't counted yet)"
 
+# ── Classifier (com.paradocs.classifier-daily, 4 AM cron) ────────────
+# Parses the newest per-run log (outputs/classifier-cron-YYYYMMDD-0400.log),
+# which tees the same GRAND TOTAL block as launchd-classifier.log. Reports
+# the last run's matched/junction/cost + health, and a current-backlog proxy
+# (approved reports updated since that run = newly-approved + not yet tagged).
+CF="$(ls -t outputs/classifier-cron-*.log 2>/dev/null | head -1)"
+CL_STATE="no runs found"; CL_AGE="n/a"; CL_MATCHED="?"; CL_JUNC="?"; CL_COST="?"; CL_EXIT=""; CL_ERR=0; CL_RUNISO=""
+if [ -n "$CF" ] && [ -f "$CF" ]; then
+  cmt=$(stat -c %Y "$CF" 2>/dev/null || echo 0); [[ "$cmt" =~ ^[0-9]+$ ]] || cmt=0
+  CL_AGE="$(( ($(date +%s) - cmt)/60 ))m ago"
+  CL_RUNISO=$(date -u -r "$cmt" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d "@$cmt" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "")
+  if grep -q "Classifier exited with code" "$CF"; then
+    CL_EXIT=$(grep "Classifier exited with code" "$CF" | tail -1 | grep -oE 'code [0-9]+' | grep -oE '[0-9]+')
+    CL_STATE=$([ "${CL_EXIT:-1}" = "0" ] && echo "OK (exit 0)" || echo "FAILED (exit $CL_EXIT)")
+  else
+    CL_STATE="IN PROGRESS"
+  fi
+  # GRAND TOTAL values are the LAST occurrence of each label in the log.
+  CL_MATCHED=$(grep -E 'Reports matched:' "$CF" | tail -1 | grep -oE '[0-9]+' | head -1)
+  CL_JUNC=$(grep -E 'Junction rows written:' "$CF" | tail -1 | grep -oE '[0-9]+' | head -1)
+  CL_COST=$(grep -E 'Total cost:' "$CF" | tail -1 | grep -oE '[0-9.]+' | head -1)
+  CL_ERR=$(grep -cE 'errored=[1-9]' "$CF" 2>/dev/null); CL_ERR=$(echo "$CL_ERR" | tr -d '\n '); [ -n "$CL_ERR" ] || CL_ERR=0
+fi
+# Current backlog proxy: approved reports touched since the last classifier run.
+CL_BACKLOG="?"
+if [ -n "${NEXT_PUBLIC_SUPABASE_URL:-}" ] && [ -n "$CL_RUNISO" ]; then
+  CL_BACKLOG=$(node -e '
+    const {createClient}=require("@supabase/supabase-js");
+    const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY);
+    sb.from("reports").select("id",{count:"exact",head:true}).eq("status","approved").gte("updated_at",process.argv[1])
+      .then(r=>console.log(r.count==null?"?":r.count)).catch(()=>console.log("?"));
+  ' "$CL_RUNISO" 2>/dev/null || echo "?")
+fi
+
 # ── render ───────────────────────────────────────────────────────────
 cat <<EOF
 CA INGEST — morning digest  ($(date '+%a %b %d %H:%M %Z'))
@@ -132,9 +166,15 @@ Corpus:     ${TOTAL} CA rows $(delta "$TOTAL" "$PREV_TOTAL") since last digest
 Since last: ${WAVEN} extract waves | submit/wave avg ${SAVG} (range ${SMIN}-${SMAX}) | spend \$${PERWCOST}${PROGNOTE}
 Cost-to-date: \$${ALLCOST} of \$${BUDGET} budget (${PCT}%)
 LoC health: ${H429} HTTP 429 | ${H5XX} 5xx/backoff | OCR err ${OCRRATE}
+─ Classifier (com.paradocs.classifier-daily, 4 AM) ─
+Last run:   ${CL_STATE}, ${CL_AGE}
+Tagged:     ${CL_MATCHED} reports matched | ${CL_JUNC} junction links | \$${CL_COST} | batch-errored=${CL_ERR}
+Backlog:    ${CL_BACKLOG} approved awaiting classification (updated since last run)
 EOF
 [ "$H429" -gt 0 ] 2>/dev/null && echo "⚠ ATTENTION: $H429 HTTP 429s — loc.gov throttling; consider pausing/lowering rate."
 [ "${TOTAL:-?}" = "?" ] && echo "⚠ DB unreachable this run — counts shown as ?; daemon/log metrics are still accurate."
+[ -n "$CL_EXIT" ] && [ "$CL_EXIT" != "0" ] && echo "⚠ ATTENTION: classifier last run FAILED (exit $CL_EXIT) — check outputs/launchd-classifier.err"
+[ "${CL_ERR:-0}" -gt 0 ] 2>/dev/null && echo "⚠ classifier had $CL_ERR batch(es) with errored>0 — some reports may be untagged."
 
 # ── persist state for next digest's deltas ───────────────────────────
 node -e '
