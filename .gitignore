@@ -137,3 +137,16 @@ outputs/batch-narrative-*.log
 outputs/ca-probe*.json
 outputs/duchas-tpc.html
 outputs/ca-harvest-state.json
+
+# V11.18.41 — Drive image batch (in Drive + uploaded to Storage) + worklist artifacts
+Paradocs Phenomena Images*
+/drive-image-sources.csv
+/drive-image-mapping-report.csv
+/Paradocs_Phenomena_Image_Status.csv
+/Paradocs_Phenomena_Worklist.xlsx
+/worklist-descriptions.csv
+/worklist-descriptions-column.txt
+outputs/drive-adopt-snapshot.json
+outputs/cross-category-backfill-snapshot.json
+outputs/worklist-data.json
+outputs/worklist-desc-cache*.json

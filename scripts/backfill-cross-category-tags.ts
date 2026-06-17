@@ -63,7 +63,7 @@ async function main() {
     console.log('[xcat] reverted'); return
   }
 
-  const slugs = onlySlug ? [onlySlug] : UNIVERSAL_SLUGS
+  const slugs = onlySlug ? onlySlug.split(',').map((s) => s.trim()).filter(Boolean) : UNIVERSAL_SLUGS
   const snap: any[] = (apply && fs.existsSync(SNAP)) ? (JSON.parse(fs.readFileSync(SNAP, 'utf8')).links || []) : []
   const doneSet = new Set(snap.map((l: any) => l.report_id + '|' + l.phenomenon_id))
   let totalCand = 0, linked = 0, rejected = 0, uncertain = 0
@@ -73,16 +73,28 @@ async function main() {
     const phen = phr.data && phr.data[0]
     if (!phen || phen.status !== 'active') { console.log('  skip ' + slug + ' (not active)'); continue }
 
-    // candidate reports in OTHER categories matching name/aliases, not yet linked
-    const or = terms(phen.name, phen.aliases).flatMap((t) => [`title.ilike.%${t}%`, `summary.ilike.%${t}%`, `description.ilike.%${t}%`]).join(',')
-    const cand: any[] = []
-    let from = 0
-    while (true) {
-      const r = await sb.from('reports').select('id,title,summary,description,category,city,state_province,country')
-        .eq('status', 'approved').neq('category', phen.category).or(or).range(from, from + 999)
-      if (r.error) { console.log('  ' + slug + ' query err: ' + r.error.message); break }
-      const rows = r.data || []; cand.push(...rows); if (rows.length < 1000) break; from += 1000
+    // candidate reports in OTHER categories matching name/aliases, not yet linked.
+    // V11.18.41 — per-term + per-field paginated fetch (was: one 24-clause OR over
+    // ~300k reports incl. the big `description` column → Postgres statement-timeouts
+    // that silently zeroed/partial'd common-word phenomena like apparition/NDE/sleep-
+    // paralysis). Each statement is now a single ilike, so it stays under the timeout;
+    // a timed-out page is logged + skipped (never silently zeroes the whole phenomenon).
+    const candMap = new Map<string, any>()
+    let timedOut = false
+    for (const t of terms(phen.name, phen.aliases)) {
+      for (const field of ['title', 'summary', 'description']) {
+        let from = 0
+        while (true) {
+          const r = await sb.from('reports').select('id,title,summary,description,category,city,state_province,country')
+            .eq('status', 'approved').neq('category', phen.category).ilike(field, `%${t}%`).range(from, from + 499)
+          if (r.error) { timedOut = true; console.log('  ' + slug + ' [' + field + ':"' + t + '"] err (skip page): ' + r.error.message); break }
+          const rows = r.data || []; for (const row of rows) candMap.set(row.id, row)
+          if (rows.length < 500) break; from += 500
+        }
+      }
     }
+    const cand = [...candMap.values()]
+    if (timedOut) console.log('  ' + slug + ' note: some pages timed out — partial candidate set (re-run to top up)')
     // exclude already-linked to this phenomenon
     const already = new Set<string>()
     const ids = cand.map((c) => c.id)
@@ -95,22 +107,33 @@ async function main() {
     console.log('  ' + slug.padEnd(24) + ' candidates(cross-cat, unlinked): ' + todo.length + (todo.length ? '  [' + phen.category + ']' : ''))
 
     if (!apply) continue
-    for (const r of todo) {
-      const k = r.id + '|' + phen.id
-      if (doneSet.has(k)) continue
-      try {
-        const res = await verifyAndUpsertTag(sb, {
-          reportId: r.id, phenomenonId: phen.id, confidence: 0.7, taggedBy: 'cross-category-backfill',
-          phen: { name: phen.name, slug: phen.slug, category: phen.category, ai_summary: phen.ai_summary },
-          report: { title: r.title, summary: r.summary, description: r.description, city: r.city, state_province: r.state_province, country: r.country },
-        }, anth)
-        if (res.verdict === 'no') { rejected++; continue }
-        if (res.verdict === 'uncertain' && !includeUncertain) { uncertain++; continue }
-        if (res.persisted) { linked++; snap.push({ report_id: r.id, phenomenon_id: phen.id }); doneSet.add(k) }
-      } catch (e: any) { /* gate error → skip, best-effort */ }
-      if (linked % 100 === 0 && linked) process.stdout.write('\r  linked ' + linked + ' (rej ' + rejected + ', unc-skipped ' + uncertain + ')')
+    // V11.18.39 — concurrency pool (~8) over the verify-gate calls; each call
+    // is an independent Haiku request, so this collapses wall-clock ~8x vs
+    // sequential. Counters/snapshot mutations are safe (JS is single-threaded
+    // between awaits). Snapshot flushed every ~200 links for resume/revert.
+    const CONCURRENCY = 8
+    let cursor = 0, sinceFlush = 0
+    const flush = () => { fs.mkdirSync(path.dirname(SNAP), { recursive: true }); fs.writeFileSync(SNAP, JSON.stringify({ savedAt: new Date().toISOString(), links: snap }, null, 0)) }
+    async function worker() {
+      while (cursor < todo.length) {
+        const r = todo[cursor++]
+        const k = r.id + '|' + phen.id
+        if (doneSet.has(k)) continue
+        try {
+          const res = await verifyAndUpsertTag(sb, {
+            reportId: r.id, phenomenonId: phen.id, confidence: 0.7, taggedBy: 'cross-category-backfill',
+            phen: { name: phen.name, slug: phen.slug, category: phen.category, ai_summary: phen.ai_summary },
+            report: { title: r.title, summary: r.summary, description: r.description, city: r.city, state_province: r.state_province, country: r.country },
+          }, anth)
+          if (res.verdict === 'no') { rejected++; continue }
+          if (res.verdict === 'uncertain' && !includeUncertain) { uncertain++; continue }
+          if (res.persisted) { linked++; snap.push({ report_id: r.id, phenomenon_id: phen.id }); doneSet.add(k); if (++sinceFlush >= 200) { flush(); sinceFlush = 0 } }
+        } catch (e: any) { /* gate error → skip, best-effort */ }
+        if (linked % 100 === 0 && linked) process.stdout.write('\r  linked ' + linked + ' (rej ' + rejected + ', unc-skipped ' + uncertain + ')')
+      }
     }
-    if (apply) { fs.mkdirSync(path.dirname(SNAP), { recursive: true }); fs.writeFileSync(SNAP, JSON.stringify({ savedAt: new Date().toISOString(), links: snap }, null, 0)) }
+    await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()))
+    flush()
   }
 
   console.log('\n=== cross-category backfill ' + (apply ? '(APPLY)' : '(DRY RUN — candidate counts, no AI)') + ' ===')
