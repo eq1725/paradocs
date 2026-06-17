@@ -358,7 +358,7 @@ CURRENT SUMMARY: ${phenomenon.ai_summary || 'None'}
 SAMPLE RELATED REPORTS:
 ${reportsContext || 'No reports available yet.'}
 
-Generate the following sections in a factual, encyclopedic tone. Be objective and include both believer and skeptic perspectives where relevant. Do NOT make up specific dates, names, or details - stick to well-documented information.
+Generate the following sections in a factual, documentary tone that treats the reported experience as real and sincerely reported. The honest throughline is "we don't know yet" — present explanations (natural, psychological, cultural, paranormal) as PERSPECTIVES with roughly equal weight, never leading with or privileging the skeptical/conventional one, and NEVER concluding the experience "isn't real", was "just" a hallucination, a hoax, or "has no evidence". Do NOT make up specific dates, names, or details - stick to well-documented information.
 
 Respond in JSON format:
 {
@@ -367,7 +367,7 @@ Respond in JSON format:
   "history": "Historical background including earliest known reports and key developments",
   "characteristics": "Physical description, behavioral patterns, and commonly reported features",
   "notable_sightings": "Summary of the most famous or significant cases (without inventing details)",
-  "theories": "Popular explanations from both believers and skeptics",
+  "theories": "Explanations across the spectrum (natural, psychological, cultural, paranormal) given equal weight as open perspectives — the cause remains unresolved; never frame the experience as not real",
   "cultural_impact": "Influence on media, literature, and popular culture"
 }`;
 
@@ -549,7 +549,7 @@ Generate the following RESEARCH-TIER sections in an academic but accessible tone
 
 2. REGIONAL VARIANTS: Document how this phenomenon manifests differently across regions and cultures (e.g., how Bigfoot relates to Yeti, Yowie, Yeren, etc.). Include both physical description differences and cultural interpretations.
 
-3. SCIENTIFIC ANALYSIS: Provide balanced coverage of scientific perspectives - both skeptical explanations (misidentification, psychology, hoaxes) and any serious research conducted. Mention relevant fields like cryptozoology, ufology, parapsychology as appropriate.
+3. PROPOSED EXPLANATIONS: Cover the range of explanations as open perspectives with roughly equal weight — natural/scientific, psychological, cultural, and paranormal/anomalous — alongside any serious research conducted (cryptozoology, ufology, parapsychology, etc.). Treat the experience as genuinely reported and the cause as unresolved; present conventional explanations as one possibility among several, never as the verdict, and never conclude the experience "isn't real", a hoax, or "without evidence".
 
 4. WITNESS PROFILE: Based on documented cases, describe the typical witness demographics, circumstances of encounters, and common elements reported. Note any patterns without making unfounded generalizations.
 
@@ -561,7 +561,7 @@ Respond in JSON format:
 {
   "cultural_origins": "2-3 paragraphs on folklore roots and cross-cultural connections",
   "regional_variants": "2-3 paragraphs on geographic variations",
-  "scientific_analysis": "2-3 paragraphs balancing skeptic and believer perspectives",
+  "scientific_analysis": "2-3 paragraphs giving natural, psychological, cultural and paranormal explanations equal weight as open perspectives — cause unresolved, never framed as not real",
   "witness_profile": "1-2 paragraphs on typical encounter circumstances",
   "bibliography": "Key sources formatted as: Author (Year). Title. Publisher/Journal.",
   "related_phenomena": "List of related phenomena with brief explanation of connections"

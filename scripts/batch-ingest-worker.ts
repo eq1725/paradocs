@@ -87,6 +87,7 @@ interface CliArgs {
   maxWaitSec: number
   resumeBatchId: string | null
   noClassify: boolean
+  noPromote: boolean  // V11.18.37 — narrate-only: write narrative/assessment, never change status
   offset: number  // V11.17.63 — for parallel-drain partitioning
 }
 
@@ -100,6 +101,7 @@ function parseArgs(argv: string[]): CliArgs {
     maxWaitSec: 3600,
     resumeBatchId: null,
     noClassify: false,
+    noPromote: false,
     offset: 0,
   }
   for (var i = 2; i < argv.length; i++) {
@@ -113,6 +115,7 @@ function parseArgs(argv: string[]): CliArgs {
     else if (a === '--max-wait') { args.maxWaitSec = parseInt(argv[++i], 10) || 3600 }
     else if (a === '--resume') { args.resumeBatchId = argv[++i]; args.backfill = false }
     else if (a === '--no-classify') { args.noClassify = true }
+    else if (a === '--no-promote') { args.noPromote = true }
     else if (a === '--help' || a === '-h') {
       console.log('Usage: tsx scripts/batch-ingest-worker.ts [--backfill] [--status <s>] [--limit <n>] [--offset <n>] [--dry-run] [--poll-interval <s>] [--max-wait <s>] [--resume <batch_id>]')
       process.exit(0)
@@ -554,7 +557,7 @@ async function main() {
             var acAnomalous = typeof acRaw.anomalous === 'string' ? acRaw.anomalous : null
             var acConfidence = typeof acRaw.confidence === 'number' ? acRaw.confidence : 0
             var acGenre = typeof acRaw.genre === 'string' ? acRaw.genre : ''
-            if (acAnomalous === 'no' && acConfidence >= 0.9) {
+            if (acAnomalous === 'no' && acConfidence >= 0.9 && !args.noPromote) {
               anomalyAutoArchive = true
               try {
                 var archiveRes = await (supabase.from('reports') as any)
@@ -607,7 +610,11 @@ async function main() {
           feed_hook: parsed.feed_hook,
         })
 
-        if (anomalyAutoArchive) {
+        if (args.noPromote) {
+          // V11.18.37 — narrate-only mode: narrative + assessment already
+          // persisted above; do NOT change status. The CA auto-approve gate
+          // (scripts/ca-auto-approve.ts) is the sole promoter.
+        } else if (anomalyAutoArchive) {
           // V11.17.46 — row already archived above; skip A/B/C entirely.
         } else if (aiInsufficient || metaHit) {
           // Path A — auto-reject
