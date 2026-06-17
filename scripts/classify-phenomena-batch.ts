@@ -107,7 +107,19 @@ interface Phenomenon {
   category: string | null
 }
 
-function buildSystemPrompt(category: string, phenomena: Phenomenon[]): string {
+// V11.18.39 — cross-category ("universal") phenomena: genuinely cross-cutting
+// experiences that recur regardless of a report's home category. Injected into
+// EVERY category's catalog so e.g. a ghosts-categorized angel report can be
+// tagged to religion's Angels. The verifyTag gate still guards every link.
+const UNIVERSAL_SLUGS = [
+  'angels', 'demon', 'demonic-possession', 'marian-apparitions',
+  'shadow-person', 'poltergeist', 'apparition', 'doppelganger', 'black-eyed-children',
+  'near-death-experience', 'out-of-body-experience', 'astral-projection',
+  'sleep-paralysis', 'missing-time', 'time-slip', 'glitch-in-the-matrix',
+  'alien-abduction', 'men-in-black', 'telepathy', 'crisis-apparition', 'orbs',
+]
+
+function buildSystemPrompt(category: string, phenomena: Phenomenon[], universal: Phenomenon[] = []): string {
   const lines: string[] = []
   lines.push('You are a paranormal phenomenon classifier for the Paradocs corpus.')
   lines.push('')
@@ -140,6 +152,16 @@ function buildSystemPrompt(category: string, phenomena: Phenomenon[]): string {
     const summary = (p.ai_summary || '').replace(/\n/g, ' ').substring(0, 140)
     lines.push('- ' + p.slug + ' | ' + p.name + aliasStr)
     if (summary) lines.push('    ' + summary)
+  }
+  if (universal.length > 0) {
+    lines.push('')
+    lines.push('-- CROSS-CATEGORY phenomena (tag these if they fit, even though this report is in "' + category + '") --')
+    for (const p of universal) {
+      const aliasStr = (p.aliases && p.aliases.length > 0) ? ' [aka: ' + p.aliases.slice(0, 6).join(', ') + ']' : ''
+      const summary = (p.ai_summary || '').replace(/\n/g, ' ').substring(0, 140)
+      lines.push('- ' + p.slug + ' | ' + p.name + aliasStr)
+      if (summary) lines.push('    ' + summary)
+    }
   }
   lines.push('')
   lines.push('====================================================================')
@@ -271,6 +293,19 @@ async function classifyCategory(
     slugLookup.set(p.slug, { phenomenonId: p.id, phen: p })
   }
 
+  // V11.18.39 — load cross-category ("universal") phenomena not already in
+  // this category, add to the catalog + slugLookup so cross-cutting tags resolve.
+  const universal = (await fetchAllRows<Phenomenon>(
+    sb.from('phenomena')
+      .select('id, slug, name, aliases, ai_summary, category')
+      .eq('status', 'active')
+      .in('slug', UNIVERSAL_SLUGS)
+  )).filter((p) => p.category !== category)
+  for (const p of universal) {
+    if (!slugLookup.has(p.slug)) slugLookup.set(p.slug, { phenomenonId: p.id, phen: p })
+  }
+  console.log('Cross-category phenomena added to catalog: ' + universal.length)
+
   // Load approved reports needing classification — reports that DON'T
   // already have any row in report_phenomena (so we don't re-classify).
   // Easiest implementation: fetch all approved reports in this category,
@@ -315,7 +350,7 @@ async function classifyCategory(
   const reportLookup = new Map<string, any>()
   for (const r of toClassify) reportLookup.set(r.id, r)
 
-  const systemPrompt = buildSystemPrompt(category, phenomena)
+  const systemPrompt = buildSystemPrompt(category, phenomena, universal)
   const sysTokens = Math.ceil(systemPrompt.length / 4)
   console.log('System prompt size: ~' + sysTokens + ' tokens')
 
