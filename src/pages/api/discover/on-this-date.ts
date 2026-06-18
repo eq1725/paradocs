@@ -131,15 +131,57 @@ export default async function handler(
       var eventDate = (p as any)._eventDate || p.first_reported_date
       return {
         item_type: 'on_this_date',
+        kind: 'phenomenon',
         id: 'otd-' + p.id,
         name: p.name,
         slug: p.slug,
+        href: '/phenomena/' + p.slug,
         category: p.category,
         ai_summary: p.ai_summary,
         event_year: eventYear,
         first_reported_date: eventDate,
       }
     })
+
+    // V11.18.59 — Reliability: phenomena matching today's exact MM-DD are rare
+    // (most days = 0), so the card almost never appeared. Fall back to approved
+    // REPORTS whose event_date is exactly today's MM-DD in any year — these exist
+    // for virtually every calendar day, so the card now shows daily. Phenomena
+    // still lead when present; reports fill otherwise.
+    if (matches.length === 0) {
+      var pad = function (n: number) { return String(n).padStart(2, '0') }
+      var mmdd = '-' + pad(month) + '-' + pad(day)
+      var dates: string[] = []
+      for (var yr = 1800; yr <= now.getFullYear(); yr++) dates.push(yr + mmdd)
+      var repQuery: any = supabase
+        .from('reports')
+        .select('id, slug, title, category, summary, paradocs_narrative, event_date, event_date_precision')
+        .eq('status', 'approved')
+        .eq('event_date_precision', 'exact')
+        .in('event_date', dates)
+        .order('event_date', { ascending: true })
+        .limit(8)
+      if (categoryFilter) repQuery = repQuery.eq('category', categoryFilter)
+      var repRes: any = await repQuery
+      var repItems = ((repRes && repRes.data) || []).map(function (r: any) {
+        var narrative = String(r.paradocs_narrative || r.summary || '')
+        var summary = narrative.length > 320 ? narrative.slice(0, 317).replace(/\s+\S*$/, '') + '…' : narrative
+        var d = new Date(r.event_date)
+        return {
+          item_type: 'on_this_date',
+          kind: 'report',
+          id: 'otd-r-' + r.id,
+          name: r.title,
+          slug: r.slug,
+          href: '/report/' + r.slug,
+          category: r.category,
+          ai_summary: summary,
+          event_year: d.getUTCFullYear(),
+          first_reported_date: r.event_date,
+        }
+      })
+      for (var ri = 0; ri < repItems.length; ri++) matches.push(repItems[ri])
+    }
 
     // Sort by year ascending (oldest first)
     matches.sort(function (a, b) { return a.event_year - b.event_year })

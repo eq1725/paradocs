@@ -630,7 +630,10 @@ export default async function handler(
           // Supabase signing when mux_playback_id is missing or
           // mux_status isn't 'ready' yet (e.g. just-published video
           // mid-encode, or legacy rows that pre-date the Mux pipeline).
-          var SIGNED_TTL_SEC = 4 * 60 * 60
+          // V11.18.61 — 24h (was 4h). Supabase-hosted video signed URLs were
+          // expiring while a feed tab stayed open, 403-ing the player mid-session;
+          // 24h covers a session. (New videos use Mux/public CDN — no expiry.)
+          var SIGNED_TTL_SEC = 24 * 60 * 60
           var withUrls = await Promise.all(videoRows.map(async function (v: any) {
             // Mux path — synchronous, no signing required.
             if (v.mux_playback_id && v.mux_status === 'ready') {

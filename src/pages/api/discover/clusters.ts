@@ -362,15 +362,19 @@ async function loadClusterReports(
   // Founder asked for: `cluster=X, in_query=N, fallback=M, total=K`.
   // This is the single line that surfaces in Vercel logs on every
   // cluster build so the operator can audit the backstop on demand.
-  console.log('[loadClusterReports]', {
-    cluster: fallbackContext.clusterIdForLog || null,
-    category: fallbackContext.category,
-    state: fallbackContext.state || null,
-    ids_supplied: firstThree.length,
-    in_query: inQueryRowCount,
-    fallback: fallbackRowCount,
-    total: out.length,
-  })
+  // V11.18.61 — gate the per-build diagnostic behind dev so it doesn't spam
+  // production logs on every cluster assembly.
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[loadClusterReports]', {
+      cluster: fallbackContext.clusterIdForLog || null,
+      category: fallbackContext.category,
+      state: fallbackContext.state || null,
+      ids_supplied: firstThree.length,
+      in_query: inQueryRowCount,
+      fallback: fallbackRowCount,
+      total: out.length,
+    })
+  }
 
   return out
 }
@@ -400,6 +404,9 @@ export default async function handler(
     var supabase = getSupabase()
     var clusters: ClusterCard[] = []
     var nowIso = new Date().toISOString()
+    // V11.18.60 — honor an active category filter so the feed can show a
+    // category-relevant cluster instead of suppressing clusters entirely.
+    var categoryFilter = (req.query && (req.query.category as string)) || null
 
     // ── Geographic clusters: 3+ approved reports in same state + cat in 7 days
     var sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
@@ -629,6 +636,18 @@ export default async function handler(
         clusters.push(burstCards[bi])
       }
     }
+
+    // V11.18.60 — restrict to the active category when filtering.
+    if (categoryFilter) clusters = clusters.filter(function (c) { return c.category === categoryFilter })
+
+    // V11.18.58 — Never serve a cluster the feed can't fill. The cluster card's
+    // substance zone shows up to 3 representative reports; a cluster that resolves
+    // to <3 (stale linked ids whose reports changed status, or a thin category
+    // even after the 30-day fallback) renders an empty/defeatist zone. Drop those
+    // here so the client only ever picks a cluster with real reports to show. If
+    // none qualify this session, the feed simply omits the cluster card (better
+    // than an empty one).
+    clusters = clusters.filter(function (c) { return (c.representative_reports || []).length >= 3 })
 
     // Sort: geographic clusters first (more specific), then bursts; ties broken by count.
     clusters.sort(function (a, b) {

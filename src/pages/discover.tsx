@@ -1077,31 +1077,29 @@ export default function DiscoverPage(props: DiscoverPageProps) {
       console.log('[Discover/FindingCard] suppressed — category filter active:', categoryFilter)
     }
 
-    // Skip cluster injection when a category is active — clusters
-    // intentionally cross categories and would break the topic-filter
-    // contract.
-    if (!categoryFilter) {
-      fetches.push(
-        fetch('/api/discover/clusters')
-          .then(function (res) { return res.ok ? res.json() : null })
-          .then(function (data) {
-            if (data && data.clusters && data.clusters.length > 0) {
-              // V11.17.41 — pick a cluster from the top-N using the
-              // session seed so each session sees a different one
-              // instead of the same "California UFOs" card every time.
-              // The API returns up to 5 clusters sorted by report_count;
-              // the operator flagged that always taking clusters[0]
-              // made the feed feel static. Sessions with seed=N pick
-              // clusters[N % available.length].
-              var available = data.clusters as ClusterCardData[]
+    // V11.18.60 — Clusters are now category-aware. Previously cluster injection
+    // was suppressed whenever a category filter was active; instead we pass the
+    // category to the endpoint (which restricts to that category) and also filter
+    // client-side as a safety net, so a filtered feed shows a relevant cluster
+    // when one exists rather than none.
+    fetches.push(
+      fetch('/api/discover/clusters' + catParam)
+        .then(function (res) { return res.ok ? res.json() : null })
+        .then(function (data) {
+          if (data && data.clusters && data.clusters.length > 0) {
+            // V11.17.41 — pick a cluster from the top-N using the session seed so
+            // each session sees a different one instead of the same card every time.
+            var available = data.clusters as ClusterCardData[]
+            if (categoryFilter) available = available.filter(function (c) { return c.category === categoryFilter })
+            if (available.length > 0) {
               var pickIdx = available.length > 1 ? sessionSeed.current % available.length : 0
               var clusterCard: ClusterCardData = Object.assign({}, available[pickIdx], { item_type: 'cluster' as const })
               pendingSpecialCards.current.push({ card: clusterCard, position: 8 })
             }
-          })
-          .catch(function () {})
-      )
-    }
+          }
+        })
+        .catch(function () {})
+    )
 
     Promise.all(fetches).then(async function () {
       // V11.17.40 — Backlog #4 cadence + cap + cooldown. Tier gate
