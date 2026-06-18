@@ -293,17 +293,42 @@ export default function ExplorePage() {
       document.querySelectorAll<HTMLElement>('.snap-x').forEach(function(el) {
         if ((el as any).__hpass) return
         ;(el as any).__hpass = true
-        // touch-action:pan-x lets Android route vertical drags to the page.
-        el.style.touchAction = 'pan-x'
-        // iOS ignores pan-x on overflow scrollers and "locks" the touch to any
-        // axis the element can scroll. overflow-x-auto implicitly computes
-        // overflow-y:auto, so iOS thinks the carousel scrolls vertically and
-        // swallows the vertical drag. Forcing overflow-y:hidden removes the
-        // vertical scroll axis, so iOS bubbles the vertical drag to the page
-        // while horizontal swipe (overflow-x:auto) still works.
+        // V11.18.48 — iOS won't release a native horizontal overflow scroller: a
+        // touch landing on it locks to the carousel so the page can't scroll
+        // vertically (overflow-y:hidden + pan-x didn't help). Fix: hand ALL
+        // vertical panning to the page via touch-action:pan-y (iOS honors this),
+        // and re-implement horizontal swipe + momentum in JS so both still work.
+        el.style.touchAction = 'pan-y'
         el.style.overflowY = 'hidden'
+        el.style.scrollSnapType = 'none' // we drive horizontal manually; avoids snap fighting the fling
         // Desktop: forward vertical-dominant wheel to the page.
         el.addEventListener('wheel', wheelPass as EventListener, { passive: false })
+        // Touch: manual horizontal drag + momentum (vertical is the browser's, via pan-y).
+        var sx = 0, ssl = 0, lx = 0, lt = 0, vx = 0, raf = 0, drag = false
+        el.addEventListener('touchstart', function(e: TouchEvent) {
+          if (e.touches.length !== 1) return
+          cancelAnimationFrame(raf); drag = true
+          sx = lx = e.touches[0].clientX; ssl = el.scrollLeft; lt = performance.now(); vx = 0
+        }, { passive: true })
+        el.addEventListener('touchmove', function(e: TouchEvent) {
+          if (!drag || e.touches.length !== 1) return
+          var x = e.touches[0].clientX
+          el.scrollLeft = ssl - (x - sx)
+          var now = performance.now(), dt = now - lt
+          if (dt > 0) { vx = (x - lx) / dt; lx = x; lt = now }
+        }, { passive: true })
+        function end() {
+          if (!drag) return
+          drag = false
+          var v = vx * 16 // px per frame
+          ;(function step() {
+            if (Math.abs(v) < 0.4) return
+            el.scrollLeft -= v; v *= 0.94
+            raf = requestAnimationFrame(step)
+          })()
+        }
+        el.addEventListener('touchend', end, { passive: true })
+        el.addEventListener('touchcancel', end, { passive: true })
       })
     }
     apply()
