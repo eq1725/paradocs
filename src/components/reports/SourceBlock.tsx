@@ -36,6 +36,7 @@
 import React, { useState } from 'react'
 import { ExternalLink, ShieldAlert } from 'lucide-react'
 import { resolveMediaTier, type OembedResult } from '@/lib/media/oembed'
+import SourceLogo from './SourceLogo'
 
 export interface SourceBlockProps {
   /** The URL we're attributing to / linking back to. */
@@ -127,24 +128,12 @@ function AttributionHeader(props: {
   // that text-readers parsed as four fragments ('OBE · Original
   // source · OBERF · View original'). One row, one phrase, one CTA.
   const label = sourceLabel || oembed.platformLabel
-  // V10.7.B.4.4 — Drop the PlatformBadge when the source label is
-  // short enough to read on its own (≤5 chars). The badge renders the
-  // first 3 letters of the label as initials, so for short labels
-  // like 'OBERF' we end up showing 'OBE · OBERF' — redundant and
-  // visually confusing. For longer labels (e.g. 'YouTube' → 'YOU',
-  // 'Coast to Coast AM' → 'COA') the initials still add visual
-  // identity, so we keep the badge. Platform-coded badges
-  // (youtube, reddit, etc.) always render because they carry color
-  // identity beyond just initials.
-  const isKnownPlatform = oembed.platform !== 'default' && oembed.platform !== 'web'
-  const showBadge = isKnownPlatform || (oembed.platformLabel || '').length > 5
-
+  // V11.18.44 — proper source logo (brand SVG / org glyph) keyed off the
+  // source URL, replacing the old 3-letter text badge ("RED", "OBE"…).
   return (
     <header className="flex items-center justify-between gap-2 p-3 bg-gray-950/50 border-b border-gray-800">
       <div className="flex items-center gap-2 min-w-0">
-        {showBadge && (
-          <PlatformBadge platform={oembed.platform} label={oembed.platformLabel} />
-        )}
+        <SourceLogo sourceUrl={sourceUrl} platform={oembed.platform} label={oembed.platformLabel} />
         <p className="text-sm text-gray-200 truncate leading-tight">
           <span className="text-gray-500">Originally published at </span>
           <span className="text-white font-semibold">{label}</span>
@@ -189,32 +178,6 @@ function EmbedFrame(props: { oembed: OembedResult }) {
 // for commentary" caption for non-iframe sources (news, BFRO, OBERF,
 // etc.). Those sources now render text-only attribution via
 // AttributionHeader only — no source-derived imagery or prose.
-
-function PlatformBadge(props: { platform: string; label: string }) {
-  // Stylized platform badge — keeps source identity readable
-  // even at small sizes. Color-coded per platform family.
-  const tint = TINTS[props.platform] || TINTS.default
-  return (
-    <span
-      className={'inline-flex items-center justify-center w-9 h-9 rounded-md text-[10px] font-bold uppercase tracking-wider flex-shrink-0 ' + tint.bg + ' ' + tint.fg}
-      title={props.label}
-    >
-      {props.label.slice(0, 3).toUpperCase()}
-    </span>
-  )
-}
-
-const TINTS: Record<string, { bg: string; fg: string }> = {
-  youtube:     { bg: 'bg-red-600/20 border border-red-600/40',     fg: 'text-red-200' },
-  vimeo:       { bg: 'bg-sky-500/20 border border-sky-500/40',     fg: 'text-sky-200' },
-  reddit:      { bg: 'bg-orange-500/20 border border-orange-500/40', fg: 'text-orange-200' },
-  imgur:       { bg: 'bg-emerald-500/20 border border-emerald-500/40', fg: 'text-emerald-200' },
-  tiktok:      { bg: 'bg-pink-500/20 border border-pink-500/40',   fg: 'text-pink-200' },
-  archive_org: { bg: 'bg-amber-500/20 border border-amber-500/40', fg: 'text-amber-200' },
-  hostile:     { bg: 'bg-gray-700 border border-gray-600',         fg: 'text-gray-300' },
-  default:     { bg: 'bg-gray-800 border border-gray-700',         fg: 'text-gray-300' },
-  web:         { bg: 'bg-gray-800 border border-gray-700',         fg: 'text-gray-300' },
-}
 
 function AdditionalMedia(props: {
   items: NonNullable<SourceBlockProps['additionalMedia']>

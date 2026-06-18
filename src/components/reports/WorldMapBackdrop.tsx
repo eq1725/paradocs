@@ -420,7 +420,7 @@ export default function WorldMapBackdrop() {
           <p className="text-[10px] uppercase tracking-[0.22em] text-[#c4b5fd] mb-2 font-semibold">Location</p>
           <p className="font-display text-xl sm:text-2xl font-semibold text-white tracking-tight" style={{ letterSpacing: '-0.005em' }}>Not on record</p>
           <p className="text-[11px] sm:text-xs text-gray-200/90 mt-2.5 leading-relaxed max-w-sm mx-auto">
-            The witness did not record where this took place &mdash; or the geography hasn&apos;t been extracted from the source yet.
+            The witness did not record where this took place.
           </p>
         </div>
       </div>
