@@ -144,11 +144,11 @@ var SPOTLIGHT_CARDS: SpotlightCard[] = [
   {
     id: 'modern-era',
     title: 'Modern Era',
-    subtitle: '20th century (1900–1999)',
+    subtitle: '1900 to today',
     icon: <Clock className="w-7 h-7" />,
     gradient: 'from-slate-800/60 via-slate-950/40 to-gray-950',
     accentColor: 'hover:border-slate-400/40',
-    href: '/explore?mode=map&dateFrom=1900&dateTo=1999',
+    href: '/explore?mode=map&dateFrom=1900',
     countFor: function(c) { return c.modern },
   },
   {
@@ -216,7 +216,7 @@ async function fetchSpotlightCounts(): Promise<SpotlightCounts> {
     psychological: approvedHead().eq('category', 'psychological_experiences'),
     psychic: approvedHead().eq('category', 'psychic_phenomena'),
     esoteric: approvedHead().eq('category', 'esoteric_practices'),
-    modern: approvedHead().gte('event_date', '1900-01-01').lte('event_date', '1999-12-31'),
+    modern: approvedHead().gte('event_date', '1900-01-01'),
     recent: approvedHead().gte('event_date', '2015-01-01'),
     uk_ghosts: approvedHead().eq('category', 'ghosts_hauntings').eq('country', 'United Kingdom'),
     canada: approvedHead().eq('country', 'Canada'),
