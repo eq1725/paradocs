@@ -57,6 +57,20 @@ const REJECT_PATTERNS = [
   /\b(for sale|buy now|etsy|merch)\b/i,
   /\b(meme|shitpost|joke)\b/i,
   /\[(removed|deleted)\]/i,
+  // V11.18.45 — spell/ritual REQUEST intent (not first-person experiences).
+  // r/witchcraft etc. produce spell-requests written in first person ("I want a
+  // spell to…") that pass the experience-marker filter. These are kept tightly
+  // scoped to spell/ritual context so they can't catch genuine experiences that
+  // merely end with a question. (sweep-non-experiencer.ts = precise post-cleanup.)
+  /\b(spell|ritual|hex|curse|charm|binding|cleansing|protection)\s+request\b/i,
+  /\[\s*request\s*\]/i,
+  /\b(requesting|looking for|in search of|seeking)\s+(a |an |some )?(spell|ritual|hex|curse|charm|binding|cleansing)\b/i,
+  /\b(need|want)\s+(a |an )?(spell|ritual|hex|curse|charm)\s+(to|for|that)\b/i,
+  /\b(can|could|would)\s+(someone|anyone|somebody|you)\s+(cast|make|write|do|help me with)\s+(me\s+)?(a |an )?(spell|ritual|hex|curse|charm)\b/i,
+  /\bdoes\s+(anyone|someone)\s+(have|know)\s+(a |an )?(spell|ritual|hex|curse|charm)\b/i,
+  /\b(recommend|suggest)\s+(a |an |some )?(spell|ritual|hex|curse|charm)\b/i,
+  /\bhelp\s+(me\s+)?(craft|cast|write|create|make)\s+(a |an )?(spell|ritual|hex|curse|charm)\b/i,
+  /\bhow\s+(do|can|would|should)\s+i\s+(cast|perform|make|do)\s+(a |an )?(spell|ritual|hex|curse)\b/i,
 ];
 
 // POSITIVE filters - signs of first-hand experience (what we WANT)

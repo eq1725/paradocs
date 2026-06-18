@@ -305,6 +305,21 @@ export const NON_EXPERIENCE_PATTERNS = [
   // Tattoos and cosplay
   /\b(my (new )?tattoo|got (a |this )?tattoo|tattoo (design|idea|artist))\b/i,
   /\b(cosplay|costume|dressed as|dressed up as)\b/i,
+  // V11.18.45 — spell/ritual REQUEST / advice intent (not first-person
+  // experiences). r/witchcraft & similar practice subs produce spell-requests
+  // written in first person ("I want a spell to…") that pass experience-marker
+  // checks. Kept tightly scoped to spell/ritual context so they can't catch a
+  // genuine experience that merely ends with a question. (The Haiku gate in
+  // scripts/sweep-non-experiencer.ts is the precise post-hoc cleanup.)
+  /\b(spell|ritual|hex|curse|charm|binding|cleansing|protection)\s+request\b/i,
+  /\[\s*request\s*\]/i,
+  /\b(requesting|looking for|in search of|seeking)\s+(a |an |some )?(spell|ritual|hex|curse|charm|binding|cleansing)\b/i,
+  /\b(need|want)\s+(a |an )?(spell|ritual|hex|curse|charm)\s+(to|for|that)\b/i,
+  /\b(can|could|would)\s+(someone|anyone|somebody|you)\s+(cast|make|write|do|help me with)\s+(me\s+)?(a |an )?(spell|ritual|hex|curse|charm)\b/i,
+  /\bdoes\s+(anyone|someone)\s+(have|know)\s+(a |an )?(spell|ritual|hex|curse|charm)\b/i,
+  /\b(recommend|suggest)\s+(a |an |some )?(spell|ritual|hex|curse|charm)\b/i,
+  /\bhelp\s+(me\s+)?(craft|cast|write|create|make)\s+(a |an )?(spell|ritual|hex|curse|charm)\b/i,
+  /\bhow\s+(do|can|would|should)\s+i\s+(cast|perform|make|do)\s+(a |an )?(spell|ritual|hex|curse)\b/i,
   // News/articles (not personal experiences)
   /\b(according to|scientists|researchers found|study shows|report says)\b/i,
   // V11.17.14 — Meta-commentary / news-summary / press-release /
