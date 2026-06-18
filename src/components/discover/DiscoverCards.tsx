@@ -1201,7 +1201,8 @@ export function MediaReportCard(props: {
   metaParts.push(locationStr || 'Unknown location')
   var prettyDate = formatReportDate(item.event_date, item.event_date_precision)
   if (prettyDate) metaParts.push(prettyDate)
-  if (item.source_label) metaParts.push(item.source_label)
+  // V11.18.55 — source label dropped from card meta (attribution lives on the
+  // detail page); keeps the preview meta to location + event date.
 
   // V9.0 — anchor case fields drive the new layout.
   var anchorIsSentinel = !!item.anchor_case_hook
@@ -1223,10 +1224,10 @@ export function MediaReportCard(props: {
   var kickerLabel: string
   var KickerIcon: typeof FileText
   if (isEditorial) {
-    kickerLabel = 'ANALYSIS · ' + (item.source_label || 'PARADOCS').toUpperCase()
+    kickerLabel = 'ANALYSIS'
     KickerIcon = Pen
   } else {
-    kickerLabel = 'EYEWITNESS · ' + (item.source_label || 'REPORT').toUpperCase()
+    kickerLabel = 'EYEWITNESS'
     KickerIcon = FileText
   }
   var ctaVerb = isEditorial ? 'Read the Analysis' : 'Read the Account'

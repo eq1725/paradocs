@@ -1614,7 +1614,7 @@ function ExploreBrowseMode() {
                                   {((report as any).feed_hook || report.summary) && <p className="text-xs text-gray-500 line-clamp-2 mb-3 leading-relaxed">{(report as any).feed_hook || report.summary}</p>}
                                   <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500 mt-auto pt-2 border-t border-white/5">
                                     {locationStr && <span className="flex items-center gap-1 truncate max-w-[140px]"><MapPin className="w-3 h-3 flex-shrink-0" />{locationStr}</span>}
-                                    {report.event_date && <span className="flex items-center gap-1"><Clock className="w-3 h-3 flex-shrink-0" />{new Date(report.event_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>}
+                                    {formatEventDate(report.event_date, (report as any).event_date_precision) && <span className="flex items-center gap-1"><Clock className="w-3 h-3 flex-shrink-0" />{formatEventDate(report.event_date, (report as any).event_date_precision)}</span>}
                                     {report.view_count > 0 && <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{report.view_count}</span>}
                                   </div>
                                 </Link>
