@@ -293,7 +293,16 @@ export default function ExplorePage() {
       document.querySelectorAll<HTMLElement>('.snap-x').forEach(function(el) {
         if ((el as any).__hpass) return
         ;(el as any).__hpass = true
+        // touch-action:pan-x lets Android route vertical drags to the page.
         el.style.touchAction = 'pan-x'
+        // iOS ignores pan-x on overflow scrollers and "locks" the touch to any
+        // axis the element can scroll. overflow-x-auto implicitly computes
+        // overflow-y:auto, so iOS thinks the carousel scrolls vertically and
+        // swallows the vertical drag. Forcing overflow-y:hidden removes the
+        // vertical scroll axis, so iOS bubbles the vertical drag to the page
+        // while horizontal swipe (overflow-x:auto) still works.
+        el.style.overflowY = 'hidden'
+        // Desktop: forward vertical-dominant wheel to the page.
         el.addEventListener('wheel', wheelPass as EventListener, { passive: false })
       })
     }
