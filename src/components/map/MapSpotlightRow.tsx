@@ -12,7 +12,7 @@
 
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Map, Flame, Compass, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Map, Flame, Compass, ChevronLeft, ChevronRight, Clock, Sparkles, Globe, MapPin } from 'lucide-react'
 import { CategoryIcon } from '@/components/ui/CategoryIcon'
 import { supabase } from '@/lib/supabase'
 
@@ -30,11 +30,19 @@ interface SpotlightCard {
 
 interface SpotlightCounts {
   total: number
-  ufos_aliens: number
   ufos_aliens_us: number
   cryptids: number
   ghosts_hauntings: number
   preModern: number
+  consciousness: number
+  psychological: number
+  psychic: number
+  esoteric: number
+  modern: number
+  recent: number
+  uk_ghosts: number
+  canada: number
+  australia: number
 }
 
 // V11.14.7 — Card defs. `countFor` resolves against the live counts map
@@ -70,6 +78,47 @@ var SPOTLIGHT_CARDS: SpotlightCard[] = [
     href: '/explore?mode=map&category=ghosts_hauntings',
     countFor: function(c) { return c.ghosts_hauntings },
   },
+  // V11.18.49 — Categories not yet featured.
+  {
+    id: 'altered-states',
+    title: 'Altered States',
+    subtitle: 'Lucid dreaming, OBE, meditation',
+    icon: <CategoryIcon category="consciousness_practices" size={28} />,
+    gradient: 'from-teal-900/60 via-teal-950/40 to-gray-950',
+    accentColor: 'hover:border-teal-500/40',
+    href: '/explore?mode=map&category=consciousness_practices',
+    countFor: function(c) { return c.consciousness },
+  },
+  {
+    id: 'minds-edge',
+    title: "The Mind's Edge",
+    subtitle: 'Sleep paralysis, NDE, missing time',
+    icon: <CategoryIcon category="psychological_experiences" size={28} />,
+    gradient: 'from-rose-900/60 via-rose-950/40 to-gray-950',
+    accentColor: 'hover:border-rose-500/40',
+    href: '/explore?mode=map&category=psychological_experiences',
+    countFor: function(c) { return c.psychological },
+  },
+  {
+    id: 'psychic',
+    title: 'Psychic Phenomena',
+    subtitle: 'Premonitions, telepathy, ESP',
+    icon: <CategoryIcon category="psychic_phenomena" size={28} />,
+    gradient: 'from-violet-900/60 via-violet-950/40 to-gray-950',
+    accentColor: 'hover:border-violet-500/40',
+    href: '/explore?mode=map&category=psychic_phenomena',
+    countFor: function(c) { return c.psychic },
+  },
+  {
+    id: 'esoteric',
+    title: 'Esoteric & Occult',
+    subtitle: 'Ritual, divination, magic',
+    icon: <CategoryIcon category="esoteric_practices" size={28} />,
+    gradient: 'from-fuchsia-900/60 via-fuchsia-950/40 to-gray-950',
+    accentColor: 'hover:border-fuchsia-500/40',
+    href: '/explore?mode=map&category=esoteric_practices',
+    countFor: function(c) { return c.esoteric },
+  },
   {
     id: 'heatmap-global',
     title: 'Global Heatmap',
@@ -81,6 +130,27 @@ var SPOTLIGHT_CARDS: SpotlightCard[] = [
     href: '/explore?mode=map&heatmap=true',
     countFor: function(c) { return c.total },
   },
+  // V11.18.49 — Era ladder (Recent → Modern → Pre-Modern).
+  {
+    id: 'recent-activity',
+    title: 'Recent Activity',
+    subtitle: 'Sightings since 2015',
+    icon: <Sparkles className="w-7 h-7" />,
+    gradient: 'from-emerald-900/60 via-emerald-950/40 to-gray-950',
+    accentColor: 'hover:border-emerald-500/40',
+    href: '/explore?mode=map&dateFrom=2015',
+    countFor: function(c) { return c.recent },
+  },
+  {
+    id: 'modern-era',
+    title: 'Modern Era',
+    subtitle: '20th century (1900–1999)',
+    icon: <Clock className="w-7 h-7" />,
+    gradient: 'from-slate-800/60 via-slate-950/40 to-gray-950',
+    accentColor: 'hover:border-slate-400/40',
+    href: '/explore?mode=map&dateFrom=1900&dateTo=1999',
+    countFor: function(c) { return c.modern },
+  },
   {
     id: 'pre-modern',
     title: 'Pre-Modern Encounters',
@@ -90,6 +160,37 @@ var SPOTLIGHT_CARDS: SpotlightCard[] = [
     accentColor: 'hover:border-indigo-500/40',
     href: '/explore?mode=map&dateTo=1899',
     countFor: function(c) { return c.preModern },
+  },
+  // V11.18.49 — Regional.
+  {
+    id: 'haunted-britain',
+    title: 'Haunted Britain',
+    subtitle: 'United Kingdom hauntings',
+    icon: <CategoryIcon category="ghosts_hauntings" size={28} />,
+    gradient: 'from-purple-900/60 via-purple-950/40 to-gray-950',
+    accentColor: 'hover:border-purple-500/40',
+    href: '/explore?mode=map&category=ghosts_hauntings&country=United+Kingdom',
+    countFor: function(c) { return c.uk_ghosts },
+  },
+  {
+    id: 'canada',
+    title: 'Canada',
+    subtitle: 'Encounters nationwide',
+    icon: <MapPin className="w-7 h-7" />,
+    gradient: 'from-red-900/60 via-rose-950/40 to-gray-950',
+    accentColor: 'hover:border-rose-500/40',
+    href: '/explore?mode=map&country=Canada',
+    countFor: function(c) { return c.canada },
+  },
+  {
+    id: 'australia',
+    title: 'Australia',
+    subtitle: 'Encounters nationwide',
+    icon: <Globe className="w-7 h-7" />,
+    gradient: 'from-orange-900/60 via-orange-950/40 to-gray-950',
+    accentColor: 'hover:border-orange-500/40',
+    href: '/explore?mode=map&country=Australia',
+    countFor: function(c) { return c.australia },
   },
 ]
 
@@ -104,23 +205,28 @@ async function fetchSpotlightCounts(): Promise<SpotlightCounts> {
   function approvedHead() {
     return supabase.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'approved')
   }
-  var queries = [
-    approvedHead(),
-    approvedHead().eq('category', 'ufos_aliens'),
-    approvedHead().eq('category', 'ufos_aliens').eq('country', 'United States'),
-    approvedHead().eq('category', 'cryptids'),
-    approvedHead().eq('category', 'ghosts_hauntings'),
-    approvedHead().lt('event_date', '1900-01-01'),
-  ]
-  var results = await Promise.all(queries)
-  return {
-    total: results[0].count || 0,
-    ufos_aliens: results[1].count || 0,
-    ufos_aliens_us: results[2].count || 0,
-    cryptids: results[3].count || 0,
-    ghosts_hauntings: results[4].count || 0,
-    preModern: results[5].count || 0,
+  // Keyed so each bucket maps unambiguously to its query (all parallel HEAD counts).
+  var q: Record<string, any> = {
+    total: approvedHead(),
+    ufos_aliens_us: approvedHead().eq('category', 'ufos_aliens').eq('country', 'United States'),
+    cryptids: approvedHead().eq('category', 'cryptids'),
+    ghosts_hauntings: approvedHead().eq('category', 'ghosts_hauntings'),
+    preModern: approvedHead().lt('event_date', '1900-01-01'),
+    consciousness: approvedHead().eq('category', 'consciousness_practices'),
+    psychological: approvedHead().eq('category', 'psychological_experiences'),
+    psychic: approvedHead().eq('category', 'psychic_phenomena'),
+    esoteric: approvedHead().eq('category', 'esoteric_practices'),
+    modern: approvedHead().gte('event_date', '1900-01-01').lte('event_date', '1999-12-31'),
+    recent: approvedHead().gte('event_date', '2015-01-01'),
+    uk_ghosts: approvedHead().eq('category', 'ghosts_hauntings').eq('country', 'United Kingdom'),
+    canada: approvedHead().eq('country', 'Canada'),
+    australia: approvedHead().eq('country', 'Australia'),
   }
+  var keys = Object.keys(q)
+  var results = await Promise.all(keys.map(function(k) { return q[k] }))
+  var out: Record<string, number> = {}
+  keys.forEach(function(k, i) { out[k] = results[i].count || 0 })
+  return out as unknown as SpotlightCounts
 }
 
 export default function MapSpotlightRow() {

@@ -105,7 +105,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // so the planner can range-scan on lat first, then filter lng.
   let query: any = supabase
     .from('reports')
-    .select(SELECT_FIELDS, { count: 'exact' })
+    // V11.18.50 — 'estimated' (was 'exact'). An exact count over the worldwide
+    // bbox forces Postgres to count all ~300k+ matching rows on every cache miss,
+    // which dominated latency and delayed the points payload (most visible on the
+    // global heatmap). 'estimated' returns the exact count for small result sets
+    // and the planner estimate for large ones — near-instant — which is plenty
+    // for the "showing N of M" display.
+    .select(SELECT_FIELDS, { count: 'estimated' })
     .eq('status', 'approved')
     .gte('latitude', bbox.south)
     .lte('latitude', bbox.north)
@@ -151,9 +157,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: 'viewport query failed', detail: error.message })
   }
 
-  // Cache for 60s at the edge. Filter combos are cache-keyed via URL,
-  // so re-pans to viewed regions are instant. SWR extends gracefully.
-  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300')
+  // Cache at the edge. Filter combos are cache-keyed via URL, so re-pans to
+  // viewed regions (and the worldwide global-heatmap query, identical for every
+  // user) are served instantly. V11.18.50 — lengthened (was 60s/300s): map data
+  // changes slowly relative to a session, so a warm cache makes the heatmap and
+  // common viewports load immediately.
+  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900')
   return res.status(200).json({
     bbox: [bbox.west, bbox.south, bbox.east, bbox.north],
     bboxCount: count || 0,
