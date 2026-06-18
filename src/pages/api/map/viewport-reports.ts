@@ -39,8 +39,13 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 
+// V11.18.51 — select ONLY metadata->>location_precision (the one nested field
+// the map uses) instead of the whole metadata JSONB. metadata averaged ~170
+// chars/row → ~1.7MB per 10k-row worldwide fetch, all to read one value. This
+// trims ~a third of the payload (faster transfer + parse → faster first paint,
+// most visible on the global heatmap) with no behavior change.
 const SELECT_FIELDS =
-  'id,title,slug,summary,category,latitude,longitude,location_name,country,country_code,event_date,event_date_precision,credibility,witness_count,has_physical_evidence,has_photo_video,coords_synthetic,metadata'
+  'id,title,slug,summary,category,latitude,longitude,location_name,country,country_code,event_date,event_date_precision,credibility,witness_count,has_physical_evidence,has_photo_video,coords_synthetic,location_precision:metadata->>location_precision'
 
 interface BBox {
   west: number
