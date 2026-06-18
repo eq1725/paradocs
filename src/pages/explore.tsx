@@ -274,6 +274,35 @@ export default function ExplorePage() {
     if (!hasCompletedUnifiedOnboarding()) setShowWelcome(true)
   }, [])
 
+  // V11.18.46 — Scroll-trap fix. The horizontal snap carousels (overflow-x-auto
+  // .snap-x: Latest Reports, Most-tagged, Map Spotlight, category feeds) are
+  // scroll containers, so a vertical wheel/touch gesture with the pointer over
+  // one is captured by the carousel instead of scrolling the page. The full-
+  // width "Map Spotlight" row sits at the bottom, so scrolling back up from the
+  // bottom did nothing — the page felt stuck/reset at the bottom. Let vertical
+  // intent pass through: touch-action:pan-x for touch (vertical pan → page,
+  // horizontal pan → carousel) and forward vertical-dominant wheel to the page.
+  useEffect(function() {
+    function wheelPass(this: HTMLElement, e: WheelEvent) {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        e.preventDefault()
+        window.scrollBy(0, e.deltaY)
+      }
+    }
+    function apply() {
+      document.querySelectorAll<HTMLElement>('.snap-x').forEach(function(el) {
+        if ((el as any).__hpass) return
+        ;(el as any).__hpass = true
+        el.style.touchAction = 'pan-x'
+        el.addEventListener('wheel', wheelPass as EventListener, { passive: false })
+      })
+    }
+    apply()
+    var mo = new MutationObserver(apply)
+    mo.observe(document.body, { childList: true, subtree: true })
+    return function() { mo.disconnect() }
+  }, [])
+
   // V11.14.7 — Parse mode from URL on mount AND on subsequent
   // navigation. Previously the effect depended only on router.isReady,
   // so navigating /explore → /explore?mode=map via a <Link> (e.g. a
