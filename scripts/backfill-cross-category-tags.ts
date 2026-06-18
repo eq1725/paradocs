@@ -44,6 +44,7 @@ async function main() {
   const apply = process.argv.includes('--apply')
   const revert = process.argv.includes('--revert')
   const includeUncertain = process.argv.includes('--include-uncertain')
+  const allCategories = process.argv.includes('--all-categories') // also pull SAME-category matches (for zero-report phenomena)
   const slugI = process.argv.indexOf('--slug')
   const onlySlug = slugI >= 0 ? process.argv[slugI + 1] : null
   const d = await import('dotenv'); d.config({ path: path.resolve(process.cwd(), '.env.local') })
@@ -85,8 +86,10 @@ async function main() {
       for (const field of ['title', 'summary', 'description']) {
         let from = 0
         while (true) {
-          const r = await sb.from('reports').select('id,title,summary,description,category,city,state_province,country')
-            .eq('status', 'approved').neq('category', phen.category).ilike(field, `%${t}%`).range(from, from + 499)
+          let q = sb.from('reports').select('id,title,summary,description,category,city,state_province,country')
+            .eq('status', 'approved').ilike(field, `%${t}%`)
+          if (!allCategories) q = q.neq('category', phen.category)
+          const r = await q.range(from, from + 499)
           if (r.error) { timedOut = true; console.log('  ' + slug + ' [' + field + ':"' + t + '"] err (skip page): ' + r.error.message); break }
           const rows = r.data || []; for (const row of rows) candMap.set(row.id, row)
           if (rows.length < 500) break; from += 500
