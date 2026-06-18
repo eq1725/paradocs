@@ -40,7 +40,7 @@ import PhenomenonIcon from '@/components/ui/PhenomenonIcon'
 import CategoryFilter from '@/components/CategoryFilter'
 import SubcategoryFilter from '@/components/SubcategoryFilter'
 import ReportCard from '@/components/ReportCard'
-import { classNames, formatRelativeDate } from '@/lib/utils'
+import { classNames, formatEventDate } from '@/lib/utils'
 import AskTheUnknown from '@/components/AskTheUnknown'
 import UnifiedOnboarding, { hasCompletedUnifiedOnboarding } from '@/components/UnifiedOnboarding'
 import MapSpotlightRow from '@/components/map/MapSpotlightRow'
@@ -1391,7 +1391,11 @@ function ExploreBrowseMode() {
                     // emit "Kansas, Kansas" when city=null + location_name=
                     // "Kansas" + state_province="Kansas").
                     var locationStr = formatLocationLabel(report, { maxParts: 2 })
-                    var timeAgo = formatRelativeDate(report.created_at)
+                    // V11.18.54 — show WHEN THE EVENT HAPPENED (precision-aware),
+                    // not when we ingested it. For a historical archive the event
+                    // date is the meaningful, accurate signal; "uploaded N ago" is
+                    // misleading (e.g. a 1912 case showing "1 day ago").
+                    var eventDate = formatEventDate(report.event_date, (report as any).event_date_precision)
                     return (
                       <Link
                         key={report.id}
@@ -1404,13 +1408,12 @@ function ExploreBrowseMode() {
                             <CategoryIcon category={report.category as PhenomenonCategory} size={16} />
                           </div>
                           <span className={classNames('text-[11px] px-2 py-0.5 rounded-full font-medium', catConfig.bgColor, catConfig.color)}>{catConfig.label}</span>
-                          {report.source_label && <span className="text-[11px] text-gray-500 ml-auto truncate max-w-[80px]">{report.source_label}</span>}
                         </div>
                         <h3 className="font-medium text-white text-sm line-clamp-2 mb-2 group-hover/card:text-primary-300 transition-colors">{report.title}</h3>
                         {((report as any).feed_hook || report.summary) && <p className="text-xs text-gray-500 line-clamp-2 mb-3 leading-relaxed">{(report as any).feed_hook || report.summary}</p>}
                         <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500 mt-auto pt-2 border-t border-white/5">
                           {locationStr && <span className="flex items-center gap-1 truncate max-w-[120px]"><MapPin className="w-3 h-3 flex-shrink-0" />{locationStr}</span>}
-                          <span className="flex items-center gap-1"><Clock className="w-3 h-3 flex-shrink-0" />{timeAgo}</span>
+                          {eventDate && <span className="flex items-center gap-1"><Clock className="w-3 h-3 flex-shrink-0" />{eventDate}</span>}
                         </div>
                       </Link>
                     )
