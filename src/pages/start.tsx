@@ -1259,32 +1259,15 @@ export default function StartPage() {
           })
         } catch {}
 
-        // T1.8 + E0.5 — activate 7-day Basic trial on first-experience
-        // submission. Fire-and-forget; never block the reveal animation.
-        // The endpoint is idempotent — calling on subsequent submissions
-        // or for users already on a paid tier is a no-op.
-        try {
-          fetch('/api/subscription/activate-trial', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: 'Bearer ' + session.access_token,
-            },
-          })
-            .then(function (r) { return r.ok ? r.json() : null })
-            .then(function (data: any) {
-              if (data && data.activated) {
-                try {
-                  require('@/lib/posthog').capture('trial_activated', {
-                    tier: data.tier,
-                    trial_ends_at: data.trial_ends_at,
-                    triggered_by: 'first_submission',
-                  })
-                } catch {}
-              }
-            })
-            .catch(function () { /* non-fatal */ })
-        } catch { /* non-fatal */ }
+        // V11.19 — removed the auto-grant 7-day Basic trial on first
+        // submission. Per the panel + the community/first-party plan, the
+        // FREE tier IS the trial: a real, unlimited-time product, not a
+        // feature unlock that gets yanked back after 7 days (which captured
+        // no payment and fought the "free is real, subscribe for depth"
+        // positioning). A proper card-on-file trial, if we ever want one,
+        // belongs at Stripe checkout — not auto-granted here. The
+        // /api/subscription/activate-trial endpoint is left in place but
+        // is now uncalled.
 
         // V9.11.2 #F — mark the funnel as completed so future homepage
         // visits don't bounce this user back to /start.
