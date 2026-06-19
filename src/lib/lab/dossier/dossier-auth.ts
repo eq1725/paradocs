@@ -50,8 +50,11 @@ export async function resolveDossierContext(req: NextApiRequest): Promise<Authed
       .maybeSingle()
     var tierRow = tierResult && tierResult.data && (tierResult.data as any).tier
     var tName = tierRow && tierRow.name ? String(tierRow.name).toLowerCase() : ''
-    if (tName === 'basic') tier = 'basic'
-    else if (tName === 'pro' || tName === 'enterprise') tier = 'pro'
+    // V11.19 — single membership: any paid tier resolves to full access
+    // ('pro'). The former Basic/Pro split is collapsed into one Member
+    // tier (kept on the 'basic' plan slug), so a paid member now passes
+    // every `ctx.tier !== 'pro'` gate (Dossier, Watchlists, etc.).
+    if (tName === 'basic' || tName === 'pro' || tName === 'enterprise' || tName === 'member') tier = 'pro'
   } catch (_e) {
     /* default to free */
   }

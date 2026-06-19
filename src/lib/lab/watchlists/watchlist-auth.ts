@@ -48,8 +48,10 @@ export async function resolveWatchlistContext(req: NextApiRequest): Promise<Auth
       .maybeSingle()
     var tierRow = tierResult && tierResult.data && (tierResult.data as any).tier
     var tName = tierRow && tierRow.name ? String(tierRow.name).toLowerCase() : ''
-    if (tName === 'basic') tier = 'basic'
-    else if (tName === 'pro' || tName === 'enterprise') tier = 'pro'
+    // V11.19 — single membership: any paid tier resolves to full access
+    // ('pro'). Members are kept on the 'basic' plan slug but get the full
+    // working tools (Watchlists included).
+    if (tName === 'basic' || tName === 'pro' || tName === 'enterprise' || tName === 'member') tier = 'pro'
   } catch (_e) {
     /* default to free */
   }

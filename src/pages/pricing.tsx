@@ -123,10 +123,10 @@ export default function PricingPage(_props: PricingPageProps) {
     heroCta = (
       <button
         type="button"
-        onClick={function () { handleTierSelect('basic', 'monthly') }}
+        onClick={function () { handleTierSelect('basic', 'annual') }}
         className="inline-flex items-center px-6 py-3 rounded-full bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold transition-colors shadow-lg shadow-purple-900/30"
       >
-        Start with Basic — $5.99/mo
+        Become a Member — from $5/mo
       </button>
     )
   } else {

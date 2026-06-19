@@ -431,14 +431,14 @@ export default function AcademicObservationPanel({ reportSlug, className, isExpa
                 <Lock className="w-5 h-5 text-gray-500 mx-auto mb-2" />
                 <p className="text-sm text-gray-400 mb-1">Full research data & export tools</p>
                 <p className="text-xs text-gray-500 mb-3">
-                  Structured observation data, citation generation, and JSON export are available on the Pro plan.
+                  Structured observation data, citation generation, and JSON export are part of Membership.
                 </p>
                 <Link
-                  href="/profile"
+                  href="/pricing"
                   className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white rounded-lg transition-all hover:scale-105"
                   style={{ background: 'linear-gradient(135deg, #9000f0, #7a00cc)' }}
                 >
-                  Upgrade to Pro
+                  Become a Member
                 </Link>
               </div>
             </div>

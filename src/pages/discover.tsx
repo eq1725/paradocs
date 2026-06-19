@@ -1107,7 +1107,9 @@ export default function DiscoverPage(props: DiscoverPageProps) {
       // (no network round-trip for known-skip users); the server-side
       // decision adds the 6/week hard cap + 48h dismiss + 7d paywall
       // cooldowns on top.
-      var tierSkip = userTier === 'pro' || userTier === 'enterprise'
+      // V11.19 — single membership: skip the Lab upsell promo for ANY
+      // paid member (members are on the 'basic' plan slug now).
+      var tierSkip = userTier === 'basic' || userTier === 'pro' || userTier === 'enterprise' || userTier === 'member'
       // V11.18.13 → V11.18.15 — `?preview_labpromo=1` lets founder/
       // designer QA the Today-variant LabPromo without juggling
       // a Free-tier session.

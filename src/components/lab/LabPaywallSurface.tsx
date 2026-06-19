@@ -77,10 +77,8 @@ export function LabPaywallSurface(props: LabPaywallSurfaceProps) {
   // so the same hook list runs every time React reconciles this component.
   var currentTier = (tierName as string | null) || ''
 
-  var ctaLabel =
-    upgradeTo === 'pro'
-      ? 'Upgrade to Pro — $14.99/mo'
-      : 'Upgrade to Basic — $5.99/mo'
+  // V11.19 — single membership: one CTA regardless of the gated feature.
+  var ctaLabel = 'Become a Member — $7.99/mo'
 
   var ctaHandler = useCallback(async function () {
     // Logged-out: route to /pricing for the broader comparison.
@@ -100,7 +98,8 @@ export function LabPaywallSurface(props: LabPaywallSurfaceProps) {
           'Content-Type': 'application/json',
           Authorization: 'Bearer ' + session.access_token,
         },
-        body: JSON.stringify({ plan: upgradeTo, interval: 'monthly' }),
+        // V11.19 — always the single membership plan ('basic' slug).
+        body: JSON.stringify({ plan: 'basic', interval: 'monthly' }),
       })
       var data = await resp.json()
       if (data.url) {
@@ -120,8 +119,9 @@ export function LabPaywallSurface(props: LabPaywallSurfaceProps) {
   // Defensive: paid users at or above the gated tier should never see
   // this surface; the parent should already gate, but we double-check.
   if (loading) return null
-  if (currentTier === 'pro') return null
-  if (upgradeTo === 'basic' && (currentTier === 'basic' || currentTier === 'pro')) return null
+  // V11.19 — any paid member gets full access, so never show the paywall
+  // to a paying user regardless of which feature gated them here.
+  if (currentTier === 'basic' || currentTier === 'pro' || currentTier === 'enterprise' || currentTier === 'member') return null
 
   return (
     <div

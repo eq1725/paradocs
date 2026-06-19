@@ -29,18 +29,20 @@ var FAQS: FAQItem[] = [
     ),
   },
   {
-    q: 'What does Basic open up?',
+    q: 'What does Membership open up?',
     a: (
       <>
-        The named-match layer is the load-bearing addition: when another
+        Everything beyond the open catalogue, in one membership. The
+        named-match layer is the load-bearing addition: when another
         contributor’s account shares phenomenon-type, geography,
-        time period, and language pattern with yours, Basic offers an
-        introduction. Both sides must opt in before any identifying
-        detail is shared. Basic also widens the comparative lenses
-        (configurable geographic radius, lunar and seasonal time
-        signatures, multi-dimensional sentiment), adds a weekly
-        body-of-work paragraph, unlimited Hints refreshed daily, and a
-        view-only shareable Record link.
+        time period, and language pattern with yours, Membership offers an
+        introduction — both sides must opt in before any identifying
+        detail is shared. It also opens the full working tools: the
+        Dossier for every experience, PDF export and shareable cards,
+        custom Watchlists, the wider comparative lenses (configurable
+        geographic radius, lunar and seasonal signatures, multi-dimensional
+        sentiment), county-level and raw exports, a weekly body-of-work
+        paragraph, unlimited Hints, and a view-only shareable Record link.
       </>
     ),
   },
@@ -48,7 +50,7 @@ var FAQS: FAQItem[] = [
     q: 'What is the Dossier?',
     a: (
       <>
-        The Dossier is Pro’s flagship surface. For every experience
+        The Dossier is Membership’s flagship surface. For every experience
         in your Record, the Dossier auto-generates a structured
         seven-section cross-reference: closest reports, phenomenology
         lineage, geographic neighbors, temporal neighbors, descriptor

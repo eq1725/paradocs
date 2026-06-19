@@ -136,15 +136,15 @@ export function FeatureGate({
         <div className="flex items-center gap-2 text-sm text-purple-400 mb-4">
           <Sparkles className="w-4 h-4" />
           <span>
-            Available with {minTier.charAt(0).toUpperCase() + minTier.slice(1)} and above
+            Available with Membership
           </span>
         </div>
 
         <Link
-          href="/profile"
+          href="/pricing"
           className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded-lg transition-colors"
         >
-          Upgrade Now
+          Become a Member
         </Link>
       </div>
     </div>

@@ -627,15 +627,15 @@ export default function StartPage() {
       return
     }
 
-    // T1.8 — initial step decision for non-auth-callback mount.
-    // Authed users (returning) land on 'experience' (the form, current
-    // default via useState). Unauthed users land on 'account' (sign up
-    // first per the account-first onboarding flip). Previously the
-    // default useState put everyone on 'experience' even when unauthed,
-    // forcing them to fill the form before being asked for an email.
+    // V11.19 — experience-first reorder. EVERYONE (authed or not) lands
+    // on the 'experience' form (the default useState), captures, then
+    // sees the RADAR 'reveal' BEFORE any email/account gate. This
+    // reverses the T1.8 "account-first" flip: we now deliver the wow
+    // ("you're not alone") first and ask for the email only after the
+    // dopamine — the CRO-panel's highest-ROI activation fix.
     supabase.auth.getSession().then(function (s) {
       if (!s.data.session) {
-        setStep('account')
+        setStep('experience')
         try {
           require('@/lib/posthog').capture('signup_intent', {
             referrer: typeof document !== 'undefined' ? document.referrer || null : null,
@@ -1036,9 +1036,14 @@ export default function StartPage() {
     return function () { clearTimeout(t) }
   }, [account.username, step])
 
-  // ---------------- step 1 → step 2
+  // ---------------- step 1 (experience) → reveal  [V11.19 reorder]
 
-  function continueToAccount() {
+  // Compute the mirror from the DRAFT, BEFORE any account gate. The
+  // /api/constellation/match endpoint accepts category+description with
+  // no report_id and no auth (unauth callers get up to FREE_UNLOCKED
+  // results), so we can deliver "you're not alone" first and ask for the
+  // email only after the user has felt the payoff.
+  async function continueToReveal() {
     setError(null)
     if (draft.description.trim().length < 50) {
       setError('Add a few more words so we can find good matches — even one extra sentence helps.')
@@ -1046,12 +1051,37 @@ export default function StartPage() {
     }
     try { localStorage.removeItem(ACCOUNT_ONLY_KEY) } catch {}
     saveDraft(draft)
+    try {
+      require('@/lib/posthog').capture('reveal_started', {
+        description_length: draft.description.length,
+        category: draft.category || null,
+      })
+    } catch {}
+    setBusy(true)
+    try {
+      var matchUrl = '/api/constellation/match?category=' +
+        encodeURIComponent(draft.category || 'psychological_experiences') +
+        '&description=' + encodeURIComponent(draft.description.slice(0, 500)) +
+        '&limit=8'
+      // No Authorization header — unauthenticated match (teaser set).
+      var mResp = await fetch(matchUrl)
+      if (mResp.ok) {
+        var mData = await mResp.json()
+        setMatches(mData.matches || [])
+        setMatchStats({
+          total: mData.stats?.total_matched || 0,
+          nearby: mData.stats?.nearby || 0,
+          database: mData.stats?.total_database || 0,
+        })
+      }
+    } catch { /* reveal is best-effort; show the step regardless */ }
+    setBusy(false)
+    setStep('reveal')
+  }
 
-    // T1.8 — auth-aware progression. In the account-first flow, users
-    // arriving at 'experience' are already authenticated; from here they
-    // go straight to 'submit'. Unauthed users hitting the form (legacy
-    // path or back-button edge case) fall through to the original
-    // experience → account → check-email magic-link flow.
+  // After the reveal: authed users save straight away; unauthed users
+  // create an account first (the post-auth callback then runs 'submit').
+  function proceedFromReveal() {
     supabase.auth.getSession().then(function (s) {
       if (s.data.session) {
         try {
@@ -1272,30 +1302,13 @@ export default function StartPage() {
           }
         }
 
-        // Now request matches.
-        try {
-          var matchUrl = '/api/constellation/match?report_id=' + encodeURIComponent(result.report_id) +
-                         '&category=' + encodeURIComponent(draft.category || 'psychological_experiences') +
-                         '&description=' + encodeURIComponent(draft.description.slice(0, 500)) +
-                         '&limit=8'
-          var mResp = await fetch(matchUrl, {
-            headers: { Authorization: 'Bearer ' + session.access_token },
-          })
-          if (mResp.ok) {
-            var mData = await mResp.json()
-            if (!cancelled) {
-              setMatches(mData.matches || [])
-              setMatchStats({
-                total: mData.stats?.total_matched || 0,
-                nearby: mData.stats?.nearby || 0,
-                database: mData.stats?.total_database || 0,
-              })
-            }
-          }
-        } catch { /* RADAR is best-effort; don't block */ }
-
+        // V11.19 — the reveal already happened pre-auth (continueToReveal),
+        // so we don't re-fetch matches or re-show the reveal step here.
+        // The report is now saved; drop the user into their full RADAR
+        // (/lab), where ALL matches for the saved report are unlocked —
+        // the natural "you've unlocked the rest" payoff to the teaser.
         clearDraft()
-        if (!cancelled) setStep('reveal')
+        if (!cancelled) router.replace('/lab')
       } catch (err: any) {
         if (!cancelled) setError(err?.message || 'Something went wrong.')
       } finally {
@@ -2383,8 +2396,8 @@ export default function StartPage() {
               <div className="space-y-3 pt-2">
                 <button
                   type="button"
-                  onClick={continueToAccount}
-                  disabled={(function () {
+                  onClick={continueToReveal}
+                  disabled={busy || (function () {
                     if (draft.description.trim().length < 50) return true
                     var hasLocation = !!(draft.latitude && draft.longitude) || !!draft.city || !!draft.state_province || !!draft.country
                     if (!hasLocation) return true
@@ -2393,8 +2406,8 @@ export default function StartPage() {
                   })()}
                   className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors disabled:opacity-40"
                 >
-                  Continue
-                  <ArrowRight className="w-4 h-4" />
+                  {busy ? 'Searching the archive…' : 'See who else has experienced this'}
+                  {!busy && <ArrowRight className="w-4 h-4" />}
                 </button>
                 <div className="text-center">
                   <button
@@ -2749,12 +2762,12 @@ export default function StartPage() {
                 <h1 className="text-2xl sm:text-3xl font-bold leading-tight">
                   {matches.length > 0
                     ? 'You\'re not alone.'
-                    : 'Your experience is logged.'}
+                    : 'Yours is a rare one.'}
                 </h1>
                 <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed px-2">
                   {matches.length > 0
                     ? (matches.length === 1 ? '1 person' : matches.length + ' people') + ' reported something that overlaps with yours. Across ' + (matchStats.database || 0).toLocaleString() + ' patterns to explore.'
-                    : 'Your report is the first of its kind we\'ve seen. As more people share, we\'ll surface matches here.'}
+                    : 'We haven\'t seen one quite like this yet. Create your account to save it — and we\'ll surface matches here as more people share.'}
                 </p>
               </div>
 
@@ -2779,39 +2792,41 @@ export default function StartPage() {
                     )
                   })}
                   {matches.length > 3 && (
-                    <p className="text-[11px] text-gray-500 text-center pt-1">
-                      + {matches.length - 3} more in your RADAR
+                    <p className="text-[11px] text-purple-300/80 text-center pt-1">
+                      + {matches.length - 3} more — unlock your full RADAR with a free account
                     </p>
                   )}
                 </div>
               )}
 
-              {/* V9.11.6 Phase 1.C — peer-connection opt-in. Placed
-                  HERE (between the match cards and the CTA) because
-                  this is the moment of peak emotional resonance
-                  ("there are 47 others like me") and the moment users
-                  are most likely to say yes to connection. Defaults
-                  off; one tap toggles on; written to
-                  profiles.allow_peer_connection. Quiet, dismissible,
-                  controllable later from Settings. */}
+              {/* V9.11.6 Phase 1.C — peer-connection opt-in. Self-gates to
+                  authed sessions (renders null pre-auth), so on the V11.19
+                  pre-account reveal it stays hidden; it surfaces for a
+                  returning authed user capturing again. The post-signup
+                  peer-connection moment now lives on /lab. */}
               {matches.length > 0 && (
                 <PeerConnectionOptIn />
               )}
 
-              {/* Single primary CTA per CRO-panel consensus */}
+              {/* V11.19 — reveal is now PRE-auth: this is the gate. Deliver
+                  the save + "unlock the rest" as the reason to sign up. */}
               <div className="pt-2">
-                <Link
-                  href="/lab"
+                <button
+                  type="button"
+                  onClick={proceedFromReveal}
                   className="block w-full text-center px-6 py-3.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors"
                 >
-                  Explore your RADAR →
-                </Link>
-                <Link
-                  href="/discover"
+                  {matches.length > 0
+                    ? 'Create your free account to save this & unlock your full RADAR →'
+                    : 'Create your free account to save this →'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSkip}
                   className="block w-full text-center text-xs text-gray-500 hover:text-gray-300 py-3 mt-1"
                 >
-                  browse the feed
-                </Link>
+                  not now — just browse the feed
+                </button>
               </div>
             </div>
           )}
@@ -2841,6 +2856,9 @@ export default function StartPage() {
  */
 function PeerConnectionOptIn() {
   var [state, setState] = useState<'idle' | 'saving' | 'on' | 'off' | 'error'>('idle')
+  // V11.19 — the opt-in writes to profiles, so it requires a session.
+  // On the new pre-account reveal there is no session; render nothing.
+  var [hasSession, setHasSession] = useState(false)
 
   // Load current value on mount so we render the right state if the
   // user revisits this screen (e.g. after coming back from /lab).
@@ -2848,6 +2866,7 @@ function PeerConnectionOptIn() {
     supabase.auth.getSession().then(function (s) {
       var session = s.data.session
       if (!session) return
+      setHasSession(true)
       ;(supabase.from('profiles') as any)
         .select('allow_peer_connection')
         .eq('id', session.user.id)
@@ -2878,6 +2897,8 @@ function PeerConnectionOptIn() {
         })
     })
   }
+
+  if (!hasSession) return null
 
   return (
     <div className="bg-gray-900/50 border border-gray-800/60 rounded-xl p-3.5">
@@ -2923,13 +2944,11 @@ function PeerConnectionOptIn() {
 }
 
 function StepIndicator({ step }: { step: Step }) {
-  // V9.11.5 #19 — progress dots only on the two pre-auth steps where
-  // the user is actively doing something on this device. The
-  // 'check-email' step is a hand-off (waiting for the email tap), so
-  // a progress indicator there suggests there's more to do here when
-  // there isn't. Submit/reveal/done states have their own UI affordances
-  // and don't need the dots either.
-  var visible: Step[] = ['experience', 'account']
+  // V11.19 — progress dots across the pre-auth journey: capture → see
+  // your matches → save (account). The 'check-email' step is a hand-off
+  // (waiting for the email tap), and submit/done redirect, so none of
+  // those show dots.
+  var visible: Step[] = ['experience', 'reveal', 'account']
   if (visible.indexOf(step) === -1) return null
   var idx = visible.indexOf(step)
   return (
