@@ -56,26 +56,17 @@ interface BillingInvoice {
 // active-benefits checklist on the hero and the tier-specific bullets
 // in the retention modal.
 function getActiveBenefits(tier: TierName | null): string[] {
-  if (tier === 'pro') {
+  // V11.19 — single membership: any paid tier ('basic' is the live slug;
+  // 'pro'/'enterprise' kept for legacy subscribers) gets the full set.
+  if (tier === 'pro' || tier === 'basic' || tier === 'enterprise') {
     return [
       'The Dossier — full 7-section cross-reference per experience, refreshed nightly',
       'Dossier PDF export with cover, footnotes, and citations',
       '1080×1350 image card + opt-in public Dossier URL',
       'Custom Watchlists — alerts when new Archive ingest matches your standing interests',
-      'County-level density, KML, raw JSON export',
-      'On-demand top-5 named-match view, daily refresh, private annotations',
-      'Permissioned shareable Record links',
-    ]
-  }
-  if (tier === 'basic') {
-    return [
-      'Named-match introductions, mutual opt-in required',
-      'Configurable geographic radius, decades shift, lunar and seasonal lenses',
-      'Body-of-work paragraph, refreshed weekly',
-      'Multi-dimensional sentiment baseline',
-      'Unlimited Hints, refreshed daily',
-      'Shareable private Record link (view-only, expirable)',
-      'PDF export of your Record',
+      'Named-match introductions, mutual opt-in + on-demand top-5 view',
+      'Configurable geographic radius, county-level density, lunar and seasonal lenses, KML / JSON export',
+      'Body-of-work synthesis, unlimited Hints, permissioned shareable Record links',
     ]
   }
   // Free
@@ -128,7 +119,6 @@ export default function SubscriptionPage() {
 
   // Post-checkout state surface from ?checkout=success
   var checkoutSuccess = router.query.checkout === 'success'
-  var checkoutPlan = typeof router.query.plan === 'string' ? router.query.plan : null
   var fromPricing = router.query.from === 'pricing'
 
   useEffect(function () {
@@ -279,7 +269,7 @@ export default function SubscriptionPage() {
         {checkoutSuccess && (
           <div className="mb-6 p-4 bg-purple-950/40 border border-purple-500/30 rounded-xl">
             <p className="text-sm text-purple-100 leading-relaxed">
-              <span className="font-semibold">Welcome to {checkoutPlan === 'pro' ? 'Pro' : 'Basic'}.</span>{' '}
+              <span className="font-semibold">Welcome to Membership.</span>{' '}
               Your Record is now connected to the wider Archive.{' '}
               <Link href="/lab" className="underline hover:text-white">Go to your Record →</Link>
             </p>
@@ -299,7 +289,7 @@ export default function SubscriptionPage() {
         </p>
         <h1 className="text-2xl sm:text-3xl font-bold text-white">Subscription</h1>
         <p className="text-sm text-gray-400 mt-1 mb-8">
-          Where you are in the Archive, and what each tier opens.
+          Where you are in the Archive, and what Membership opens.
         </p>
 
         {/* Current Plan hero */}
@@ -321,7 +311,7 @@ export default function SubscriptionPage() {
                 {isPaidActive && renewDate ? (
                   <>Renews on <span className="text-white font-medium">{renewDate}</span>.</>
                 ) : isFreeTier ? (
-                  <>The catalogue is open. Basic opens the named-match layer; Pro opens the Dossier.</>
+                  <>The catalogue is open. Membership opens the comparative depth, the named-match layer, and the working tools — the Dossier, exports, and Watchlists.</>
                 ) : (
                   <>Manage your subscription below.</>
                 )}
@@ -332,17 +322,17 @@ export default function SubscriptionPage() {
                   <>
                     <button
                       type="button"
-                      onClick={function () { startCheckout('basic', 'monthly') }}
+                      onClick={function () { startCheckout('basic', 'annual') }}
                       className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors"
                     >
-                      Upgrade to Basic — $5.99/mo
+                      Become a Member — from $5/mo
                       <ArrowRight className="w-4 h-4" />
                     </button>
                     <Link
                       href="/pricing"
                       className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white text-sm font-semibold rounded-full transition-colors"
                     >
-                      See all plans
+                      See what's included
                     </Link>
                   </>
                 ) : (
@@ -362,15 +352,7 @@ export default function SubscriptionPage() {
                         <>Manage billing</>
                       )}
                     </button>
-                    {tierName === 'basic' && (
-                      <button
-                        type="button"
-                        onClick={function () { startCheckout('pro', 'monthly') }}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white text-sm font-semibold rounded-full transition-colors"
-                      >
-                        Upgrade to Pro
-                      </button>
-                    )}
+                    {/* V11.19 — no Basic→Pro upsell: one membership = full access. */}
                     <button
                       type="button"
                       onClick={function () { setShowCancelModal(true) }}
@@ -464,9 +446,9 @@ export default function SubscriptionPage() {
               className="flex items-center justify-between p-5 bg-white/[0.03] border border-white/10 rounded-xl hover:bg-white/[0.06] hover:border-white/20 transition-colors group"
             >
               <div>
-                <p className="text-sm font-semibold text-white">Compare all plans →</p>
+                <p className="text-sm font-semibold text-white">See what's included →</p>
                 <p className="text-xs text-gray-400 mt-1">
-                  Free / Basic / Pro — what each tier opens, side by side.
+                  Free vs Membership — what each opens, side by side.
                 </p>
               </div>
               <ChevronRight className="w-5 h-5 text-gray-500 group-hover:text-white transition-colors" />
