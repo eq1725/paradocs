@@ -1132,10 +1132,21 @@ export default function StartPage() {
     } catch {}
     setBusy(true)
     try {
-      var matchUrl = '/api/constellation/match?category=' +
-        encodeURIComponent(draft.category || 'psychological_experiences') +
-        '&description=' + encodeURIComponent(draft.description.slice(0, 500)) +
-        '&limit=8'
+      // V11.20 — pass the FULL signal the user entered (type, location,
+      // date), not just category+description. Without these the match
+      // can't score phenomenon-type / location-proximity / time-period
+      // and tops out around ~30% even for on-topic results.
+      var params = new URLSearchParams()
+      params.set('category', draft.category || 'psychological_experiences')
+      params.set('description', draft.description.slice(0, 500))
+      params.set('limit', '8')
+      if (selectedType && selectedType.name) params.set('type_name', selectedType.name)
+      if (draft.latitude && draft.longitude) {
+        params.set('lat', draft.latitude)
+        params.set('lng', draft.longitude)
+      }
+      if (draft.event_date) params.set('event_date', draft.event_date)
+      var matchUrl = '/api/constellation/match?' + params.toString()
       // No Authorization header — unauthenticated match (teaser set).
       var mResp = await fetch(matchUrl)
       if (mResp.ok) {

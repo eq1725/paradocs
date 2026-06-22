@@ -530,6 +530,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   var lat = req.query.lat ? parseFloat(req.query.lat as string) : null
   var lng = req.query.lng ? parseFloat(req.query.lng as string) : null
   var description = req.query.description as string | undefined
+  // V11.20 — accept event_date directly so the pre-auth onboarding reveal
+  // (which has no saved report_id yet) can still score temporal proximity.
+  var eventDate = (req.query.event_date as string | undefined) || null
   var limit = Math.min(parseInt(req.query.limit as string) || MAX_RESULTS, MAX_RESULTS)
 
   // If report_id provided, fetch that report's attributes
@@ -561,7 +564,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     type_name: typeName || null,
     lat: lat,
     lng: lng,
-    event_date: sourceReport?.event_date || null,
+    event_date: sourceReport?.event_date || eventDate || null,
     description: description || '',
     sensory: extractSensoryProfile(description || '', category || null),
     tokens: tokenize(description || ''),
