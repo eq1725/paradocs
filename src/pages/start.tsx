@@ -359,6 +359,24 @@ async function uploadPendingMedia(
   }
 }
 
+// V11.20 — MIME pick for the in-step webcam recorder (desktop/Android).
+// webm is accepted by the video upload pipeline's ALLOWED_MIME list.
+var REC_MIME_CANDIDATES = [
+  'video/webm;codecs=vp9,opus',
+  'video/webm;codecs=vp8,opus',
+  'video/webm',
+  'video/mp4',
+]
+function pickRecorderMime(): string {
+  for (var i = 0; i < REC_MIME_CANDIDATES.length; i++) {
+    var m = REC_MIME_CANDIDATES[i]
+    try {
+      if (typeof MediaRecorder !== 'undefined' && (MediaRecorder as any).isTypeSupported && (MediaRecorder as any).isTypeSupported(m)) return m
+    } catch { /* ignore */ }
+  }
+  return 'video/webm'
+}
+
 function saveDraft(draft: ExperienceDraft) {
   try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)) } catch {}
 }
@@ -518,6 +536,16 @@ export default function StartPage() {
   // Guards the text-submit effect from firing when we're routing the
   // staged video through the video pipeline on the 'submit' step.
   var videoFlowRef = useRef(false)
+
+  // V11.20 — in-step webcam recorder (desktop / Android). 'off' = choose
+  // record-vs-upload; 'live' = camera on, ready; 'recording' = capturing.
+  var [recorderPhase, setRecorderPhase] = useState<'off' | 'live' | 'recording'>('off')
+  var [recordSeconds, setRecordSeconds] = useState(0)
+  var liveVideoRef = useRef<HTMLVideoElement | null>(null)
+  var mediaStreamRef = useRef<MediaStream | null>(null)
+  var mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  var recordedChunksRef = useRef<Blob[]>([])
+  var recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Account state (step 2)
   var [account, setAccount] = useState<AccountDraft>({
@@ -1169,6 +1197,112 @@ export default function StartPage() {
     } catch { setVideoDurationSec(null) }
   }
 
+  // V11.20 — in-step webcam recorder controls (desktop / Android).
+  function stopCameraTracks() {
+    try {
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach(function (t) { t.stop() })
+        mediaStreamRef.current = null
+      }
+    } catch { /* ignore */ }
+    if (liveVideoRef.current) { try { liveVideoRef.current.srcObject = null } catch {} }
+  }
+
+  function clearRecordTimer() {
+    if (recordTimerRef.current) { clearInterval(recordTimerRef.current); recordTimerRef.current = null }
+  }
+
+  function closeCamera() {
+    clearRecordTimer()
+    try {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop()
+    } catch {}
+    mediaRecorderRef.current = null
+    stopCameraTracks()
+    setRecorderPhase('off')
+    setRecordSeconds(0)
+  }
+
+  async function openCamera() {
+    setError(null)
+    try {
+      var stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: true,
+      })
+      mediaStreamRef.current = stream
+      setRecorderPhase('live')
+      setTimeout(function () {
+        if (liveVideoRef.current) {
+          liveVideoRef.current.srcObject = stream
+          var p = liveVideoRef.current.play()
+          if (p && (p as any).catch) (p as any).catch(function () {})
+        }
+      }, 0)
+    } catch (e: any) {
+      setError('Couldn’t open the camera (' + (e?.name || 'permission denied') + '). You can upload a file instead.')
+      setRecorderPhase('off')
+    }
+  }
+
+  function startRecording() {
+    var stream = mediaStreamRef.current
+    if (!stream) return
+    var mime = pickRecorderMime()
+    var base = mime.split(';')[0].trim()
+    recordedChunksRef.current = []
+    var rec: MediaRecorder
+    try {
+      rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 1_800_000 })
+    } catch {
+      try { rec = new MediaRecorder(stream) } catch {
+        setError('Recording isn’t supported in this browser — please upload a file instead.')
+        return
+      }
+    }
+    mediaRecorderRef.current = rec
+    rec.ondataavailable = function (e: BlobEvent) {
+      if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data)
+    }
+    rec.onstop = function () {
+      var blob = new Blob(recordedChunksRef.current, { type: base })
+      stopCameraTracks()
+      clearRecordTimer()
+      setRecorderPhase('off')
+      if (blob.size > 0) {
+        var ext = base.indexOf('mp4') >= 0 ? 'mp4' : 'webm'
+        var file = new File([blob], 'clip-' + Date.now() + '.' + ext, { type: base })
+        onSelectVideo(file)
+      }
+    }
+    rec.start()
+    setRecorderPhase('recording')
+    setRecordSeconds(0)
+    clearRecordTimer()
+    recordTimerRef.current = setInterval(function () {
+      setRecordSeconds(function (s) {
+        var next = s + 1
+        if (next >= 300) { try { stopRecording() } catch {} } // 5-minute cap
+        return next
+      })
+    }, 1000)
+  }
+
+  function stopRecording() {
+    clearRecordTimer()
+    try {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop()
+    } catch {}
+  }
+
+  // Stop the camera + timer if the user leaves the page mid-capture.
+  useEffect(function () {
+    return function () {
+      try { if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(function (t) { t.stop() }) } catch {}
+      if (recordTimerRef.current) clearInterval(recordTimerRef.current)
+    }
+  }, [])
+
   // V11.20 — run the existing video pipeline for a staged clip:
   // upload-url → PUT blob → finalize (Whisper + Haiku), then land on the
   // review page so the transcript-drafted report can be confirmed.
@@ -1524,26 +1658,75 @@ export default function StartPage() {
               {captureMode === 'video' && (
                 <div className="space-y-3">
                   {!pendingVideo ? (
-                    <label
-                      htmlFor="exp-video"
-                      className="block w-full cursor-pointer rounded-2xl border border-dashed border-purple-700/50 bg-gradient-to-br from-purple-950/40 to-gray-950/40 px-6 py-8 text-center hover:from-purple-900/40 transition-colors"
-                    >
-                      <div className="w-14 h-14 mx-auto rounded-full bg-purple-600/25 border border-purple-500/30 flex items-center justify-center mb-3">
-                        <Camera className="w-7 h-7 text-purple-200" />
+                    recorderPhase === 'off' ? (
+                      <div className="space-y-2.5">
+                        <button
+                          type="button"
+                          onClick={openCamera}
+                          className="w-full inline-flex items-center justify-center gap-2.5 rounded-2xl border border-purple-700/50 bg-gradient-to-br from-purple-950/50 to-gray-950/50 px-6 py-5 text-white hover:from-purple-900/50 transition-colors"
+                        >
+                          <Camera className="w-6 h-6 text-purple-200" />
+                          <span className="text-base font-semibold">Record now</span>
+                        </button>
+                        <label
+                          htmlFor="exp-video"
+                          className="block w-full cursor-pointer rounded-2xl border border-dashed border-gray-700 bg-gray-900/40 px-6 py-4 text-center hover:border-gray-600 transition-colors"
+                        >
+                          <span className="text-sm font-medium text-gray-200 inline-flex items-center gap-2 justify-center">
+                            <Upload className="w-4 h-4" /> Upload a file
+                          </span>
+                          <span className="block text-[11px] text-gray-500 mt-1">
+                            Up to 5 minutes. We&rsquo;ll transcribe it after you create your account.
+                          </span>
+                          <input
+                            id="exp-video"
+                            type="file"
+                            accept="video/*"
+                            capture="environment"
+                            className="hidden"
+                            onChange={function (e) { onSelectVideo((e.target.files && e.target.files[0]) || null) }}
+                          />
+                        </label>
                       </div>
-                      <p className="text-base font-semibold text-white">Record or upload a clip</p>
-                      <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
-                        Up to 5 minutes. On a phone this opens your camera; on a computer, choose a video file. We&rsquo;ll transcribe it after you create your account.
-                      </p>
-                      <input
-                        id="exp-video"
-                        type="file"
-                        accept="video/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={function (e) { onSelectVideo((e.target.files && e.target.files[0]) || null) }}
-                      />
-                    </label>
+                    ) : (
+                      <div className="rounded-2xl border border-gray-800 bg-gray-900/60 p-3 space-y-3">
+                        <video ref={liveVideoRef} autoPlay muted playsInline className="w-full max-h-72 rounded-xl bg-black" />
+                        {recorderPhase === 'recording' && (
+                          <div className="flex items-center justify-center gap-2 text-sm text-red-300">
+                            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                            Recording · {Math.floor(recordSeconds / 60)}:{('0' + (recordSeconds % 60)).slice(-2)}
+                          </div>
+                        )}
+                        <div className="flex items-center justify-center gap-3">
+                          {recorderPhase === 'live' ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={startRecording}
+                                className="inline-flex items-center gap-2 px-6 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors"
+                              >
+                                <span className="w-2.5 h-2.5 rounded-full bg-white" /> Start recording
+                              </button>
+                              <button
+                                type="button"
+                                onClick={closeCamera}
+                                className="text-sm text-gray-400 hover:text-gray-200"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={stopRecording}
+                              className="inline-flex items-center gap-2 px-6 py-2.5 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-full transition-colors"
+                            >
+                              <span className="w-3 h-3 rounded-sm bg-white" /> Stop
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
                   ) : (
                     <div className="rounded-2xl border border-gray-800 bg-gray-900/60 p-3">
                       {videoPreviewUrl && (
