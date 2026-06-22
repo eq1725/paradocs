@@ -27,6 +27,49 @@ interface Example {
   category: string
 }
 
+// Paranormal categories we surface in the first-impression carousel.
+// Excludes the catch-all 'psychological_experiences' bucket where dream
+// journals + low-signal entries tend to live.
+var PREFERRED_CATEGORIES = [
+  'ufos_aliens',
+  'ghosts_hauntings',
+  'cryptids',
+  'psychic_phenomena',
+  'consciousness_practices',
+  'religion_mythology',
+  'esoteric_practices',
+]
+
+// V11.20.3 — content screens for the onboarding examples. New users
+// form their first impression here, so we reject (a) meta/editorial
+// commentary and dream-journal entries that aren't real experience
+// reports, and (b) violent/harmful content that shouldn't headline a
+// welcome screen. Rejected candidates yield their slot to the next one
+// (and the curated fallback fills any gap).
+var REJECT_PATTERNS: RegExp[] = [
+  // Meta / editorial / dream-journal commentary
+  /^\s*note\s*[:\-]/i,
+  /\bi (write|record|journal) my dreams\b/i,
+  /\bi modified|i edited|i changed this\b/i,
+  /\b(might|may) not make sense\b/i,
+  /\bgrammatical/i,
+  /\bin (my|a) dream\b/i,
+  /\bit was (just )?a dream\b/i,
+  /\bi (dreamt|dreamed)\b/i,
+  /\bmy dream\b/i,
+  /\blucid dream/i,
+  /\bthis (is|was) (a |my )?dream\b/i,
+  // Violent / harmful content — not for a welcome carousel
+  /\b(killed|kill|killing|murder|stabbed|shot (him|her|them)|suicide|self[\s-]?harm|raped?|molest|abused?)\b/i,
+]
+
+function isRejected(s: string): boolean {
+  for (var i = 0; i < REJECT_PATTERNS.length; i++) {
+    if (REJECT_PATTERNS[i].test(s)) return true
+  }
+  return false
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -44,10 +87,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     .from('reports') as any)
     .select('id, title, summary, category')
     .eq('status', 'approved')
+    .in('category', PREFERRED_CATEGORIES)
     .not('summary', 'is', null)
     .gte('char_length(summary)', 30)
     .lte('char_length(summary)', 200)
-    .limit(50)
+    .limit(120)
 
   if (error) {
     // char_length() in eq filter can fail on some Supabase configs;
@@ -57,8 +101,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .from('reports') as any)
       .select('id, title, summary, category')
       .eq('status', 'approved')
+      .in('category', PREFERRED_CATEGORIES)
       .not('summary', 'is', null)
-      .limit(80)
+      .limit(150)
     candidates = fallback.data
     if (fallback.error) {
       console.error('[OnboardingExamples] fallback failed:', fallback.error.message)
@@ -88,6 +133,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (/[\[\]]/.test(s)) return null
     // Reject if it looks like a URL or contains one.
     if (/https?:\/\//i.test(s)) return null
+    // V11.20.3 — reject meta/editorial/dream-journal + harmful content.
+    if (isRejected(s)) return null
     // Reject if more than 70% uppercase letters (likely shouting headline).
     var letters = s.replace(/[^A-Za-z]/g, '')
     if (letters.length > 20) {
@@ -117,17 +164,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // V9.11.1 — uses canonical PhenomenonCategory slugs (the prerelease
   // used legacy 'ufo_uap'/'ghost_haunting' strings that didn't exist
   // in the reports table, so the preference list never matched).
-  var preferred = [
-    'ufos_aliens',
-    'ghosts_hauntings',
-    'cryptids',
-    'psychic_phenomena',
-    'consciousness_practices',
-    'religion_mythology',
-    'esoteric_practices',
-  ]
   var examples: Example[] = []
-  for (var cat of preferred) {
+  for (var cat of PREFERRED_CATEGORIES) {
     if (examples.length >= 5) break
     var pool = byCategory[cat]
     if (!pool || pool.length === 0) continue
