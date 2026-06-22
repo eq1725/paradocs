@@ -615,11 +615,20 @@ export default function StartPage() {
   }, [])
 
   useEffect(function () {
-    // Restore drafts.
+    // V11.20.2 — only restore a saved draft when returning from the
+    // magic-link auth callback (the one flow that reloads the page mid-
+    // onboarding). On a normal visit or refresh, start clean so input
+    // from a prior/abandoned attempt doesn't linger in the fields.
     var d = loadDraft()
-    if (d) setDraft(d)
-    var a = loadAccount()
-    if (a) setAccount(a)
+    if (router.query.from === 'auth') {
+      if (d) setDraft(d)
+      var a = loadAccount()
+      if (a) setAccount(a)
+    } else {
+      clearDraft()
+      try { clearStashedVideo() } catch {}
+      d = null
+    }
 
     // If we just came back from auth callback, jump to submit step.
     if (router.query.from === 'auth') {
