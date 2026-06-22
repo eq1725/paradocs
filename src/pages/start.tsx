@@ -37,6 +37,7 @@ import {
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
+import { stashVideo, loadStashedVideo, clearStashedVideo, type StashedVideo } from '@/lib/onboarding/video-stash'
 import { PhenomenonCategory, PhenomenonType } from '@/lib/database.types'
 import { CATEGORY_CONFIG, COUNTRIES, US_STATES } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
@@ -505,6 +506,19 @@ export default function StartPage() {
   // an acceptable trade-off — most onboarders attach last anyway.
   var [pendingMedia, setPendingMedia] = useState<File[]>([])
 
+  // V11.20 — capture mode + the staged video clip for the "Record on
+  // camera" path. The clip is held in state AND stashed in IndexedDB
+  // (video-stash) so it survives the magic-link sign-in round-trip; the
+  // one-line description drives the pre-auth reveal, and post-auth the
+  // clip runs the existing video pipeline (upload-url → PUT → finalize).
+  var [captureMode, setCaptureMode] = useState<'text' | 'video'>('text')
+  var [pendingVideo, setPendingVideo] = useState<File | null>(null)
+  var [videoPreviewUrl, setVideoPreviewUrl] = useState<string>('')
+  var [videoDurationSec, setVideoDurationSec] = useState<number | null>(null)
+  // Guards the text-submit effect from firing when we're routing the
+  // staged video through the video pipeline on the 'submit' step.
+  var videoFlowRef = useRef(false)
+
   // Account state (step 2)
   var [account, setAccount] = useState<AccountDraft>({
     email: '', username: '', display_name: '',
@@ -610,15 +624,20 @@ export default function StartPage() {
             })
           } catch {}
 
-          if (d && d.description.trim().length >= 30) {
-            // Legacy / experience-first carryover: draft filled, run submit
-            setStep('submit')
-          } else {
-            // T1.8 — account-first: post-auth user with no draft lands on
-            // the experience form (rather than bouncing to /discover).
-            // Their flow continues seamlessly: account → experience → submit.
-            setStep('experience')
-          }
+          // V11.20 — a staged video clip (IndexedDB) takes priority:
+          // run it through the video pipeline. Otherwise the text path.
+          var accessToken = s.data.session.access_token
+          ;(async function () {
+            var stash = await loadStashedVideo()
+            if (stash) { finishAuthedSubmission(accessToken); return }
+            if (d && d.description.trim().length >= 30) {
+              // Experience-first carryover: draft filled, run submit.
+              setStep('submit')
+            } else {
+              // Post-auth user with no draft lands on the experience form.
+              setStep('experience')
+            }
+          })()
         } else {
           // Auth not active yet (race) — show check-email again.
           setStep('check-email')
@@ -1045,12 +1064,38 @@ export default function StartPage() {
   // email only after the user has felt the payoff.
   async function continueToReveal() {
     setError(null)
-    if (draft.description.trim().length < 50) {
+    if (captureMode === 'video') {
+      if (!pendingVideo) {
+        setError('Add a short clip first — or switch to “Type your story.”')
+        return
+      }
+      if (draft.description.trim().length < 12) {
+        setError('Add a quick line about what happens in the clip so we can find matches.')
+        return
+      }
+    } else if (draft.description.trim().length < 50) {
       setError('Add a few more words so we can find good matches — even one extra sentence helps.')
       return
     }
     try { localStorage.removeItem(ACCOUNT_ONLY_KEY) } catch {}
     saveDraft(draft)
+    // V11.20 — re-stash the clip with the final one-liner so the video
+    // (and its matching text) survive the magic-link round-trip. On the
+    // text path, clear any stale stash so an abandoned earlier video
+    // session can't hijack this text submission post-auth.
+    if (captureMode === 'video' && pendingVideo) {
+      try {
+        await stashVideo(pendingVideo, {
+          oneLiner: draft.description.trim(),
+          category: draft.category || 'psychological_experiences',
+          mime: (pendingVideo.type || 'video/mp4').split(';')[0].trim(),
+          size: pendingVideo.size,
+          durationSec: videoDurationSec,
+        })
+      } catch { /* stash is best-effort */ }
+    } else {
+      try { await clearStashedVideo() } catch {}
+    }
     try {
       require('@/lib/posthog').capture('reveal_started', {
         description_length: draft.description.length,
@@ -1080,10 +1125,16 @@ export default function StartPage() {
   }
 
   // After the reveal: authed users save straight away; unauthed users
-  // create an account first (the post-auth callback then runs 'submit').
+  // create an account first (the post-auth callback then runs 'submit'
+  // — or, for a staged clip, the video pipeline).
   function proceedFromReveal() {
     supabase.auth.getSession().then(function (s) {
-      if (s.data.session) {
+      var session = s.data.session
+      if (session) {
+        if (captureMode === 'video' && pendingVideo) {
+          finishAuthedSubmission(session.access_token)
+          return
+        }
         try {
           require('@/lib/posthog').capture('submit_started', {
             description_length: draft.description.length,
@@ -1095,6 +1146,77 @@ export default function StartPage() {
         setStep('account')
       }
     })
+  }
+
+  // V11.20 — staged-clip handler: preview + capture duration, hold the
+  // File in state, and stash it in IndexedDB so it survives sign-in.
+  function onSelectVideo(file: File | null) {
+    setError(null)
+    if (videoPreviewUrl) { try { URL.revokeObjectURL(videoPreviewUrl) } catch {} }
+    if (!file) { setPendingVideo(null); setVideoPreviewUrl(''); setVideoDurationSec(null); return }
+    setPendingVideo(file)
+    setDraft(function (d) { return { ...d, has_photo_video: true } })
+    var url = URL.createObjectURL(file)
+    setVideoPreviewUrl(url)
+    // Read duration off a detached <video> (best-effort).
+    try {
+      var probe = document.createElement('video')
+      probe.preload = 'metadata'
+      probe.onloadedmetadata = function () {
+        setVideoDurationSec(isFinite(probe.duration) ? Math.round(probe.duration) : null)
+      }
+      probe.src = url
+    } catch { setVideoDurationSec(null) }
+  }
+
+  // V11.20 — run the existing video pipeline for a staged clip:
+  // upload-url → PUT blob → finalize (Whisper + Haiku), then land on the
+  // review page so the transcript-drafted report can be confirmed.
+  async function runVideoUpload(accessToken: string, stash: StashedVideo): Promise<void> {
+    var baseMime = (stash.mime || 'video/mp4').split(';')[0].trim()
+    var urlResp = await fetch('/api/reports/video/upload-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken },
+      body: JSON.stringify({ mime_type: baseMime, size_bytes: stash.size, duration_sec: stash.durationSec }),
+    })
+    var urlData = await urlResp.json()
+    if (!urlResp.ok || !urlData.ok) throw new Error(urlData.error || 'Could not start the video upload.')
+
+    var put = await fetch(urlData.signed_url, { method: 'PUT', headers: { 'Content-Type': baseMime }, body: stash.blob })
+    if (!put.ok) throw new Error('Video upload failed (' + put.status + ').')
+
+    var finResp = await fetch('/api/reports/video/' + encodeURIComponent(urlData.report_id) + '/finalize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken },
+      body: JSON.stringify({ duration_sec: stash.durationSec, size_bytes: stash.size }),
+    })
+    var finData = await finResp.json()
+    if (!finResp.ok || !finData.ok) throw new Error(finData.error || 'Could not finalize the video.')
+
+    try { localStorage.setItem(COMPLETE_KEY, '1') } catch {}
+    await clearStashedVideo()
+    clearDraft()
+    router.replace(urlData.review_url || ('/submit/video-review/' + urlData.report_id))
+  }
+
+  // Authed-submission dispatcher: a staged clip runs the video pipeline;
+  // otherwise the text-report 'submit' step. Guards the text-submit
+  // effect via videoFlowRef so it doesn't also save a text report.
+  async function finishAuthedSubmission(accessToken: string) {
+    var stash = await loadStashedVideo()
+    if (stash) {
+      videoFlowRef.current = true
+      setStep('submit')
+      try {
+        await runVideoUpload(accessToken, stash)
+      } catch (e: any) {
+        videoFlowRef.current = false
+        setError(e?.message || 'Something went wrong uploading your video. You can try again.')
+      }
+      return
+    }
+    videoFlowRef.current = false
+    setStep('submit')
   }
 
   function handleSkip() {
@@ -1168,6 +1290,10 @@ export default function StartPage() {
 
   useEffect(function () {
     if (step !== 'submit') return
+    // V11.20 — when a staged video is being routed through the video
+    // pipeline, skip the text-report save (the 'submit' step is reused
+    // only to show the processing spinner).
+    if (videoFlowRef.current) return
     var cancelled = false
     ;(async function () {
       setBusy(true)
@@ -1368,20 +1494,77 @@ export default function StartPage() {
               <div className="flex w-full p-1 bg-gray-900/60 border border-gray-800 rounded-full">
                 <button
                   type="button"
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold bg-purple-600 text-white"
-                  aria-pressed="true"
+                  onClick={function () { setCaptureMode('text') }}
+                  aria-pressed={captureMode === 'text'}
+                  className={
+                    'flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full text-sm transition-colors ' +
+                    (captureMode === 'text' ? 'bg-purple-600 text-white font-semibold' : 'text-gray-300 hover:text-white font-medium')
+                  }
                 >
                   <FileText className="w-4 h-4" />
                   Type your story
                 </button>
-                <Link
-                  href="/submit/video"
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium text-gray-300 hover:text-white"
+                <button
+                  type="button"
+                  onClick={function () { setCaptureMode('video') }}
+                  aria-pressed={captureMode === 'video'}
+                  className={
+                    'flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full text-sm transition-colors ' +
+                    (captureMode === 'video' ? 'bg-purple-600 text-white font-semibold' : 'text-gray-300 hover:text-white font-medium')
+                  }
                 >
                   <Camera className="w-4 h-4" />
                   Record on camera
-                </Link>
+                </button>
               </div>
+
+              {/* V11.20 — in-step video capture. The clip is staged (not
+                  uploaded); the one-liner below drives the reveal; the
+                  clip transcribes after account creation. */}
+              {captureMode === 'video' && (
+                <div className="space-y-3">
+                  {!pendingVideo ? (
+                    <label
+                      htmlFor="exp-video"
+                      className="block w-full cursor-pointer rounded-2xl border border-dashed border-purple-700/50 bg-gradient-to-br from-purple-950/40 to-gray-950/40 px-6 py-8 text-center hover:from-purple-900/40 transition-colors"
+                    >
+                      <div className="w-14 h-14 mx-auto rounded-full bg-purple-600/25 border border-purple-500/30 flex items-center justify-center mb-3">
+                        <Camera className="w-7 h-7 text-purple-200" />
+                      </div>
+                      <p className="text-base font-semibold text-white">Record or upload a clip</p>
+                      <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
+                        Up to 5 minutes. On a phone this opens your camera; on a computer, choose a video file. We&rsquo;ll transcribe it after you create your account.
+                      </p>
+                      <input
+                        id="exp-video"
+                        type="file"
+                        accept="video/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={function (e) { onSelectVideo((e.target.files && e.target.files[0]) || null) }}
+                      />
+                    </label>
+                  ) : (
+                    <div className="rounded-2xl border border-gray-800 bg-gray-900/60 p-3">
+                      {videoPreviewUrl && (
+                        <video src={videoPreviewUrl} controls playsInline className="w-full max-h-72 rounded-xl bg-black" />
+                      )}
+                      <div className="flex items-center justify-between mt-2 gap-3">
+                        <p className="text-xs text-gray-400 truncate">
+                          {pendingVideo.name}{videoDurationSec ? ' · ' + videoDurationSec + 's' : ''}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={function () { onSelectVideo(null) }}
+                          className="flex-shrink-0 text-xs text-purple-300 hover:text-purple-200"
+                        >
+                          Retake / choose another
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Textarea — body of the report. Panel-feedback (May
                   2026): renamed label to "What happened?" because the
@@ -1391,15 +1574,15 @@ export default function StartPage() {
                   this single field was the entire report. */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2" htmlFor="exp-desc">
-                  What happened?
+                  {captureMode === 'video' ? 'In one line, what happens in the clip?' : 'What happened?'}
                 </label>
                 <textarea
                   id="exp-desc"
                   ref={textareaRef}
                   value={draft.description}
                   onChange={function (e) { setDraft(function (d) { return { ...d, description: e.target.value } }) }}
-                  placeholder="It happened in… I saw… I felt…"
-                  rows={4}
+                  placeholder={captureMode === 'video' ? 'e.g. A triangular craft hovered over the highway, three white lights at the corners.' : 'It happened in… I saw… I felt…'}
+                  rows={captureMode === 'video' ? 2 : 4}
                   maxLength={2000}
                   className="w-full bg-gray-900/80 border border-gray-700 rounded-xl p-4 text-base placeholder-gray-500 focus:outline-none focus:border-purple-500 leading-relaxed resize-none"
                 />
@@ -2381,6 +2564,13 @@ export default function StartPage() {
                   type="button"
                   onClick={continueToReveal}
                   disabled={busy || (function () {
+                    // V11.20 — video mode: a staged clip + a one-liner is
+                    // enough (the transcript fills location/date on review).
+                    if (captureMode === 'video') {
+                      if (!pendingVideo) return true
+                      if (draft.description.trim().length < 12) return true
+                      return false
+                    }
                     if (draft.description.trim().length < 50) return true
                     var hasLocation = !!(draft.latitude && draft.longitude) || !!draft.city || !!draft.state_province || !!draft.country
                     if (!hasLocation) return true
