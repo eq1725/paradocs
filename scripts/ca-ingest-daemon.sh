@@ -9,7 +9,17 @@
 #      extraction over ALL shards (it dedups against already-ingested rows,
 #      so re-scanning the full glob is safe) and inserts pending_review rows,
 #      capped at MAX_COST_USD per wave.
-#   3. Sleep SLEEP_SEC, repeat.
+#   3. NARRATE WAVE — scripts/ca-narrate-pass.ts --apply fills
+#      paradocs_narrative (+ sibling AI fields) on pending CA rows that lack
+#      it, reusing the same consolidated-AI voice as live ingestion. Time-
+#      boxed (NARRATE_BUDGET_SEC) + cost-capped (NARRATE_MAX_COST_USD) +
+#      resumable, so the backlog drains a chunk per wave. Without this, the
+#      auto-approve gate holds rows as 'no_narrative' and the backlog grows.
+#   4. AUTO-APPROVE WAVE — scripts/ca-auto-approve.ts --apply promotes
+#      pending→approved for rows that clear the publish gate (narrative
+#      REQUIRED). Folklore stays held (no --include-folklore) per founder
+#      decision.
+#   5. Sleep SLEEP_SEC, repeat.
 # The daily classifier cron (com.paradocs.classifier-daily) tags the new
 # pending rows separately — this daemon does NOT classify.
 #
@@ -35,6 +45,8 @@
 #   MAX_COST_USD   extractor --max-cost per wave (default 30)
 #   POLL_INTERVAL  extractor batch poll seconds (default 60)
 #   MAX_WAIT       extractor per-batch poll ceiling seconds (default 7200)
+#   NARRATE_BUDGET_SEC  narrate-pass per-wave time box seconds (default 120)
+#   NARRATE_MAX_COST_USD narrate-pass per-wave spend cap USD (default 10)
 #   SLEEP_SEC      pause between waves (default 120)
 
 set -u
@@ -49,6 +61,8 @@ HARVEST_BUDGET=${HARVEST_BUDGET:-3600}
 MAX_COST_USD=${MAX_COST_USD:-30}
 POLL_INTERVAL=${POLL_INTERVAL:-60}
 MAX_WAIT=${MAX_WAIT:-7200}
+NARRATE_BUDGET_SEC=${NARRATE_BUDGET_SEC:-120}
+NARRATE_MAX_COST_USD=${NARRATE_MAX_COST_USD:-10}
 SLEEP_SEC=${SLEEP_SEC:-120}
 ONESHOT=${ONESHOT:-0}
 
@@ -120,6 +134,33 @@ while true; do
   else
     log "no shards yet — skipping extract this wave."
   fi
+
+  if [ -f "$STOP_FILE" ] || [ "$STOPPING" = "1" ]; then
+    log "Stop requested after extract — exiting before narrate."
+    exit 0
+  fi
+
+  # ── NARRATE WAVE ────────────────────────────────────────────────────
+  # Fill paradocs_narrative on pending CA rows so the auto-approve gate can
+  # promote them (otherwise they're held as 'no_narrative' forever). Time-
+  # boxed + cost-capped + resumable: each wave drains a chunk and exits.
+  log "===== WAVE $WAVE : narrate (budget ${NARRATE_BUDGET_SEC}s, max-cost \$$NARRATE_MAX_COST_USD) ====="
+  RUN_BUDGET_SEC="$NARRATE_BUDGET_SEC" MAX_COST_USD="$NARRATE_MAX_COST_USD" \
+    npx tsx scripts/ca-narrate-pass.ts --apply \
+    >> "$LOG" 2>&1 || log "narrate wave returned non-zero (continuing)"
+
+  if [ -f "$STOP_FILE" ] || [ "$STOPPING" = "1" ]; then
+    log "Stop requested after narrate — exiting before auto-approve."
+    exit 0
+  fi
+
+  # ── AUTO-APPROVE WAVE ───────────────────────────────────────────────
+  # Promote pending→approved for rows clearing the publish gate (narrative
+  # REQUIRED). NO --include-folklore: retold_folklore stays held per founder
+  # decision. Reversible via scripts/ca-auto-approve.ts --revert.
+  log "===== WAVE $WAVE : auto-approve gate ====="
+  npx tsx scripts/ca-auto-approve.ts --apply \
+    >> "$LOG" 2>&1 || log "auto-approve wave returned non-zero (continuing)"
 
   log "===== WAVE $WAVE done ====="
   if [ "$ONESHOT" = "1" ]; then
