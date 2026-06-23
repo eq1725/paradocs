@@ -1,0 +1,97 @@
+db_category,filename,derived_slug,variant,status,matched_slug,matched_phenomenon,group_image_count,source,license_label,note
+consciousness_practices,Consciousness_Practices_dream_visitation.png,dream-visitation,,matched,dream-visitation,Dream Visitation,1,,Editorial?,not in sheet
+consciousness_practices,consciousness_practices_breathwork.jpg,breathwork,,matched,breathwork,Breathwork,1,,Editorial?,not in sheet
+consciousness_practices,consciousness_practices_dream_yoga2.jpg,dream-yoga,2,matched,dream-yoga,Dream Yoga,1,,Editorial?,not in sheet
+consciousness_practices,consciousness_practices_eye_gazing2.jpg,eye-gazing,2,matched,eye-gazing,Eye Gazing,1,,Editorial?,not in sheet
+consciousness_practices,consciousness_practices_samadhi.jpg,samadhi,,matched,samadhi,Samadhi,1,,Editorial?,not in sheet
+cryptids,cryptids_Kongamato.png,kongamato,,matched,kongamato,Kongamato,1,,Editorial?,not in sheet
+cryptids,cryptids_Mokele‑mbembe.png,mokele-mbembe,,matched,mokele-mbembe,Mokele-mbembe,1,,Editorial?,not in sheet
+cryptids,cryptids_Ogopogo.png,ogopogo,,matched,ogopogo,Ogopogo,1,,Editorial?,not in sheet
+cryptids,cryptids_adze.png,adze,,matched,adze,Adze,1,,Editorial?,not in sheet
+cryptids,cryptids_agropelter.png,agropelter,,matched,agropelter,Agropelter,1,,Editorial?,not in sheet
+cryptids,cryptids_batsquatch.png,batsquatch,,matched,batsquatch,Batsquatch,1,,Editorial?,not in sheet
+cryptids,cryptids_champ.png,champ,,matched,champ,Champ,1,,Editorial?,not in sheet
+cryptids,cryptids_dover_demon.png,dover-demon,,matched,dover-demon,Dover Demon,1,,Editorial?,not in sheet
+cryptids,cryptids_goatman.jpg,goatman,,matched,goatman,Goatman,1,,Editorial?,not in sheet
+cryptids,cryptids_lizard_man_of_scape_ore_swamp.png,lizard-man-of-scape-ore-swamp,,matched,lizard-man-of-scape-ore-swamp,Lizard Man of Scape Ore Swamp,1,,Editorial?,not in sheet
+cryptids,cryptids_loch_ness_monster.png,loch-ness-monster,,matched,loch-ness-monster,Loch Ness Monster,1,,Editorial?,not in sheet
+cryptids,cryptids_metoh-kangmi.jpg,metoh-kangmi,,matched,metoh-kangmi,Metoh-kangmi,1,,Editorial?,not in sheet
+cryptids,cryptids_ozark_howler.jpg,ozark-howler,,matched,ozark-howler,Ozark Howler,1,,Editorial?,not in sheet
+cryptids,cryptids_pukwudgie.png,pukwudgie,,matched,pukwudgie,Pukwudgie,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_and_hauntings_Tsurube_Otoshi.png,tsurube-otoshi,,matched,tsurube-otoshi,Tsurube Otoshi,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_abiku.jpg,abiku,,matched,abiku,Abiku,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_battlefield_ghost.jpg,battlefield-ghost,,matched,battlefield-ghost,Battlefield Ghost,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_dullahan.jpg,dullahan,,matched,dullahan,Dullahan,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_gashadokuro.jpg,gashadokuro,,matched,gashadokuro,Gashadokuro,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_ghost_ship.jpg,ghost-ship,,matched,phantom-ship,Phantom Ship,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_haunted_doll.jpg,haunted-doll,,matched,haunted-doll,Haunted Doll,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_headless_ghost.jpg,headless-ghost,,matched,headless-ghost,Headless Ghost,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_inugami.jpg,inugami,,matched,inugami,Inugami,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_lougarou.jpg,lougarou,,matched,lougarou,Lougarou,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_loup_garou.jpg,loup-garou,,matched,loup-garou,Loup-garou,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_mimicking_spirit.jpg,mimicking-spirit,,matched,mimicking-spirit,Mimicking Spirit,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_nejomata.jpg,nejomata,,ambiguous,nekomata,Nekomata,,,Editorial?,fuzzy d=1; not in sheet
+ghosts_hauntings,ghosts_hauntings_noppera_bo2.jpg,noppera-bo,2,matched,noppera-bo,Noppera-bo,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_obayifo2.jpg,obayifo,2,matched,obayifo,Obayifo,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_old_hag_syndrome.jpg,old-hag-syndrome,,matched,old-hag-syndrome,Old Hag Syndrome,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_onryo.jpg,onryo,,matched,onryo,Onryo,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_orbs.jpg,orbs,,matched,orbs,Orbs,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_pontianak.jpg,pontianak,,matched,pontianak,Pontianak,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_portal_haunting.jpg,portal-haunting,,matched,portal-haunting,Portal Haunting,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_residual_haunting.jpg,residual-haunting,,matched,residual-haunting,Residual Haunting,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_rokurokubi.jpg,rokurokubi,,matched,rokurokubi,Rokurokubi,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_trance_medium_communication.jpg,trance-medium-communication,,matched,trance-mediumship,Trance Medium Communication,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_trapped_spirit.jpg,trapped-spirit,,matched,trapped-spirit,Trapped Spirit,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_ubume.jpg,ubume,,matched,ubume,Ubume,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_vengeful_spirit.jpg,vengeful-spirit,,matched,vengeful-spirit,Vengeful Spirit,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_visitor_spirit.jpg,visitor-spirit,,matched,visitor-spirit,Visitor Spirit,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_will_o__the_wisp.jpg,will-o-the-wisp,,matched,will-o-the-wisp,Will-o'-the-Wisp,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_wraith2.jpg,wraith,2,matched,wraith,Wraith,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_yuki_onna.jpg,yuki-onna,,matched,yuki-onna,Yuki-onna,1,,Editorial?,not in sheet
+ghosts_hauntings,ghosts_hauntings_yurei.jpg,yurei,,matched,yurei,Yurei,1,,Editorial?,not in sheet
+psychological_experiences,psychological_experiences_astral_travel.jpg,astral-travel,,unmatched,,,,,Editorial?,nearest: light-trance (d=9); not in sheet
+psychological_experiences,psychological_experiences_deathbed_vision2.jpg,deathbed-vision,2,matched,deathbed-vision,Deathbed Vision,1,,Editorial?,not in sheet
+psychological_experiences,psychological_experiences_distressing_near_death_experience.jpg,distressing-near-death-experience,,matched,distressing-nde,Distressing Near-Death Experience,1,,Editorial?,not in sheet
+psychological_experiences,psychological_experiences_frequency_illusion.jpg,frequency-illusion,,matched,the-baader-meinhof-phenomenon,Frequency Illusion,1,,Editorial?,not in sheet
+psychological_experiences,psychological_experiences_missing_time.jpg,missing-time,,matched,missing-time,Missing Time,1,,Editorial?,not in sheet
+psychological_experiences,psychological_experiences_near_death_experience.jpg,near-death-experience,,matched,near-death-experience,Near-Death Experience,1,,Editorial?,not in sheet
+psychological_experiences,psychological_experiences_non_local_consciousness.jpg,non-local-consciousness,,unmatched,,,,,Editorial?,nearest: cosmic-consciousness (d=7); not in sheet
+psychological_experiences,psychological_experiences_past_life_memory.jpg,past-life-memory,,unmatched,,,,,Editorial?,nearest: reincarnation-memory (d=11); not in sheet
+psychological_experiences,psychological_experiences_prayer_experience.jpg,prayer-experience,,matched,prayer-experience,Prayer Experience,1,,Editorial?,not in sheet
+psychological_experiences,psychological_experiences_resurrection_experience.jpg,resurrection-experience,,matched,resurrection-experience,Resurrection Experience,1,,Editorial?,not in sheet
+psychological_experiences,psychological_experiences_sleep_paralysis.jpg,sleep-paralysis,,matched,sleep-paralysis,Sleep Paralysis,1,,Editorial?,not in sheet
+psychological_experiences,psychological_experiences_spontanious_human_combustion.jpg,spontanious-human-combustion,,ambiguous,spontaneous-human-combustion,Spontaneous Human Combustion,,,Editorial?,fuzzy d=1; not in sheet
+psychological_experiences,psychological_experiences_vertical_dreams.jpg,vertical-dreams,,unmatched,,,,,Editorial?,nearest: ego-death (d=10); not in sheet
+religion_mythology,religion_mythology_angels.jpg,angels,,matched,angels,Angels,1,,Editorial?,not in sheet
+religion_mythology,religion_mythology_archangel_gabriel.jpg,archangel-gabriel,,matched,archangel-gabriel,Archangel Gabriel,1,,Editorial?,not in sheet
+religion_mythology,religion_mythology_archangel_michael.jpg,archangel-michael,,matched,archangel-michael,Archangel Michael,1,,Editorial?,not in sheet
+religion_mythology,religion_mythology_archangel_raphael.jpg,archangel-raphael,,matched,archangel-raphael,Archangel Raphael,1,,Editorial?,not in sheet
+religion_mythology,religion_mythology_archangel_uriel.jpg,archangel-uriel,,matched,archangel-uriel,Archangel Uriel,1,,Editorial?,not in sheet
+religion_mythology,religion_mythology_beatific_vision.jpg,beatific-vision,,matched,beatific-vision,Beatific Vision,1,,Editorial?,not in sheet
+religion_mythology,religion_mythology_bleeding_statues.jpg,bleeding-statues,,matched,bleeding-statues,Bleeding Statues,1,,Editorial?,not in sheet
+religion_mythology,religion_mythology_eucharistic_miracles.jpg,eucharistic-miracles,,matched,eucharistic-miracles,Eucharistic Miracles,1,,Editorial?,not in sheet
+religion_mythology,religion_mythology_holy_relics.jpg,holy-relics,,matched,holy-relics,Holy Relics,1,,Editorial?,not in sheet
+religion_mythology,religion_mythology_hypnogogic_diety_vision.jpg,hypnogogic-diety-vision,,unmatched,,,,,Editorial?,nearest: hypnagogic-deity-vision (d=3); not in sheet
+religion_mythology,religion_mythology_incorruptable_saints.jpg,incorruptable-saints,,ambiguous,incorruptible-saints,Incorruptible Saints,,,Editorial?,fuzzy d=1; not in sheet
+religion_mythology,religion_mythology_marian_apparitions.jpg,marian-apparitions,,matched,marian-apparitions,Marian Apparitions,1,,Editorial?,not in sheet
+religion_mythology,religion_mythology_miracles.jpg,miracles,,matched,miracles,Miracles,1,,Editorial?,not in sheet
+religion_mythology,religion_mythology_religious_ecstasy.jpg,religious-ecstasy,,matched,religious-ecstasy,Religious Ecstasy,1,,Editorial?,not in sheet
+religion_mythology,religion_mythology_saintly_apparitions.jpg,saintly-apparitions,,ambiguous,saint-apparitions,Saint Apparitions,,,Editorial?,fuzzy d=2; not in sheet
+religion_mythology,religion_mythology_stigmata.jpg,stigmata,,matched,stigmata,Stigmata,1,,Editorial?,not in sheet
+religion_mythology,religion_mythology_the_dreamtime (2).jpg,the-dreamtime,2,matched,the-dreamtime,The Dreamtime,1,,Editorial?,not in sheet
+religion_mythology,religion_mythology_theophany.jpg,theophany,,matched,theophany,Theophany,1,,Editorial?,not in sheet
+ufos_aliens,cryptids_Hopkinsville_goblins.png,hopkinsville-goblins,,matched,hopkinsville-goblins,Hopkinsville Goblins,1,,Editorial?,not in sheet
+ufos_aliens,ufo_aliens_hybridization_program.jpg,hybridization-program,,matched,hybridization-program,Hybridization Program,1,,Editorial?,not in sheet
+ufos_aliens,ufo_aliens_majestic_12.jpg,majestic,12,matched,majestic-12,Majestic 12,1,,Editorial?,not in sheet
+ufos_aliens,ufo_aliens_rod_skyfish.jpg,rod-skyfish,,matched,rod-skyfish,Rod/Skyfish,1,,Editorial?,not in sheet
+ufos_aliens,ufos_and_aliens_Arcturian.png,arcturian,,matched,arcturian,Arcturian,1,,Editorial?,not in sheet
+ufos_aliens,ufos_and_aliens_Close_Encounter_of_the_Fourth_Kind.png,close-encounter-of-the-fourth-kind,,matched,close-encounter-of-the-fourth-kind,Close Encounter of the Fourth Kind,1,,Editorial?,not in sheet
+ufos_aliens,ufos_and_aliens_Close_Encounter_of_the_Third_Kind.png,close-encounter-of-the-third-kind,,matched,close-encounter-of-the-third-kind,Close Encounter of the Third Kind,1,,Editorial?,not in sheet
+ufos_aliens,ufos_and_aliens_Jinn_ET_Interpretation.jpg,jinn-et-interpretation,,matched,jinn-et-interpretation,Jinn ET Interpretation,1,,Editorial?,not in sheet
+ufos_aliens,ufos_and_aliens_Triangular_UFO.png,triangular-ufo,,matched,triangular-ufo,Triangular UFO,1,,Editorial?,not in sheet
+ufos_aliens,ufos_and_aliens_UFO_Landing_Traces.png,ufo-landing-traces,,matched,physical-trace-evidence,UFO Landing Traces,1,,Editorial?,not in sheet
+ufos_aliens,ufos_and_aliens_alien_implant.png,alien-implant,,matched,alien-implant,Alien Implant,1,,Editorial?,not in sheet
+ufos_aliens,ufos_and_aliens_gimbal_ufo.jpg,gimbal-ufo,,matched,gimbal-ufo,Gimbal UFO,1,,Editorial?,not in sheet
+ufos_aliens,ufos_and_aliens_grey_alien.jpg,grey-alien,,matched,grey-alien,Grey Alien,1,,Editorial?,not in sheet
+ufos_aliens,ufos_and_aliens_hybrid_alien.png,hybrid-alien,,matched,hybrid-alien,Hybrid Alien,1,,Editorial?,not in sheet
+ufos_aliens,ufos_and_aliens_metallic_disc_UFO.png,metallic-disc-ufo,,matched,metallic-disc-ufo,Metallic Disc UFO,1,,Editorial?,not in sheet

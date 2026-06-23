@@ -12,9 +12,11 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
-const DRIVE = path.resolve(process.cwd(), 'Paradocs Phenomena Images ')
-const SOURCES_CSV = path.resolve(process.cwd(), 'drive-image-sources.csv')
-const OUT = path.resolve(process.cwd(), 'drive-image-mapping-report.csv')
+// V11.20.11 — IMG_DIR / IMG_OUT env overrides let this run for later
+// tranches (e.g. Phase 2) without duplicating the script.
+const DRIVE = path.resolve(process.cwd(), process.env.IMG_DIR || 'Paradocs Phenomena Images ')
+const SOURCES_CSV = path.resolve(process.cwd(), process.env.IMG_SOURCES || 'drive-image-sources.csv')
+const OUT = path.resolve(process.cwd(), process.env.IMG_OUT || 'drive-image-mapping-report.csv')
 
 const FOLDER_TO_CAT: Record<string, string> = {
   'Consciousness Practices': 'consciousness_practices',
@@ -27,7 +29,7 @@ const FOLDER_TO_CAT: Record<string, string> = {
   'UFOS & Aliens': 'ufos_aliens',
 }
 const PREFIXES = [
-  'ufos_and_aliens_', 'ufos_aliens_', 'esoteric_occult_', 'esoteric_practices_',
+  'ufos_and_aliens_', 'ufo_and_aliens_', 'ufos_aliens_', 'ufo_aliens_', 'esoteric_occult_', 'esoteric_practices_',
   'psychic_phenomena_', 'pshchic_phenomena_', 'psychological_experiences_',
   'consciousness_practices_', 'ghosts_and_hauntings_', 'ghosts_hauntings_',
   'religion_and_mythology_', 'religion_mythology_', 'cryptids_',

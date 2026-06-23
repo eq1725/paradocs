@@ -22,9 +22,11 @@ import * as path from 'path'
 import * as crypto from 'crypto'
 import sharp from 'sharp'
 
-const DRIVE = path.resolve(process.cwd(), 'Paradocs Phenomena Images ')
-const REPORT = path.resolve(process.cwd(), 'drive-image-mapping-report.csv')
-const SNAP = path.resolve(process.cwd(), 'outputs/drive-adopt-snapshot.json')
+// V11.20.11 — IMG_DIR / IMG_REPORT / IMG_SNAP env overrides let this run for
+// later tranches (e.g. Phase 2) with their own folder, mapping CSV, and snapshot.
+const DRIVE = path.resolve(process.cwd(), process.env.IMG_DIR || 'Paradocs Phenomena Images ')
+const REPORT = path.resolve(process.cwd(), process.env.IMG_REPORT || 'drive-image-mapping-report.csv')
+const SNAP = path.resolve(process.cwd(), process.env.IMG_SNAP || 'outputs/drive-adopt-snapshot.json')
 const STORAGE_BUCKET = 'phenomena-images'
 const SIZES = [
   { name: 'hero', width: 1200, height: 1200 },
