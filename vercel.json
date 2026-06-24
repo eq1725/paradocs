@@ -56,6 +56,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/embed-reports",
+      "schedule": "0 */2 * * *"
+    },
+    {
       "path": "/api/cron/reconcile-mux",
       "schedule": "*/5 * * * *"
     },
