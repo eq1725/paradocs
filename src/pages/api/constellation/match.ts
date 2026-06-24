@@ -336,7 +336,11 @@ function computeMatchDimensions(
   // moves the typical user's top matches above the 0.4 Strong-match
   // threshold without inflating cross-category noise (which can't
   // happen — non-matching categories still score 0).
-  var catScore = 0
+  // V11.21 — candidates now come from SEMANTIC vector search (relevant by
+  // meaning, not category-prefiltered), so a different category is still a
+  // relevant match. Give cross-category a 0.4 floor instead of 0 so a great
+  // semantic match isn't tanked just because the inferred category differs.
+  var catScore = 0.4
   if (source.category === target.category) {
     catScore = 0.85
     if (source.type_name && target.type_name && source.type_name === target.type_name) {
@@ -420,11 +424,11 @@ function computeMatchDimensions(
   var hasSemantic = false
   if (semCos != null) {
     hasSemantic = true
-    // Cosine of text-embedding-3-small typically sits in 0.3-0.7 range
-    // for unrelated reports and 0.7-0.95 for genuinely-similar ones.
-    // Linearly remap 0.50→0, 0.95→1.0 so a "neutral" similarity
-    // doesn't dominate; truly similar reports get full credit.
-    semanticScore = Math.max(0, Math.min(1, (semCos - 0.5) / 0.45))
+    // V11.21 — generous remap. text-embedding-3-small cosines for genuinely
+    // related first-person accounts sit ~0.45-0.70 (rarely above 0.8), so the
+    // old 0.50→0/0.95→1 remap crushed real matches to ~0.2. Remap 0.40→0,
+    // 0.70→1.0 so a clearly-similar account (~0.6) lands ~0.67.
+    semanticScore = Math.max(0, Math.min(1, (semCos - 0.40) / 0.30))
     dims.push({ label: 'Semantic similarity', score: semanticScore })
   }
 
@@ -433,24 +437,22 @@ function computeMatchDimensions(
   // axis can't contribute (missing data on either side), its weight
   // redistributes proportionally to the remaining axes so users with
   // missing fields aren't silently penalized.
-  var weightCat = 0.22, weightLoc = 0.13, weightTime = 0.08, weightContent = 0.20, weightSensory = 0.17, weightSemantic = 0.20
-  // Redistribute weight from any dimensions that can't contribute
-  var skippedWeight = 0
-  if (!source.event_date || !target.event_date) { skippedWeight += weightTime; weightTime = 0 }
-  if (!hasSemantic) { skippedWeight += weightSemantic; weightSemantic = 0 }
-  if (skippedWeight > 0) {
-    // Count active dimensions to split bonus
-    var activeCount = (weightTime > 0 ? 1 : 0) + (weightSemantic > 0 ? 1 : 0) + 4  // 4 = cat+loc+content+sensory always active
-    var bonus = skippedWeight / activeCount
-    weightCat += bonus
-    weightLoc += bonus
-    weightContent += bonus
-    weightSensory += bonus
-    if (weightTime > 0) weightTime += bonus
-    if (weightSemantic > 0) weightSemantic += bonus
-  }
-  var overall = catScore * weightCat + locScore * weightLoc + timeScore * weightTime +
-    contentScore * weightContent + sensoryScore * weightSensory + semanticScore * weightSemantic
+  // V11.21 — semantic-led weighting, normalized over only the ACTIVE
+  // dimensions (a missing source field — e.g. no location/date on the
+  // pre-reveal capture — no longer dilutes the score; the present
+  // dimensions scale up to fill). Semantic is the strongest signal so it
+  // carries the most weight when available.
+  var weightCat = 0.17, weightLoc = 0.06, weightTime = 0.04, weightContent = 0.18, weightSensory = 0.10, weightSemantic = 0.45
+  var locActive = !!(source.lat && source.lng && target.lat && target.lng)
+  var timeActive = !!(source.event_date && target.event_date)
+  var semActive = hasSemantic
+  var activeW = weightCat + weightContent + weightSensory +
+    (locActive ? weightLoc : 0) + (timeActive ? weightTime : 0) + (semActive ? weightSemantic : 0)
+  var weighted = catScore * weightCat + contentScore * weightContent + sensoryScore * weightSensory +
+    (locActive ? locScore * weightLoc : 0) +
+    (timeActive ? timeScore * weightTime : 0) +
+    (semActive ? semanticScore * weightSemantic : 0)
+  var overall = weighted / (activeW || 1)
 
   // V11.17.34 PR-4-a → V11.17.35 PR-5-a — Corroborated boolean.
   // Original rule (≥2 non-cat dims ≥0.5) was too strict when one
