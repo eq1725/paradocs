@@ -595,6 +595,11 @@ export default function StartPage() {
   // directly on the experience-form step ('experience') with the
   // tighter copy expected of a returning contributor.
   useEffect(function () {
+    // V11.21.5 — do NOT run the experienced-user redirect on the magic-link
+    // return. That flow (the other effect) owns routing → 'submit' to save
+    // the in-progress report; letting this effect also fire raced it back to
+    // 'experience' mid-save and left the CTA stuck on "Searching the archive…".
+    if (router.query.from === 'auth') return
     supabase.auth.getSession().then(function (s) {
       var session = s.data.session
       if (!session || !session.user) return
