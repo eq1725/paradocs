@@ -55,10 +55,16 @@ function contentFp(desc: string | null | undefined): string {
 }
 const FP_MIN_LEN = 30
 
-const CACHE = path.resolve(process.cwd(), 'outputs/ca-dedup-cache.json')
-const CLUSTERS = path.resolve(process.cwd(), 'outputs/ca-dedup-clusters.json')
-const SNAP = path.resolve(process.cwd(), 'outputs/ca-dedup-snapshot.json')
-const PROC = path.resolve(process.cwd(), 'outputs/ca-dedup-processed.json')
+// V11.21.6 — source-configurable so this dedups Reddit crossposts (same
+// author posting identical text to multiple subreddits) as well as CA
+// syndication. DEDUP_SOURCE=reddit (default chronicling-america). Cache/
+// snapshot/clusters files are namespaced per source so runs don't collide.
+const DEDUP_SOURCE = process.env.DEDUP_SOURCE || 'chronicling-america'
+const TAG = DEDUP_SOURCE === 'chronicling-america' ? 'ca' : DEDUP_SOURCE.replace(/[^a-z0-9]/gi, '')
+const CACHE = path.resolve(process.cwd(), 'outputs/' + TAG + '-dedup-cache.json')
+const CLUSTERS = path.resolve(process.cwd(), 'outputs/' + TAG + '-dedup-clusters.json')
+const SNAP = path.resolve(process.cwd(), 'outputs/' + TAG + '-dedup-snapshot.json')
+const PROC = path.resolve(process.cwd(), 'outputs/' + TAG + '-dedup-processed.json')
 const FP_LEDGER = process.env.CA_CONTENT_FP_LEDGER
   ? path.resolve(process.cwd(), process.env.CA_CONTENT_FP_LEDGER)
   : path.resolve(process.cwd(), 'outputs/ca-content-fp-ledger.txt')
@@ -99,7 +105,7 @@ async function gather(sb: any): Promise<CaRow[]> {
     const r = await sb
       .from('reports')
       .select('id,title,description,event_date,location_name,paradocs_narrative,source_label,status,created_at,metadata')
-      .eq('source_type', 'chronicling-america')
+      .eq('source_type', DEDUP_SOURCE)
       .in('status', ['approved', 'pending_review'])
       .order('created_at', { ascending: true })
       .range(from, from + 999)
@@ -218,7 +224,7 @@ async function main() {
       const { data, error } = await sb
         .from('reports')
         .select('metadata')
-        .eq('source_type', 'chronicling-america')
+        .eq('source_type', DEDUP_SOURCE)
         .range(from, from + 999)
       if (error) { console.error('[ca-dedup] seed fetch error:', error.message); break }
       for (const r of (data || []) as any[]) {
