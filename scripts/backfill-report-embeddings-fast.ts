@@ -40,7 +40,7 @@ function parseArgs() {
   function bool(n: string): boolean { return a.indexOf(n) >= 0 }
   return {
     limit: parseInt(flag('--limit', '0') || '0'),
-    workers: parseInt(flag('--workers', '4') || '4'),
+    workers: parseInt(flag('--workers', '2') || '2'),
     force: bool('--force'),
   }
 }
@@ -154,24 +154,39 @@ async function processBatch(reports: any[], supabase: any, stats: WorkerStats, f
     metadata: {},
     token_count: Math.ceil(p.text.length / 4),
   }))
-  const { error: insertErr } = await supabase.from('vector_chunks').insert(insertRows)
-  if (insertErr) {
-    console.error('vector_chunks insert failed:', insertErr.message)
-    stats.errors += toEmbed.length
-    return
+  // V11.21.2 — insert in small sub-batches with retry. A single 100-row
+  // insert of 1536-dim vectors exceeds Supabase's statement_timeout once
+  // vector_chunks is large; 25-row statements stay under it. Only the
+  // reports whose chunk actually landed get marked in embedding_sync, so
+  // failures are safely retried on the next run.
+  var INSERT_SUB = 25
+  var okIds = new Set<string>()
+  for (var s2 = 0; s2 < insertRows.length; s2 += INSERT_SUB) {
+    var sub = insertRows.slice(s2, s2 + INSERT_SUB)
+    var ok = false
+    for (var attempt2 = 0; attempt2 < 4 && !ok; attempt2++) {
+      var { error: insertErr } = await supabase.from('vector_chunks').insert(sub)
+      if (!insertErr) { ok = true }
+      else if (attempt2 === 3) { console.error('vector_chunks insert failed (sub-batch):', insertErr.message); stats.errors += sub.length }
+      else { await new Promise(function (r) { setTimeout(r, 800 * (attempt2 + 1)) }) }
+    }
+    if (ok) for (var rr of sub) okIds.add(rr.source_id)
   }
+  if (okIds.size === 0) return
 
-  // Bulk upsert embedding_sync
-  const syncRows = toEmbed.map((p: any) => ({
-    source_table: 'report',
-    source_id: p.id,
-    content_hash: p.hash,
-    chunk_count: 1,
-    last_embedded_at: new Date().toISOString(),
-  }))
-  await supabase.from('embedding_sync').upsert(syncRows, { onConflict: 'source_table,source_id' })
+  // Bulk upsert embedding_sync — ONLY for rows that successfully inserted.
+  const syncRows = toEmbed.filter(function (p: any) { return okIds.has(p.id) }).map(function (p: any) {
+    return {
+      source_table: 'report',
+      source_id: p.id,
+      content_hash: p.hash,
+      chunk_count: 1,
+      last_embedded_at: new Date().toISOString(),
+    }
+  })
+  if (syncRows.length > 0) await supabase.from('embedding_sync').upsert(syncRows, { onConflict: 'source_table,source_id' })
 
-  stats.embedded += toEmbed.length
+  stats.embedded += okIds.size
 }
 
 async function worker(workerId: number, supabase: any, args: ReturnType<typeof parseArgs>, totalLimit: number, sharedOffset: { value: number }, stats: WorkerStats): Promise<void> {
