@@ -67,7 +67,7 @@ const SNAP = path.resolve(process.cwd(), 'outputs/' + TAG + '-dedup-snapshot.jso
 const PROC = path.resolve(process.cwd(), 'outputs/' + TAG + '-dedup-processed.json')
 const FP_LEDGER = process.env.CA_CONTENT_FP_LEDGER
   ? path.resolve(process.cwd(), process.env.CA_CONTENT_FP_LEDGER)
-  : path.resolve(process.cwd(), 'outputs/ca-content-fp-ledger.txt')
+  : path.resolve(process.cwd(), 'outputs/' + TAG + '-content-fp-ledger.txt')
 
 const START = Date.now()
 const GATHER_DEADLINE = START + 25000

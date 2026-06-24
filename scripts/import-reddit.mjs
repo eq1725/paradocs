@@ -30,6 +30,39 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// ── CONTENT-FINGERPRINT GUARD ────────────────────────────────────────
+// Reddit's only built-in dedup is the DB unique constraint (source_url /
+// original_report_id), which does NOT catch crossposts: the same author
+// posting identical text to r/Cryptozoology AND r/Mothman has two distinct
+// URLs, so both slip through. This guard mirrors the validated contentFp()
+// in scripts/ca-dedup.ts EXACTLY (normalized body, lede-verb strip, first
+// 90 chars) and skips any report whose fingerprint we've already seen.
+// The ledger is shared with the dedup pass: seed it once from existing
+// canonicals via `DEDUP_SOURCE=reddit npx tsx scripts/ca-dedup.ts --seed-ledger`.
+function contentFp(desc) {
+  let d = (desc || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const m = d.match(/\b(published|reported|recount|account of|describes|tells)\b/);
+  if (m) d = d.slice((m.index || 0) + m[0].length);
+  d = d.replace(/\s+/g, ' ').trim();
+  return d.slice(0, 90);
+}
+const FP_MIN_LEN = 30;
+const FP_LEDGER = process.env.REDDIT_CONTENT_FP_LEDGER
+  ? path.resolve(process.cwd(), process.env.REDDIT_CONTENT_FP_LEDGER)
+  : path.resolve(__dirname, '..', 'outputs', 'reddit-content-fp-ledger.txt');
+const seenFps = new Set();
+try {
+  if (fs.existsSync(FP_LEDGER)) {
+    for (const l of fs.readFileSync(FP_LEDGER, 'utf8').split('\n')) {
+      const s = l.trim();
+      if (s) seenFps.add(s);
+    }
+  }
+} catch (e) { /* fresh ledger */ }
+fs.mkdirSync(path.dirname(FP_LEDGER), { recursive: true });
+const fpLedgerStream = fs.createWriteStream(FP_LEDGER, { flags: 'a' });
+console.log(`Content-fp guard: loaded ${seenFps.size.toLocaleString()} fingerprints from ${FP_LEDGER}`);
+
 // Target subreddits (paranormal-related)
 const TARGET_SUBREDDITS = new Set([
   'paranormal', 'ufos', 'ghosts', 'cryptids', 'glitch_in_the_matrix',
@@ -193,6 +226,18 @@ async function processFile(filePath) {
       }
       stats.passed++;
 
+      // Content-fingerprint guard: skip crossposts/reposts of text we've
+      // already ingested (different URL, identical body). Mirrors ca-dedup.
+      const fp = contentFp(description);
+      if (fp.length >= FP_MIN_LEN) {
+        if (seenFps.has(fp)) {
+          stats.contentDup = (stats.contentDup || 0) + 1;
+          continue;
+        }
+        seenFps.add(fp);
+        fpLedgerStream.write(fp + '\n');
+      }
+
       // Build report
       const report = {
         title: title.substring(0, 200),
@@ -209,7 +254,8 @@ async function processFile(filePath) {
         status: 'approved',
         credibility: 'medium',
         tags: [subreddit, isComments ? 'comment-experience' : 'post'],
-        country: 'Unknown'
+        country: 'Unknown',
+        metadata: fp.length >= FP_MIN_LEN ? { content_fp: fp } : {}
       };
 
       batch.push(report);
@@ -236,6 +282,7 @@ async function processFile(filePath) {
   console.log(`  Too short (<100 chars): ${(stats.tooShort||0).toLocaleString()}`);
   console.log(`  Rejected (spam/meta): ${(stats.rejected||0).toLocaleString()}`);
   console.log(`  No experience markers: ${(stats.noExperience||0).toLocaleString()}`);
+  console.log(`  Content duplicates (crosspost/repost): ${(stats.contentDup||0).toLocaleString()}`);
   console.log(`  Passed all filters: ${stats.passed.toLocaleString()}`);
   console.log(`  Inserted: ${stats.inserted.toLocaleString()}`);
   console.log(`  Skipped (duplicates): ${stats.skipped.toLocaleString()}`);
@@ -286,21 +333,24 @@ async function main() {
   console.log(`\nFound ${files.length} files to process:`);
   files.forEach(f => console.log(`  - ${path.basename(f)}`));
 
-  const totals = { inserted: 0, skipped: 0, errors: 0 };
+  const totals = { inserted: 0, skipped: 0, errors: 0, contentDup: 0 };
 
   for (const file of files) {
     const stats = await processFile(file);
     totals.inserted += stats.inserted;
     totals.skipped += stats.skipped;
     totals.errors += stats.errors;
+    totals.contentDup += (stats.contentDup || 0);
   }
 
   console.log('\n' + '='.repeat(50));
   console.log('ALL FILES COMPLETE');
   console.log('='.repeat(50));
   console.log(`Total inserted: ${totals.inserted.toLocaleString()}`);
-  console.log(`Total skipped: ${totals.skipped.toLocaleString()}`);
+  console.log(`Total skipped (DB dupes): ${totals.skipped.toLocaleString()}`);
+  console.log(`Total content dupes (crosspost/repost): ${totals.contentDup.toLocaleString()}`);
   console.log(`Total errors: ${totals.errors.toLocaleString()}`);
+  fpLedgerStream.end();
 }
 
 main().catch(console.error);
