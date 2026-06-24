@@ -30,6 +30,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
+import { generateQueryEmbedding } from '@/lib/services/embedding.service'
 
 var SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 var SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -570,10 +571,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     tokens: tokenize(description || ''),
   }
 
-  // Query candidates — get more than needed, we'll score and sort
-  var query = supabase
-    .from('reports')
-    .select(`
+  var SELECT_FIELDS = `
       id, title, slug, category, summary, description,
       location_description, city, state_province, country,
       latitude, longitude, event_date, event_time,
@@ -581,21 +579,59 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       source_type, source_url, source_reference,
       credibility,
       phenomenon_type:phenomenon_types(name)
-    `)
-    .eq('status', 'approved')
-    .limit(200)
+    `
 
-  // Prioritize same category but also fetch nearby categories
-  if (category) {
-    query = query.eq('category', category)
+  // V11.21 — SEMANTIC candidate retrieval. Embed the query description and
+  // pull the nearest reports by pgvector (search_vectors over the embedded
+  // corpus). This is far better than the old "first 200 arbitrary rows in
+  // the inferred category" fetch — it finds genuinely similar accounts
+  // (e.g. "star-like light + red eyes in the bedroom" → other red-eyed
+  // entity / orb / bedroom-visitor reports), and it is NOT category-locked,
+  // so a mis-inferred category doesn't cap quality. We also keep the query
+  // embedding to drive the Semantic-similarity scoring dimension.
+  var candidates: any[] | null = null
+  var error: any = null
+  var queryEmbedding: number[] | null = null
+  if (description && description.trim().length > 0 && process.env.OPENAI_API_KEY) {
+    try {
+      queryEmbedding = await generateQueryEmbedding(description.slice(0, 1500))
+      var sv = await supabase.rpc('search_vectors', {
+        query_embedding: '[' + queryEmbedding.join(',') + ']',
+        match_count: 60,
+        similarity_threshold: 0.3,
+        filter_source_table: 'report',
+        filter_metadata: null,
+      })
+      if (!sv.error && Array.isArray(sv.data)) {
+        var ids: string[] = []
+        var seenId = new Set<string>()
+        if (reportId) seenId.add(reportId)
+        for (var rowv of sv.data as any[]) {
+          var sid = rowv.source_id
+          if (sid && !seenId.has(sid)) { seenId.add(sid); ids.push(sid) }
+        }
+        if (ids.length > 0) {
+          var semFetch = await supabase.from('reports').select(SELECT_FIELDS)
+            .eq('status', 'approved').in('id', ids.slice(0, 120))
+          candidates = semFetch.data as any[] | null
+          error = semFetch.error
+        }
+      }
+    } catch (e: any) {
+      console.warn('[match] semantic candidate retrieval failed; falling back to category fetch:', e?.message || e)
+    }
   }
 
-  // Exclude the source report itself
-  if (reportId) {
-    query = query.neq('id', reportId)
+  // Fallback (no description / no OpenAI key / semantic returned nothing):
+  // the original category-prioritized fetch.
+  if (!candidates || candidates.length === 0) {
+    var query = supabase.from('reports').select(SELECT_FIELDS).eq('status', 'approved').limit(200)
+    if (category) query = query.eq('category', category)
+    if (reportId) query = query.neq('id', reportId)
+    var qr = await query
+    candidates = qr.data as any[] | null
+    error = qr.error
   }
-
-  var { data: candidates, error } = await query
 
   if (error) {
     console.error('Match query error:', error)
@@ -623,6 +659,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     candidates = broadCandidates || []
   }
+  candidates = candidates || []
 
   // V11.17.35 PR-5-c — Fetch embeddings for source + all candidates
   // in a single batch query so the per-candidate scoring loop can
@@ -673,7 +710,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.warn('[match] embedding batch fetch failed (continuing without semantic):', (e as any)?.message || e)
     }
   }
-  var sourceEmbedding = reportId ? (embeddingMap.get(reportId) || null) : null
+  // V11.21 — prefer the freshly-embedded query (reveal path); fall back to
+  // the stored report embedding when matching an existing report_id.
+  var sourceEmbedding = queryEmbedding || (reportId ? (embeddingMap.get(reportId) || null) : null)
 
   // Score each candidate
   var scored = candidates.map(function(c) {
