@@ -145,8 +145,13 @@ while true; do
   # promote them (otherwise they're held as 'no_narrative' forever). Time-
   # boxed + cost-capped + resumable: each wave drains a chunk and exits.
   log "===== WAVE $WAVE : narrate (budget ${NARRATE_BUDGET_SEC}s, max-cost \$$NARRATE_MAX_COST_USD) ====="
+  # --reset-cache each wave: the candidate cache is a point-in-time snapshot;
+  # without resetting, a "complete" cache short-circuits gather and newly
+  # ingested un-narrated rows are never picked up. Resetting re-gathers the
+  # current un-narrated set each wave (the null-narrative query filter is the
+  # real dedup, so nothing is re-narrated).
   RUN_BUDGET_SEC="$NARRATE_BUDGET_SEC" MAX_COST_USD="$NARRATE_MAX_COST_USD" \
-    npx tsx scripts/ca-narrate-pass.ts --apply \
+    npx tsx scripts/ca-narrate-pass.ts --reset-cache --apply \
     >> "$LOG" 2>&1 || log "narrate wave returned non-zero (continuing)"
 
   if [ -f "$STOP_FILE" ] || [ "$STOPPING" = "1" ]; then

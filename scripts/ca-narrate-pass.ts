@@ -127,9 +127,16 @@ async function main() {
   const { Anthropic } = await import('@anthropic-ai/sdk')
 
   if (resetCache) {
-    for (const f of [CAND, PROC]) if (fs.existsSync(f)) fs.unlinkSync(f)
-    console.log('[ca-narrate] caches cleared (' + path.basename(CAND) + ', ' + path.basename(PROC) + ')')
-    return
+    // Overwrite (not unlink) so a re-gather happens this run — more robust
+    // than delete (no permission/ownership edge cases) and guarantees the
+    // gather re-queries the CURRENT un-narrated set instead of a stale snapshot.
+    try { fs.mkdirSync(path.dirname(CAND), { recursive: true }) } catch {}
+    try { fs.writeFileSync(CAND, JSON.stringify({ complete: false, page: 0, rows: [] })) } catch (e: any) { console.warn('[ca-narrate] could not reset candidate cache:', e?.message) }
+    try { fs.writeFileSync(PROC, JSON.stringify([])) } catch (e: any) { console.warn('[ca-narrate] could not reset processed cache:', e?.message) }
+    console.log('[ca-narrate] caches reset')
+    // Only exit if reset was the sole intent. With --apply, fall through and
+    // re-gather + narrate the current un-narrated set.
+    if (!apply) return
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL, key = process.env.SUPABASE_SERVICE_ROLE_KEY
