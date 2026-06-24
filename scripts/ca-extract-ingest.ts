@@ -140,6 +140,53 @@ function appendSeen(shas: Iterable<string>, known: Set<string>): void {
   }
 }
 
+// ── CONTENT-FINGERPRINT LEDGER (V11.20.10) ───────────────────────────
+// The seen-ledger above catches EXACT OCR snippet sha256 — same printing,
+// re-submitted. It MISSES syndicated reprints: the same 1900s–1910s wire story
+// reprinted across dozens of papers, each with different OCR (different sha)
+// but a near-identical modern retelling. This PARALLEL ledger guards against
+// those: a normalized content fingerprint of the ACCEPTED modern body. One
+// fingerprint per line, loaded into a Set at wave start; checked against the
+// ledger AND against existing DB rows' metadata.content_fp. Mirrors the
+// seen-ledger pattern exactly. Seed it from existing canonicals via
+// `npx tsx scripts/ca-dedup.ts --seed-ledger`.
+const FP_LEDGER = process.env.CA_CONTENT_FP_LEDGER
+  ? path.resolve(process.cwd(), process.env.CA_CONTENT_FP_LEDGER)
+  : path.resolve(process.cwd(), 'outputs/ca-content-fp-ledger.txt');
+const FP_MIN_LEN = 30;
+
+// EXACT validated logic — keep identical to scripts/ca-dedup.ts contentFp().
+function contentFp(desc: string | null | undefined): string {
+  let d = (desc || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const m = d.match(/\b(published|reported|recount|account of|describes|tells)\b/);
+  if (m) d = d.slice((m.index || 0) + m[0].length);
+  d = d.replace(/\s+/g, ' ').trim();
+  return d.slice(0, 90);
+}
+
+function loadFpLedger(): Set<string> {
+  const fps = new Set<string>();
+  if (!fs.existsSync(FP_LEDGER)) return fps;
+  try {
+    for (const line of fs.readFileSync(FP_LEDGER, 'utf8').split('\n')) { const s = line.trim(); if (s) fps.add(s); }
+  } catch (e: any) {
+    console.warn('[ca-extract] content-fp ledger read failed (' + (e?.message || e) + ') — treating as empty');
+  }
+  return fps;
+}
+
+/** Append one fingerprint if new; mutate `known` to match. */
+function appendFp(fp: string, known: Set<string>): void {
+  if (!fp || known.has(fp)) return;
+  known.add(fp);
+  try {
+    fs.mkdirSync(path.dirname(FP_LEDGER), { recursive: true });
+    fs.appendFileSync(FP_LEDGER, fp + '\n');
+  } catch (e: any) {
+    console.warn('[ca-extract] content-fp ledger append failed (' + (e?.message || e) + ') — dedup will not persist this run');
+  }
+}
+
 const SYSTEM_PROMPT = `You are an editor for Paradocs, a documentary archive of anomalous experiences. Your input is an OCR text snippet cut from a named, dated US newspaper page (1789–1963; the paper name, date, and place are given). OCR noise (broken words, stray characters) is expected — read through it.
 
 TASK: Decide whether the snippet contains at least one GENUINE REPORTED ANOMALOUS EXPERIENCE — a witnessed event reported as fact (a named or described person saw/heard/experienced something anomalous at a real time and place). The following do NOT count: fiction or serialized stories, poetry, advertisements (incl. fortune-teller/clairvoyant ads and patent-medicine copy), joke or humor columns, folklore retold purely as entertainment with no witness, and skeptical essays that discuss the topic without any witness account.
@@ -496,6 +543,7 @@ interface Totals {
   rejectionReasons: Record<string, number>;
   inserted: number;
   insertDuplicates: number;
+  contentDuplicates: number;   // skipped: content fingerprint already seen (syndicated reprint)
   insertErrors: number;
   costUsd: number;
 }
@@ -582,7 +630,7 @@ async function main() {
   const totals: Totals = {
     snippets: jobs.length, skippedDup: 0, submitted: 0, resultRows: 0,
     emptyResults: 0, accountsReturned: 0, accountsRejected: 0, rejectionReasons: {},
-    inserted: 0, insertDuplicates: 0, insertErrors: 0, costUsd: 0,
+    inserted: 0, insertDuplicates: 0, contentDuplicates: 0, insertErrors: 0, costUsd: 0,
   };
 
   async function logCost(reportId: string | null, originalReportId: string, inputTokens: number, outputTokens: number, cacheCreate: number, cacheRead: number, costUsd: number): Promise<void> {
@@ -605,6 +653,7 @@ async function main() {
   console.log('[ca-extract] loading existing chronicling-america rows for dedup…');
   const existingIds = new Set<string>();
   const existingShas = new Set<string>();
+  const existingFps = new Set<string>();   // metadata.content_fp on existing rows (syndication guard)
   {
     let from = 0;
     while (true) {
@@ -618,14 +667,19 @@ async function main() {
         if (r.original_report_id) existingIds.add(r.original_report_id);
         const sha = r.metadata && r.metadata.snippet_sha256;
         if (typeof sha === 'string') existingShas.add(sha);
+        const fp = r.metadata && r.metadata.content_fp;
+        if (typeof fp === 'string' && fp.length >= FP_MIN_LEN) existingFps.add(fp);
       }
       if (!data || data.length < 1000) break;
       from += 1000;
     }
   }
   const seenShas = loadSeenLedger();
+  // Content-fingerprint guard: ledger ∪ existing DB content_fp values.
+  const seenFps = loadFpLedger();
+  for (const fp of existingFps) seenFps.add(fp);
   console.log('[ca-extract] dedup: ' + existingIds.size + ' existing ids, ' + existingShas.size +
-    ' DB fingerprints, ' + seenShas.size + ' seen-ledger fingerprints');
+    ' DB fingerprints, ' + seenShas.size + ' seen-ledger fingerprints, ' + seenFps.size + ' content fingerprints');
 
   // Skip a snippet if it became a row (existingShas/Ids) OR was already
   // processed in a prior run, accepted or rejected (seenShas). The ledger is
@@ -671,6 +725,15 @@ async function main() {
     const s = job.snip;
     const originalReportId = job.baseId + '-' + n;
     if (existingIds.has(originalReportId)) { totals.insertDuplicates++; return; }
+
+    // ── CONTENT-FINGERPRINT GUARD (syndicated-reprint dedup) ──────────
+    // Mirrors the snippet-sha seen-ledger but on the ACCEPTED modern body:
+    // catches the same wire story reprinted across papers (different OCR →
+    // different sha, but near-identical retelling). Skip if the fingerprint
+    // (len >= FP_MIN_LEN) is already in the ledger OR on an existing DB row.
+    // Short/empty fingerprints are never used to dedup (treated as no-fp).
+    const fp = contentFp(acc.modern_body);
+    if (fp.length >= FP_MIN_LEN && seenFps.has(fp)) { totals.contentDuplicates++; return; }
 
     let eventDate = acc.event_date && /^\d{4}-\d{2}-\d{2}$/.test(acc.event_date) ? acc.event_date : null;
     let datePrecision: string = 'exact';
@@ -727,6 +790,7 @@ async function main() {
         page: s.page,
         hitTerm: s.hitTerm,
         snippet_sha256: job.sha256,
+        content_fp: fp.length >= FP_MIN_LEN ? fp : null,   // syndication-dedup family key
         original_snippet: s.snippet,         // PD — held outright
         extraction: 'consolidated-v1',
         genre_flags: { fiction_suspected: !!gf.fiction_suspected, advertisement: !!gf.advertisement, retold_folklore: !!gf.retold_folklore },
@@ -745,6 +809,9 @@ async function main() {
       totals.inserted++;
       existingIds.add(originalReportId);
       existingShas.add(job.sha256);
+      // Record the content fingerprint so later accounts (this run or future
+      // waves) skip the same syndicated story.
+      if (fp.length >= FP_MIN_LEN) appendFp(fp, seenFps);
     }
   }
 
@@ -883,6 +950,7 @@ function printSummary(t: Totals): void {
   console.log('accounts rejected:      ' + t.accountsRejected);
   console.log('inserted pending_review:' + t.inserted);
   console.log('insert duplicates:      ' + t.insertDuplicates);
+  console.log('content-fp duplicates:  ' + t.contentDuplicates + ' (syndicated reprints skipped)');
   console.log('insert errors:          ' + t.insertErrors);
   console.log('cost:                   $' + t.costUsd.toFixed(4));
   const top = Object.entries(t.rejectionReasons).sort((a, b) => b[1] - a[1]).slice(0, 12);
