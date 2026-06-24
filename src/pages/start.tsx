@@ -43,6 +43,7 @@ import { CATEGORY_CONFIG, COUNTRIES, US_STATES } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import RadarVisualization from '@/components/radar/RadarVisualization'
+import { inferLocation } from '@/lib/ingestion/utils/location-inferrer'
 
 // Lazy-loaded so the Leaflet bundle (~50KB) only ships when the user
 // expands the "Where" section.
@@ -52,12 +53,13 @@ import LocationAutocomplete from '@/components/LocationAutocomplete'
 // ---------------------------------------------------------------- types
 
 type Step =
-  | 'experience'      // step 1 — share form
-  | 'account'         // step 2 — email + username
-  | 'check-email'     // step 3 — "we sent a link"
-  | 'submit'          // step 4 — write report (post-auth)
-  | 'reveal'          // step 5 — RADAR matches
-  | 'done'            // step 6 — finished, redirecting
+  | 'experience'      // step 1 — capture (description / video)
+  | 'reveal'          // step 2 — RADAR matches (pre-auth payoff)
+  | 'details'         // step 3 — sharpen: required when/where + category
+  | 'account'         // step 4 — email (magic link)
+  | 'check-email'     // step 5 — "we sent a link"
+  | 'submit'          // step 6 — write report (post-auth)
+  | 'done'            // step 7 — finished, redirecting
 
 interface ExperienceDraft {
   /**
@@ -457,9 +459,11 @@ export default function StartPage() {
   var [showBrowseCategories, setShowBrowseCategories] = useState(false)
 
   // V9.11.3 — deep-detail picker state.
+  // V12 — When/Where moved to the required 'details' step and default to
+  // open there; the other three stay optional + collapsed.
   var [openSections, setOpenSections] = useState<{
     when: boolean; where: boolean; witnesses: boolean; related: boolean; evidence: boolean
-  }>({ when: false, where: false, witnesses: false, related: false, evidence: false })
+  }>({ when: true, where: true, witnesses: false, related: false, evidence: false })
 
   // Related phenomena (cross-disciplinary tagging)
   var [typeAssociations, setTypeAssociations] = useState<{ type_id: string; score: number }[]>([])
@@ -1092,6 +1096,59 @@ export default function StartPage() {
     return function () { clearTimeout(t) }
   }, [account.username, step])
 
+  // ---------------- details step: AI prefill (best-effort, non-blocking)
+
+  // On entering 'details', infer event location from the captured
+  // description and pre-fill the where fields IF the user hasn't already
+  // provided a location. Uses the client-safe inferLocation util (pure
+  // regex/landmark lookup — no server call, no API key). Date extraction
+  // has no comparable client-callable helper, so we skip date prefill
+  // rather than build new infra. // TODO prefill: wire a date-extraction
+  // util here if/when one becomes client-callable.
+  var prefilledForDetailsRef = useRef(false)
+  useEffect(function () {
+    if (step !== 'details') return
+    if (prefilledForDetailsRef.current) return
+    prefilledForDetailsRef.current = true
+    // Don't clobber anything the user already entered.
+    var hasLocation = !!(draft.latitude && draft.longitude) || !!draft.city || !!draft.state_province || !!draft.country
+    if (hasLocation) return
+    var text = (draft.description || '').trim()
+    if (text.length < 20) return
+    try {
+      var inferred = inferLocation(draft.title || '', '', text, {
+        location_name: draft.location_name,
+        city: draft.city,
+        state_province: draft.state_province,
+        country: draft.country,
+        latitude: draft.latitude ? parseFloat(draft.latitude) : undefined,
+        longitude: draft.longitude ? parseFloat(draft.longitude) : undefined,
+      })
+      if (inferred) {
+        var loc = inferred // non-null local so the closure keeps narrowing
+        setDraft(function (d) {
+          // Re-check inside the updater so we never overwrite a value the
+          // user may have typed between render and this callback.
+          var stillEmpty = !(d.latitude && d.longitude) && !d.city && !d.state_province && !d.country
+          if (!stillEmpty) return d
+          var nextCountry = loc.country && COUNTRIES.indexOf(loc.country) !== -1 ? loc.country : d.country
+          return {
+            ...d,
+            location_name: loc.locationName || d.location_name,
+            city: loc.city || d.city,
+            country: nextCountry,
+            latitude: loc.latitude != null ? String(loc.latitude) : d.latitude,
+            longitude: loc.longitude != null ? String(loc.longitude) : d.longitude,
+            // inferLocation returns 2-letter state codes which won't match
+            // the US_STATES <select> (full names), so we leave the select
+            // untouched and rely on lat/lng + city + country for precision.
+          }
+        })
+      }
+    } catch { /* prefill is best-effort */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step])
+
   // ---------------- step 1 (experience) → reveal  [V11.19 reorder]
 
   // Compute the mirror from the DRAFT, BEFORE any account gate. The
@@ -1172,10 +1229,29 @@ export default function StartPage() {
     setStep('reveal')
   }
 
-  // After the reveal: authed users save straight away; unauthed users
-  // create an account first (the post-auth callback then runs 'submit'
-  // — or, for a staged clip, the video pipeline).
+  // After the reveal: route to the new 'details' step (for BOTH text and
+  // video) so we collect when/where + a category confirm before saving.
+  // The draft (with the captured description and any staged clip stashed
+  // in IndexedDB) survives the move. The 'details' step's own CTA then
+  // handles the auth branch (account vs. finishAuthedSubmission/submit).
   function proceedFromReveal() {
+    try {
+      require('@/lib/posthog').capture('details_started', {
+        description_length: draft.description.length,
+        category: draft.category || null,
+      })
+    } catch {}
+    setStep('details')
+  }
+
+  // CTA on the 'details' step. Mirrors the old proceedFromReveal auth
+  // logic: authed users save straight away (video → pipeline, text →
+  // submit); unauthed users create an account first (the post-auth
+  // callback then runs 'submit' / the video pipeline). The draft now
+  // includes when/where, persisted via saveDraft so it survives the
+  // magic-link bounce.
+  function proceedFromDetails() {
+    saveDraft(draft)
     supabase.auth.getSession().then(function (s) {
       var session = s.data.session
       if (session) {
@@ -1400,24 +1476,28 @@ export default function StartPage() {
     setError(null)
     setBusy(true)
     try {
-      // Validate
+      // V12 — email is the ONLY required field. Name + username are
+      // optional here; users can set/refine them later in their profile.
       var email = (account.email || '').trim().toLowerCase()
       if (!email || !/.+@.+\..+/.test(email)) {
         throw new Error('Please enter a valid email address.')
       }
-      if (usernameStatus === 'taken' || usernameStatus === 'invalid') {
-        throw new Error('Pick a different username before continuing.')
-      }
-      if (!account.username) {
-        throw new Error('Please choose a username.')
+      // Username stays optional, but if the user typed one we still
+      // respect a taken/invalid result so we don't send a doomed handle.
+      if (account.username && (usernameStatus === 'taken' || usernameStatus === 'invalid')) {
+        throw new Error('That username is taken — pick another, or leave it blank.')
       }
       saveAccount(account)
       saveDraft(draft) // re-save in case anything changed
 
       // Supabase Auth — magic link with metadata for the profile-creation
       // trigger (handle_new_user reads username + display_name from
-      // raw_user_meta_data).
-      var displayName = account.display_name?.trim() || account.username
+      // raw_user_meta_data). When the user leaves username blank we
+      // derive a safe fallback handle from the email local-part so the
+      // profile trigger always has something valid to claim.
+      var fallbackUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 24) || ('user' + Date.now().toString(36))
+      var finalUsername = account.username || fallbackUsername
+      var displayName = account.display_name?.trim() || finalUsername
       var redirectTo = window.location.origin + '/auth/callback?next=' + encodeURIComponent('/start?from=auth')
 
       var { error: otpErr } = await supabase.auth.signInWithOtp({
@@ -1426,7 +1506,7 @@ export default function StartPage() {
           shouldCreateUser: true,
           emailRedirectTo: redirectTo,
           data: {
-            username: account.username,
+            username: finalUsername,
             display_name: displayName,
           },
         },
@@ -1610,7 +1690,7 @@ export default function StartPage() {
                   What have you experienced that you can&rsquo;t explain?
                 </h1>
                 <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed">
-                  Share what you experienced. We&apos;ll show you who else has &mdash; matched against millions of reports in the archive.
+                  Share what you experienced. We&apos;ll show you who else has &mdash; matched against millions of real stories.
                 </p>
                 {/* V9.11.5 #27.2 — trust signal: reports-only.
                     Reports = the actual data magnitude — MUFON, NUFORC,
@@ -1787,6 +1867,7 @@ export default function StartPage() {
                   placeholder={captureMode === 'video' ? 'e.g. A triangular craft hovered over the highway, three white lights at the corners.' : 'It happened in… I saw… I felt…'}
                   rows={captureMode === 'video' ? 2 : 4}
                   maxLength={2000}
+                  autoFocus={captureMode === 'text'}
                   className="w-full bg-gray-900/80 border border-gray-700 rounded-xl p-4 text-base placeholder-gray-500 focus:outline-none focus:border-purple-500 leading-relaxed resize-none"
                 />
                 {/* V9.11.5 #27 — staged inline rewards. Each tier
@@ -1814,57 +1895,484 @@ export default function StartPage() {
                 </div>
               </div>
 
-              {/* Panel-feedback (May 2026) — Title field.
-                  Optional; auto-suggested via Haiku once the user has
-                  ≥120 chars of body. Click the suggestion to accept it;
-                  type your own to override. Leaving it blank is fine —
-                  the server runs the same suggestion as a fallback.
-                  Why we collect this: the report-page hero needs a
-                  proper short title. Before this change, the body's
-                  first sentence was being used as the title which made
-                  the title field on the report page look like a
-                  truncated body. */}
+              {error && (
+                <div className="flex items-start gap-2 p-3 bg-red-950/30 border border-red-900/50 rounded-lg">
+                  <AlertCircle className="w-4 h-4 text-red-300 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-red-200">{error}</p>
+                </div>
+              )}
+
+              {/* V9.11.3 #8 — reassurance that one report isn't a cap.
+                  Reduces anxiety for users who have multiple experiences
+                  but feel they need to pick the "right" one for signup. */}
+              <p className="text-[11px] text-gray-500 text-center px-4 leading-relaxed">
+                You can share more experiences anytime from your account.
+              </p>
+
+              {/* Continue + Skip.
+                  V12 — the experience step is now capture-only: as soon
+                  as there's a usable description (or, in video mode, a
+                  staged clip + one-liner) we let the user through to the
+                  reveal. When/where + category confirm move to the new
+                  'details' step, AFTER the payoff. */}
+              <div className="space-y-3 pt-2">
+                <button
+                  type="button"
+                  onClick={continueToReveal}
+                  disabled={busy || (function () {
+                    // Video mode: a staged clip + a one-liner is enough.
+                    if (captureMode === 'video') {
+                      if (!pendingVideo) return true
+                      if (draft.description.trim().length < 12) return true
+                      return false
+                    }
+                    // Text mode: a usable description is the only gate.
+                    if (draft.description.trim().length < 50) return true
+                    return false
+                  })()}
+                  className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors disabled:opacity-40"
+                >
+                  {busy ? 'Searching the archive…' : 'See who else has experienced this'}
+                  {!busy && <ArrowRight className="w-4 h-4" />}
+                </button>
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={handleSkip}
+                    className="text-sm text-gray-400 hover:text-gray-200 transition-colors py-1"
+                  >
+                    Browse Paradocs first →
+                  </button>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    No account needed to browse.
+                  </p>
+                </div>
+                {/* V9.11.2 — secondary path: account without an experience.
+                    Smaller, lower-contrast than the primary skip (panel
+                    consensus: keep two-skips visually weighted by intent
+                    frequency). */}
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={handleAccountOnly}
+                    className="text-xs text-gray-500 hover:text-gray-300 transition-colors underline-offset-2 hover:underline"
+                  >
+                    Or create my account, share later →
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-500 text-center px-4 leading-relaxed">
+                  By sharing, you agree to our <Link href="/terms" className="underline hover:text-gray-300">Terms</Link> and <Link href="/privacy" className="underline hover:text-gray-300">Privacy Policy</Link>.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ============= STEP 2 — ACCOUNT ============= */}
+          {step === 'account' && (() => {
+            // T1.8 (May 2026) — onboarding is account-first by default
+            // for unauthed visitors. The earlier 'one more step / save
+            // your experience' copy assumed the user had already typed
+            // an experience; in the account-first flow they haven't, so
+            // that wording was vestigial and misleading. The
+            // ACCOUNT_ONLY_KEY localStorage flag (set by the legacy
+            // 'create my account, share later' CTA) is still respected
+            // but the difference between the two paths is now just a
+            // line of nuance, not two different headlines.
+            var hasDraft = false
+            try {
+              hasDraft = !!(localStorage.getItem(DRAFT_KEY) && draft.description.trim().length > 0)
+            } catch {}
+            return (
+            <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2" htmlFor="exp-title">
-                  Title <span className="text-gray-500 font-normal">(optional — we&rsquo;ll suggest one)</span>
+                {/* Back to experience only when there's actually a
+                    draft to return to. For an unauthed account-first
+                    visitor with no draft, the back button just dumped
+                    them on an empty form they didn't intend to fill. */}
+                {hasDraft && (
+                  <button
+                    type="button"
+                    onClick={function () { setStep('experience') }}
+                    className="text-sm text-gray-400 hover:text-white mb-3 inline-flex items-center gap-1"
+                  >
+                    ← Back to your experience
+                  </button>
+                )}
+                <h1 className="text-2xl sm:text-3xl font-bold leading-tight">
+                  Create your account.
+                </h1>
+                <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed">
+                  {hasDraft
+                    ? 'We’ll save what you wrote and email you a one-tap sign-in link. No password to remember.'
+                    : 'We’ll email you a one-tap sign-in link. No password to remember. Share an experience whenever you’re ready.'}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2" htmlFor="acc-email">
+                  Email
                 </label>
                 <input
-                  id="exp-title"
-                  type="text"
-                  value={draft.title}
-                  onChange={function (e) { setDraft(function (d) { return { ...d, title: e.target.value } }) }}
-                  placeholder={titleSuggestion ? titleSuggestion : 'A short headline for your experience'}
-                  maxLength={140}
+                  id="acc-email"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  value={account.email}
+                  onChange={function (e) { setAccount(function (a) { return { ...a, email: e.target.value } }) }}
+                  placeholder="you@example.com"
                   className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-4 py-3 text-base placeholder-gray-500 focus:outline-none focus:border-purple-500"
                 />
-                {/* Suggestion affordance — only show when we have a
-                    suggestion AND the user hasn't typed their own. */}
-                {titleSuggestion && !draft.title && (
-                  <div className="mt-2 flex items-center justify-between gap-2 px-1">
-                    <p className="text-xs text-gray-400 leading-snug">
-                      <span className="text-purple-300/80">Suggested:</span>{' '}
-                      <span className="italic">&ldquo;{titleSuggestion}&rdquo;</span>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2" htmlFor="acc-display">
+                  Your name <span className="text-gray-500 font-normal">(optional)</span>
+                </label>
+                <input
+                  id="acc-display"
+                  type="text"
+                  autoComplete="name"
+                  value={account.display_name}
+                  onChange={function (e) { setAccount(function (a) { return { ...a, display_name: e.target.value } }) }}
+                  placeholder="Your name"
+                  className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-4 py-3 text-base placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2" htmlFor="acc-username">
+                  Username <span className="text-gray-500 font-normal">(optional — we&rsquo;ll pick one if you skip it)</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">@</span>
+                  <input
+                    id="acc-username"
+                    type="text"
+                    autoComplete="username"
+                    inputMode="text"
+                    value={account.username}
+                    onChange={function (e) { setAccount(function (a) { return { ...a, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') } }) }}
+                    placeholder="username"
+                    className={
+                      'w-full pl-8 pr-10 py-3 bg-gray-900/80 border rounded-xl text-base placeholder-gray-500 focus:outline-none transition-colors ' +
+                      (usernameStatus === 'taken' || usernameStatus === 'invalid'
+                        ? 'border-red-500/60 focus:border-red-500'
+                        : usernameStatus === 'available'
+                          ? 'border-emerald-500/60 focus:border-emerald-500'
+                          : 'border-gray-700 focus:border-purple-500')
+                    }
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs">
+                    {usernameStatus === 'checking' && <Loader2 className="w-4 h-4 text-gray-500 animate-spin" />}
+                    {usernameStatus === 'available' && <span className="text-emerald-400">✓</span>}
+                    {(usernameStatus === 'taken' || usernameStatus === 'invalid') && <span className="text-red-400">✗</span>}
+                  </span>
+                </div>
+                {(usernameStatus === 'taken' || usernameStatus === 'invalid') && usernameReason && (
+                  <p className="text-xs text-red-300 mt-1.5">{usernameReason}</p>
+                )}
+                {usernameStatus === 'available' && (
+                  <p className="text-xs text-emerald-300 mt-1.5">Available — yours to claim.</p>
+                )}
+              </div>
+
+              {error && (
+                <div className="flex items-start gap-2 p-3 bg-red-950/30 border border-red-900/50 rounded-lg">
+                  <AlertCircle className="w-4 h-4 text-red-300 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-red-200">{error}</p>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={sendMagicLink}
+                disabled={
+                  // V12 — email is the only required field. Username is
+                  // optional; we only block on a typed-but-invalid handle.
+                  busy ||
+                  !account.email ||
+                  (!!account.username && (usernameStatus === 'taken' || usernameStatus === 'invalid' || usernameStatus === 'checking'))
+                }
+                className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors disabled:opacity-40"
+              >
+                {busy ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</>
+                ) : (
+                  <><Mail className="w-4 h-4" /> Send me the link</>
+                )}
+              </button>
+
+              <p className="text-[10px] text-gray-500 text-center leading-relaxed">
+                We email a one-tap sign-in link instead of asking you for a password.
+              </p>
+            </div>
+            )
+          })()}
+
+          {/* ============= STEP 3 — CHECK EMAIL =============
+              V9.11.5 #30 — Panel-driven copy revamp. Replaces the
+              transactional "we'll save your experience" with a
+              preview of what users actually unlock when they tap
+              the link. Builds anticipation during dead time, eases
+              passwordless anxiety, and hints at the archive scale
+              + community without requiring a hardcoded number. */}
+          {step === 'check-email' && (
+            <div className="text-center py-8 space-y-6">
+              <div className="inline-flex w-16 h-16 rounded-full bg-purple-600/20 border border-purple-500/30 items-center justify-center">
+                <Mail className="w-7 h-7 text-purple-300" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold">Check your email.</h1>
+                <p className="text-sm sm:text-base text-gray-300 mt-3 leading-relaxed">
+                  We sent a one-tap sign-in link to{' '}
+                  <strong className="text-white">{account.email}</strong>.
+                </p>
+              </div>
+
+              {/* Preview of what they unlock — anticipation builder.
+                  T1.8 (May 2026): bullets adapt to whether the user
+                  has actually typed an experience. Account-first
+                  visitors see a "what's waiting for you" framing;
+                  draft-first visitors see the original "your report
+                  + matches" framing. */}
+              <div className="max-w-sm mx-auto text-left bg-gray-900/40 border border-gray-800/60 rounded-xl p-4 space-y-2.5">
+                <p className="text-[10px] font-semibold tracking-widest uppercase text-purple-400">
+                  Once you tap the link
+                </p>
+                <ul className="space-y-2 text-sm text-gray-200 leading-relaxed">
+                  {draft.description.trim().length >= 30 ? (
+                    <>
+                      <li className="flex items-start gap-2.5">
+                        <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                        <span>Your experience joins the archive</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                        <span>We surface others who&rsquo;ve had something like it</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                        <span>Your personal RADAR maps patterns across thousands of reports</span>
+                      </li>
+                    </>
+                  ) : (
+                    <>
+                      <li className="flex items-start gap-2.5">
+                        <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                        <span>Your account is created &mdash; no password needed</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                        <span>Browse thousands of paranormal, UFO, and unexplained reports</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                        <span>Share your own experience whenever you&rsquo;re ready &mdash; we&rsquo;ll match it to similar cases</span>
+                      </li>
+                    </>
+                  )}
+                </ul>
+              </div>
+
+              <p className="text-[11px] text-gray-500 max-w-sm mx-auto leading-relaxed">
+                No password to remember &mdash; your email keeps your account safe.
+                If you don&rsquo;t see it in a minute, check your spam folder.
+              </p>
+
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={function () { setStep('account') }}
+                  className="text-sm text-purple-300 hover:text-purple-200"
+                >
+                  Wrong email? Go back
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ============= STEP 4 — SUBMITTING ============= */}
+          {step === 'submit' && (
+            <div className="text-center py-12 space-y-6">
+              {/* V9.11.5 — only spin while we're actually working. When
+                  an error has fired, drop the loader and show a recovery
+                  path back to step 1 so the user isn't trapped. */}
+              {!error && (
+                <>
+                  <Loader2 className="w-10 h-10 text-purple-300 animate-spin mx-auto" />
+                  <p className="text-base text-gray-200">
+                    {busy ? 'Saving your experience…' : 'Searching the archive…'}
+                  </p>
+                </>
+              )}
+              {error && (
+                <>
+                  <div className="inline-flex w-12 h-12 rounded-full bg-red-950/30 border border-red-900/50 items-center justify-center mx-auto">
+                    <AlertCircle className="w-6 h-6 text-red-300" />
+                  </div>
+                  <div className="space-y-2">
+                    <h2 className="text-lg sm:text-xl font-semibold text-white">
+                      We hit a snag.
+                    </h2>
+                    <p className="text-sm text-gray-300 max-w-sm mx-auto leading-relaxed">
+                      {error}
                     </p>
+                  </div>
+                  <div className="space-y-2 max-w-xs mx-auto">
                     <button
                       type="button"
-                      onClick={function () { setDraft(function (d) { return { ...d, title: titleSuggestion } }) }}
-                      className="text-xs text-purple-300 hover:text-purple-200 underline underline-offset-2 whitespace-nowrap"
+                      onClick={function () {
+                        setError(null)
+                        setStep('experience')
+                      }}
+                      className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors"
                     >
-                      Use this
+                      Edit my description
+                    </button>
+                    <button
+                      type="button"
+                      onClick={function () {
+                        // Re-trigger the submit effect by leaving + re-entering step.
+                        setError(null)
+                        setStep('account')
+                        setTimeout(function () { setStep('submit') }, 0)
+                      }}
+                      className="w-full text-sm text-gray-400 hover:text-gray-200 transition-colors py-2"
+                    >
+                      Or try saving again
                     </button>
                   </div>
-                )}
-                {titleSuggesting && !titleSuggestion && (
-                  <p className="text-xs text-gray-500 mt-2 px-1 flex items-center gap-1.5">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    Drafting a title for you…
-                  </p>
-                )}
-                {titleSuggestError && (
-                  <p className="text-xs text-gray-500 mt-2 px-1">
-                    Couldn&rsquo;t suggest a title — type your own, or leave blank and we&rsquo;ll handle it on save.
-                  </p>
-                )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ============= STEP 5 — RADAR REVEAL ============= */}
+          {/* V9.11.5 #16 — animated mini-RADAR replaces the previous
+              static list. Panel-driven (Onboarding/retention, Brand
+              strategist, UX writer, CRO, Visual designer/motion).
+              Visualisation IS the payoff; cards beneath are supporting.
+              V9.11.5 #20 — vertically center the reveal content so the
+              full payoff (radar + headline + match cards + CTA) sits
+              in the viewport on first paint. Without this the H1 and
+              CTA were pushed below the fold on standard laptop heights. */}
+          {step === 'reveal' && (
+            <div className="space-y-6 flex flex-col justify-center min-h-[calc(100dvh-200px)] -mt-6 sm:-mt-12">
+              {/* Mini-RADAR visualization */}
+              <div className="flex justify-center pt-2">
+                <RadarVisualization
+                  mode="reveal"
+                  matches={matches.map(function (m) {
+                    return {
+                      id: m.id,
+                      title: m.title,
+                      slug: m.slug,
+                      category: m.category,
+                      match_score: m.match_score,
+                    }
+                  })}
+                  user={{
+                    latitude: draft.latitude ? parseFloat(draft.latitude) : null,
+                    longitude: draft.longitude ? parseFloat(draft.longitude) : null,
+                  }}
+                  size={300}
+                  centerLabel="YOU"
+                  onMatchClick={function (m) {
+                    if (typeof window !== 'undefined') window.location.href = '/report/' + m.slug
+                  }}
+                />
+              </div>
+
+              <div className="text-center">
+                <h1 className="text-2xl sm:text-3xl font-bold leading-tight">
+                  {matches.length > 0
+                    ? 'You\'re not alone.'
+                    : 'Yours is a rare one.'}
+                </h1>
+                <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed px-2">
+                  {matches.length > 0
+                    ? (matches.length === 1 ? '1 person' : matches.length + ' people') + ' reported something that overlaps with yours. Across ' + (matchStats.database || 0).toLocaleString() + ' patterns to explore.'
+                    : 'We haven\'t seen one quite like this yet. Create your account to save it — and we\'ll surface matches here as more people share.'}
+                </p>
+              </div>
+
+              {/* Top 3 match cards (preview only — full list lives in /lab) */}
+              {matches.length > 0 && (
+                <div className="space-y-2">
+                  {matches.slice(0, 3).map(function (m) {
+                    return (
+                      <Link
+                        key={m.id}
+                        href={'/report/' + m.slug}
+                        className="block p-3 bg-gray-900/80 border border-gray-800 rounded-xl hover:border-purple-500/40 transition-colors"
+                      >
+                        <p className="text-sm font-medium text-white truncate">{m.title}</p>
+                        <p className="text-[11px] text-gray-500 mt-0.5">
+                          {Math.round(m.match_score * 100)}% match
+                          {m.match_dimensions && m.match_dimensions.length > 0 && (
+                            <> · {m.match_dimensions.map(function (d) { return d.label }).join(', ')}</>
+                          )}
+                        </p>
+                      </Link>
+                    )
+                  })}
+                  {matches.length > 3 && (
+                    <p className="text-[11px] text-purple-300/80 text-center pt-1">
+                      + {matches.length - 3} more — unlock your full RADAR with a free account
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* V9.11.6 Phase 1.C — peer-connection opt-in. Self-gates to
+                  authed sessions (renders null pre-auth), so on the V11.19
+                  pre-account reveal it stays hidden; it surfaces for a
+                  returning authed user capturing again. The post-signup
+                  peer-connection moment now lives on /lab. */}
+              {matches.length > 0 && (
+                <PeerConnectionOptIn />
+              )}
+
+              {/* V11.19 — reveal is now PRE-auth: this is the gate. Deliver
+                  the save + "unlock the rest" as the reason to sign up. */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={proceedFromReveal}
+                  className="block w-full text-center px-6 py-3.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors"
+                >
+                  {matches.length > 0
+                    ? 'Create your free account to save this & unlock your full RADAR →'
+                    : 'Create your free account to save this →'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSkip}
+                  className="block w-full text-center text-xs text-gray-500 hover:text-gray-300 py-3 mt-1"
+                >
+                  not now — just browse the feed
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ============= STEP 3 — SHARPEN (details) =============
+              V12 — inserted between reveal and account. We collect the
+              required when/where (precision-flexible) + a category
+              confirm here, AFTER the reveal payoff, so the saved report
+              has a map pin + a date for the feed. Optional depth (title,
+              witnesses, related, evidence, visibility) stays available
+              but secondary. The draft is persisted via saveDraft so it
+              survives the magic-link bounce. */}
+          {step === 'details' && (
+            <div className="space-y-6">
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold leading-tight">
+                  Add when &amp; where to sharpen your matches.
+                </h1>
+                <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed">
+                  A rough date and place is all we need &mdash; even an approximate year or just a country. It puts your story on the map and tightens who you match with.
+                </p>
               </div>
 
               {/* Phenomenology picker (V9.11.1).
@@ -1876,7 +2384,7 @@ export default function StartPage() {
                   to describe; this asks them to categorize. */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">
-                  What kind of experience was it? <span className="text-gray-500 font-normal">(optional)</span>
+                  What kind of experience was it? <span className="text-purple-300/70 font-normal">(required)</span>
                 </label>
                 <p className="text-xs text-gray-500 mb-3">
                   Search for an experience type, or browse by category.
@@ -2062,8 +2570,8 @@ export default function StartPage() {
                   Experienced witnesses see the full depth available
                   without being forced to use it (panel consensus). */}
               <div className="border-t border-gray-800/50 pt-3 space-y-2">
-                <p className="text-[11px] font-semibold tracking-widest uppercase text-gray-500 mb-1">
-                  Add more details (optional)
+                <p className="text-[11px] font-semibold tracking-widest uppercase text-purple-300/70 mb-1">
+                  Required &mdash; when &amp; where
                 </p>
 
                 {/* ── WHEN ─────────────────────────────────────────── */}
@@ -2331,6 +2839,63 @@ export default function StartPage() {
                     />
                   </div>
                 </DetailSection>
+
+              {/* Panel-feedback (May 2026) — Title field.
+                  Optional; auto-suggested via Haiku once the user has
+                  ≥120 chars of body. Click the suggestion to accept it;
+                  type your own to override. Leaving it blank is fine —
+                  the server runs the same suggestion as a fallback.
+                  Why we collect this: the report-page hero needs a
+                  proper short title. Before this change, the body's
+                  first sentence was being used as the title which made
+                  the title field on the report page look like a
+                  truncated body. */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2" htmlFor="exp-title">
+                  Title <span className="text-gray-500 font-normal">(optional — we&rsquo;ll suggest one)</span>
+                </label>
+                <input
+                  id="exp-title"
+                  type="text"
+                  value={draft.title}
+                  onChange={function (e) { setDraft(function (d) { return { ...d, title: e.target.value } }) }}
+                  placeholder={titleSuggestion ? titleSuggestion : 'A short headline for your experience'}
+                  maxLength={140}
+                  className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-4 py-3 text-base placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                />
+                {/* Suggestion affordance — only show when we have a
+                    suggestion AND the user hasn't typed their own. */}
+                {titleSuggestion && !draft.title && (
+                  <div className="mt-2 flex items-center justify-between gap-2 px-1">
+                    <p className="text-xs text-gray-400 leading-snug">
+                      <span className="text-purple-300/80">Suggested:</span>{' '}
+                      <span className="italic">&ldquo;{titleSuggestion}&rdquo;</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={function () { setDraft(function (d) { return { ...d, title: titleSuggestion } }) }}
+                      className="text-xs text-purple-300 hover:text-purple-200 underline underline-offset-2 whitespace-nowrap"
+                    >
+                      Use this
+                    </button>
+                  </div>
+                )}
+                {titleSuggesting && !titleSuggestion && (
+                  <p className="text-xs text-gray-500 mt-2 px-1 flex items-center gap-1.5">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Drafting a title for you…
+                  </p>
+                )}
+                {titleSuggestError && (
+                  <p className="text-xs text-gray-500 mt-2 px-1">
+                    Couldn&rsquo;t suggest a title — type your own, or leave blank and we&rsquo;ll handle it on save.
+                  </p>
+                )}
+              </div>
+
+                <p className="text-[11px] font-semibold tracking-widest uppercase text-gray-500 mb-1 mt-4">
+                  Add more details (optional)
+                </p>
 
                 {/* ── WITNESSES ────────────────────────────────────── */}
                 <DetailSection
@@ -2730,482 +3295,51 @@ export default function StartPage() {
                 </div>
               )}
 
-              {/* V9.11.3 #8 — reassurance that one report isn't a cap.
-                  Reduces anxiety for users who have multiple experiences
-                  but feel they need to pick the "right" one for signup. */}
-              <p className="text-[11px] text-gray-500 text-center px-4 leading-relaxed">
-                You can share more experiences anytime from your account.
-              </p>
-
-              {/* Panel-feedback (May 2026) — submitted experiences must
-                  enforce location + date (even approximate). Without
-                  these, the report page map collapses and the Today
-                  feed pin can't drop. The button stays disabled until
-                  all three (description, location, date) are filled,
-                  and we surface a friendly checklist immediately above
-                  so users know exactly what's still needed. */}
+              {/* Required-fields nudge — category + when + where. */}
               {(function () {
                 var missing: string[] = []
-                if (draft.description.trim().length < 50) missing.push('a longer description (at least 50 characters)')
+                if (!draft.category) missing.push('the kind of experience')
+                if (!draft.event_date) missing.push('when this happened (even a year is fine)')
                 var hasLocation = !!(draft.latitude && draft.longitude) || !!draft.city || !!draft.state_province || !!draft.country
                 if (!hasLocation) missing.push('where this happened (even just a country is fine)')
-                if (!draft.event_date) missing.push('when this happened (even a year is fine)')
                 if (missing.length === 0) return null
                 return (
                   <div className="rounded-lg border border-amber-900/40 bg-amber-950/20 p-3">
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-300/80 mb-1.5">A few more things</p>
                     <p className="text-xs text-amber-100/90 leading-relaxed">
-                      To finish your report, please add {missing.join('; ')}.
+                      To save your report, please add {missing.join('; ')}.
                     </p>
                   </div>
                 )
               })()}
 
-              {/* Continue + Skip */}
               <div className="space-y-3 pt-2">
                 <button
                   type="button"
-                  onClick={continueToReveal}
+                  onClick={proceedFromDetails}
                   disabled={busy || (function () {
-                    // V11.20 — video mode: a staged clip + a one-liner is
-                    // enough (the transcript fills location/date on review).
-                    if (captureMode === 'video') {
-                      if (!pendingVideo) return true
-                      if (draft.description.trim().length < 12) return true
-                      return false
-                    }
-                    if (draft.description.trim().length < 50) return true
+                    if (!draft.category) return true
+                    if (!draft.event_date) return true
                     var hasLocation = !!(draft.latitude && draft.longitude) || !!draft.city || !!draft.state_province || !!draft.country
                     if (!hasLocation) return true
-                    if (!draft.event_date) return true
                     return false
                   })()}
                   className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors disabled:opacity-40"
                 >
-                  {busy ? 'Searching the archive…' : 'See who else has experienced this'}
-                  {!busy && <ArrowRight className="w-4 h-4" />}
-                </button>
-                <div className="text-center">
-                  <button
-                    type="button"
-                    onClick={handleSkip}
-                    className="text-sm text-gray-400 hover:text-gray-200 transition-colors py-1"
-                  >
-                    Browse Paradocs first →
-                  </button>
-                  <p className="text-[11px] text-gray-500 mt-0.5">
-                    No account needed to browse.
-                  </p>
-                </div>
-                {/* V9.11.2 — secondary path: account without an experience.
-                    Smaller, lower-contrast than the primary skip (panel
-                    consensus: keep two-skips visually weighted by intent
-                    frequency). */}
-                <div className="text-center">
-                  <button
-                    type="button"
-                    onClick={handleAccountOnly}
-                    className="text-xs text-gray-500 hover:text-gray-300 transition-colors underline-offset-2 hover:underline"
-                  >
-                    Or create my account, share later →
-                  </button>
-                </div>
-                <p className="text-[10px] text-gray-500 text-center px-4 leading-relaxed">
-                  By sharing, you agree to our <Link href="/terms" className="underline hover:text-gray-300">Terms</Link> and <Link href="/privacy" className="underline hover:text-gray-300">Privacy Policy</Link>.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* ============= STEP 2 — ACCOUNT ============= */}
-          {step === 'account' && (() => {
-            // T1.8 (May 2026) — onboarding is account-first by default
-            // for unauthed visitors. The earlier 'one more step / save
-            // your experience' copy assumed the user had already typed
-            // an experience; in the account-first flow they haven't, so
-            // that wording was vestigial and misleading. The
-            // ACCOUNT_ONLY_KEY localStorage flag (set by the legacy
-            // 'create my account, share later' CTA) is still respected
-            // but the difference between the two paths is now just a
-            // line of nuance, not two different headlines.
-            var hasDraft = false
-            try {
-              hasDraft = !!(localStorage.getItem(DRAFT_KEY) && draft.description.trim().length > 0)
-            } catch {}
-            return (
-            <div className="space-y-6">
-              <div>
-                {/* Back to experience only when there's actually a
-                    draft to return to. For an unauthed account-first
-                    visitor with no draft, the back button just dumped
-                    them on an empty form they didn't intend to fill. */}
-                {hasDraft && (
-                  <button
-                    type="button"
-                    onClick={function () { setStep('experience') }}
-                    className="text-sm text-gray-400 hover:text-white mb-3 inline-flex items-center gap-1"
-                  >
-                    ← Back to your experience
-                  </button>
-                )}
-                <h1 className="text-2xl sm:text-3xl font-bold leading-tight">
-                  Create your account.
-                </h1>
-                <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed">
-                  {hasDraft
-                    ? 'We’ll save what you wrote and email you a one-tap sign-in link. No password to remember.'
-                    : 'We’ll email you a one-tap sign-in link. No password to remember. Share an experience whenever you’re ready.'}
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2" htmlFor="acc-email">
-                  Email
-                </label>
-                <input
-                  id="acc-email"
-                  type="email"
-                  inputMode="email"
-                  autoComplete="email"
-                  value={account.email}
-                  onChange={function (e) { setAccount(function (a) { return { ...a, email: e.target.value } }) }}
-                  placeholder="you@example.com"
-                  className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-4 py-3 text-base placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2" htmlFor="acc-display">
-                  Your name <span className="text-gray-500 font-normal">(optional)</span>
-                </label>
-                <input
-                  id="acc-display"
-                  type="text"
-                  autoComplete="name"
-                  value={account.display_name}
-                  onChange={function (e) { setAccount(function (a) { return { ...a, display_name: e.target.value } }) }}
-                  placeholder="Your name"
-                  className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-4 py-3 text-base placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2" htmlFor="acc-username">
-                  Username
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">@</span>
-                  <input
-                    id="acc-username"
-                    type="text"
-                    autoComplete="username"
-                    inputMode="text"
-                    value={account.username}
-                    onChange={function (e) { setAccount(function (a) { return { ...a, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') } }) }}
-                    placeholder="username"
-                    className={
-                      'w-full pl-8 pr-10 py-3 bg-gray-900/80 border rounded-xl text-base placeholder-gray-500 focus:outline-none transition-colors ' +
-                      (usernameStatus === 'taken' || usernameStatus === 'invalid'
-                        ? 'border-red-500/60 focus:border-red-500'
-                        : usernameStatus === 'available'
-                          ? 'border-emerald-500/60 focus:border-emerald-500'
-                          : 'border-gray-700 focus:border-purple-500')
-                    }
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs">
-                    {usernameStatus === 'checking' && <Loader2 className="w-4 h-4 text-gray-500 animate-spin" />}
-                    {usernameStatus === 'available' && <span className="text-emerald-400">✓</span>}
-                    {(usernameStatus === 'taken' || usernameStatus === 'invalid') && <span className="text-red-400">✗</span>}
-                  </span>
-                </div>
-                {(usernameStatus === 'taken' || usernameStatus === 'invalid') && usernameReason && (
-                  <p className="text-xs text-red-300 mt-1.5">{usernameReason}</p>
-                )}
-                {usernameStatus === 'available' && (
-                  <p className="text-xs text-emerald-300 mt-1.5">Available — yours to claim.</p>
-                )}
-              </div>
-
-              {error && (
-                <div className="flex items-start gap-2 p-3 bg-red-950/30 border border-red-900/50 rounded-lg">
-                  <AlertCircle className="w-4 h-4 text-red-300 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-red-200">{error}</p>
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={sendMagicLink}
-                disabled={
-                  busy ||
-                  !account.email ||
-                  !account.username ||
-                  usernameStatus === 'taken' ||
-                  usernameStatus === 'invalid' ||
-                  usernameStatus === 'checking'
-                }
-                className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors disabled:opacity-40"
-              >
-                {busy ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</>
-                ) : (
-                  <><Mail className="w-4 h-4" /> Send me the link</>
-                )}
-              </button>
-
-              <p className="text-[10px] text-gray-500 text-center leading-relaxed">
-                We email a one-tap sign-in link instead of asking you for a password.
-              </p>
-            </div>
-            )
-          })()}
-
-          {/* ============= STEP 3 — CHECK EMAIL =============
-              V9.11.5 #30 — Panel-driven copy revamp. Replaces the
-              transactional "we'll save your experience" with a
-              preview of what users actually unlock when they tap
-              the link. Builds anticipation during dead time, eases
-              passwordless anxiety, and hints at the archive scale
-              + community without requiring a hardcoded number. */}
-          {step === 'check-email' && (
-            <div className="text-center py-8 space-y-6">
-              <div className="inline-flex w-16 h-16 rounded-full bg-purple-600/20 border border-purple-500/30 items-center justify-center">
-                <Mail className="w-7 h-7 text-purple-300" />
-              </div>
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-bold">Check your email.</h1>
-                <p className="text-sm sm:text-base text-gray-300 mt-3 leading-relaxed">
-                  We sent a one-tap sign-in link to{' '}
-                  <strong className="text-white">{account.email}</strong>.
-                </p>
-              </div>
-
-              {/* Preview of what they unlock — anticipation builder.
-                  T1.8 (May 2026): bullets adapt to whether the user
-                  has actually typed an experience. Account-first
-                  visitors see a "what's waiting for you" framing;
-                  draft-first visitors see the original "your report
-                  + matches" framing. */}
-              <div className="max-w-sm mx-auto text-left bg-gray-900/40 border border-gray-800/60 rounded-xl p-4 space-y-2.5">
-                <p className="text-[10px] font-semibold tracking-widest uppercase text-purple-400">
-                  Once you tap the link
-                </p>
-                <ul className="space-y-2 text-sm text-gray-200 leading-relaxed">
-                  {draft.description.trim().length >= 30 ? (
-                    <>
-                      <li className="flex items-start gap-2.5">
-                        <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                        <span>Your experience joins the archive</span>
-                      </li>
-                      <li className="flex items-start gap-2.5">
-                        <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                        <span>We surface others who&rsquo;ve had something like it</span>
-                      </li>
-                      <li className="flex items-start gap-2.5">
-                        <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                        <span>Your personal RADAR maps patterns across thousands of reports</span>
-                      </li>
-                    </>
-                  ) : (
-                    <>
-                      <li className="flex items-start gap-2.5">
-                        <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                        <span>Your account is created &mdash; no password needed</span>
-                      </li>
-                      <li className="flex items-start gap-2.5">
-                        <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                        <span>Browse thousands of paranormal, UFO, and unexplained reports</span>
-                      </li>
-                      <li className="flex items-start gap-2.5">
-                        <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                        <span>Share your own experience whenever you&rsquo;re ready &mdash; we&rsquo;ll match it to similar cases</span>
-                      </li>
-                    </>
-                  )}
-                </ul>
-              </div>
-
-              <p className="text-[11px] text-gray-500 max-w-sm mx-auto leading-relaxed">
-                No password to remember &mdash; your email keeps your account safe.
-                If you don&rsquo;t see it in a minute, check your spam folder.
-              </p>
-
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={function () { setStep('account') }}
-                  className="text-sm text-purple-300 hover:text-purple-200"
-                >
-                  Wrong email? Go back
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ============= STEP 4 — SUBMITTING ============= */}
-          {step === 'submit' && (
-            <div className="text-center py-12 space-y-6">
-              {/* V9.11.5 — only spin while we're actually working. When
-                  an error has fired, drop the loader and show a recovery
-                  path back to step 1 so the user isn't trapped. */}
-              {!error && (
-                <>
-                  <Loader2 className="w-10 h-10 text-purple-300 animate-spin mx-auto" />
-                  <p className="text-base text-gray-200">
-                    {busy ? 'Saving your experience…' : 'Searching the archive…'}
-                  </p>
-                </>
-              )}
-              {error && (
-                <>
-                  <div className="inline-flex w-12 h-12 rounded-full bg-red-950/30 border border-red-900/50 items-center justify-center mx-auto">
-                    <AlertCircle className="w-6 h-6 text-red-300" />
-                  </div>
-                  <div className="space-y-2">
-                    <h2 className="text-lg sm:text-xl font-semibold text-white">
-                      We hit a snag.
-                    </h2>
-                    <p className="text-sm text-gray-300 max-w-sm mx-auto leading-relaxed">
-                      {error}
-                    </p>
-                  </div>
-                  <div className="space-y-2 max-w-xs mx-auto">
-                    <button
-                      type="button"
-                      onClick={function () {
-                        setError(null)
-                        setStep('experience')
-                      }}
-                      className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors"
-                    >
-                      Edit my description
-                    </button>
-                    <button
-                      type="button"
-                      onClick={function () {
-                        // Re-trigger the submit effect by leaving + re-entering step.
-                        setError(null)
-                        setStep('account')
-                        setTimeout(function () { setStep('submit') }, 0)
-                      }}
-                      className="w-full text-sm text-gray-400 hover:text-gray-200 transition-colors py-2"
-                    >
-                      Or try saving again
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* ============= STEP 5 — RADAR REVEAL ============= */}
-          {/* V9.11.5 #16 — animated mini-RADAR replaces the previous
-              static list. Panel-driven (Onboarding/retention, Brand
-              strategist, UX writer, CRO, Visual designer/motion).
-              Visualisation IS the payoff; cards beneath are supporting.
-              V9.11.5 #20 — vertically center the reveal content so the
-              full payoff (radar + headline + match cards + CTA) sits
-              in the viewport on first paint. Without this the H1 and
-              CTA were pushed below the fold on standard laptop heights. */}
-          {step === 'reveal' && (
-            <div className="space-y-6 flex flex-col justify-center min-h-[calc(100dvh-200px)] -mt-6 sm:-mt-12">
-              {/* Mini-RADAR visualization */}
-              <div className="flex justify-center pt-2">
-                <RadarVisualization
-                  mode="reveal"
-                  matches={matches.map(function (m) {
-                    return {
-                      id: m.id,
-                      title: m.title,
-                      slug: m.slug,
-                      category: m.category,
-                      match_score: m.match_score,
-                    }
-                  })}
-                  user={{
-                    latitude: draft.latitude ? parseFloat(draft.latitude) : null,
-                    longitude: draft.longitude ? parseFloat(draft.longitude) : null,
-                  }}
-                  size={300}
-                  centerLabel="YOU"
-                  onMatchClick={function (m) {
-                    if (typeof window !== 'undefined') window.location.href = '/report/' + m.slug
-                  }}
-                />
-              </div>
-
-              <div className="text-center">
-                <h1 className="text-2xl sm:text-3xl font-bold leading-tight">
-                  {matches.length > 0
-                    ? 'You\'re not alone.'
-                    : 'Yours is a rare one.'}
-                </h1>
-                <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed px-2">
-                  {matches.length > 0
-                    ? (matches.length === 1 ? '1 person' : matches.length + ' people') + ' reported something that overlaps with yours. Across ' + (matchStats.database || 0).toLocaleString() + ' patterns to explore.'
-                    : 'We haven\'t seen one quite like this yet. Create your account to save it — and we\'ll surface matches here as more people share.'}
-                </p>
-              </div>
-
-              {/* Top 3 match cards (preview only — full list lives in /lab) */}
-              {matches.length > 0 && (
-                <div className="space-y-2">
-                  {matches.slice(0, 3).map(function (m) {
-                    return (
-                      <Link
-                        key={m.id}
-                        href={'/report/' + m.slug}
-                        className="block p-3 bg-gray-900/80 border border-gray-800 rounded-xl hover:border-purple-500/40 transition-colors"
-                      >
-                        <p className="text-sm font-medium text-white truncate">{m.title}</p>
-                        <p className="text-[11px] text-gray-500 mt-0.5">
-                          {Math.round(m.match_score * 100)}% match
-                          {m.match_dimensions && m.match_dimensions.length > 0 && (
-                            <> · {m.match_dimensions.map(function (d) { return d.label }).join(', ')}</>
-                          )}
-                        </p>
-                      </Link>
-                    )
-                  })}
-                  {matches.length > 3 && (
-                    <p className="text-[11px] text-purple-300/80 text-center pt-1">
-                      + {matches.length - 3} more — unlock your full RADAR with a free account
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* V9.11.6 Phase 1.C — peer-connection opt-in. Self-gates to
-                  authed sessions (renders null pre-auth), so on the V11.19
-                  pre-account reveal it stays hidden; it surfaces for a
-                  returning authed user capturing again. The post-signup
-                  peer-connection moment now lives on /lab. */}
-              {matches.length > 0 && (
-                <PeerConnectionOptIn />
-              )}
-
-              {/* V11.19 — reveal is now PRE-auth: this is the gate. Deliver
-                  the save + "unlock the rest" as the reason to sign up. */}
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={proceedFromReveal}
-                  className="block w-full text-center px-6 py-3.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors"
-                >
-                  {matches.length > 0
-                    ? 'Create your free account to save this & unlock your full RADAR →'
-                    : 'Create your free account to save this →'}
+                  Continue
+                  <ArrowRight className="w-4 h-4" />
                 </button>
                 <button
                   type="button"
-                  onClick={handleSkip}
-                  className="block w-full text-center text-xs text-gray-500 hover:text-gray-300 py-3 mt-1"
+                  onClick={function () { setStep('reveal') }}
+                  className="block w-full text-center text-xs text-gray-500 hover:text-gray-300 py-1"
                 >
-                  not now — just browse the feed
+                  &larr; Back to your matches
                 </button>
               </div>
             </div>
           )}
+
 
         </div>
       </div>
@@ -3320,11 +3454,11 @@ function PeerConnectionOptIn() {
 }
 
 function StepIndicator({ step }: { step: Step }) {
-  // V11.19 — progress dots across the pre-auth journey: capture → see
-  // your matches → save (account). The 'check-email' step is a hand-off
-  // (waiting for the email tap), and submit/done redirect, so none of
-  // those show dots.
-  var visible: Step[] = ['experience', 'reveal', 'account']
+  // V12 — progress dots across the pre-auth journey: capture → see your
+  // matches → sharpen (when/where) → save (account). The 'check-email'
+  // step is a hand-off (waiting for the email tap), and submit/done
+  // redirect, so none of those show dots.
+  var visible: Step[] = ['experience', 'reveal', 'details', 'account']
   if (visible.indexOf(step) === -1) return null
   var idx = visible.indexOf(step)
   return (
