@@ -149,6 +149,12 @@ interface MatchedReport {
 }
 
 const DRAFT_KEY = 'paradocs_onboarding_draft_v1'
+const DRAFT_TS_KEY = 'paradocs_onboarding_draft_ts_v1'
+// V11.21.9 — recover an in-progress draft if the user navigates away (e.g.
+// taps a reveal match → report → Back) and returns within this window, so
+// they don't lose what they wrote. Bounded so stale/abandoned drafts and
+// shared-device privacy aren't a concern. Cleared on successful submit.
+const DRAFT_TTL_MS = 24 * 60 * 60 * 1000
 const ACCOUNT_KEY = 'paradocs_onboarding_account_v1'
 const SKIP_KEY = 'paradocs_onboarding_skipped_v1'
 /**
@@ -380,7 +386,17 @@ function pickRecorderMime(): string {
 }
 
 function saveDraft(draft: ExperienceDraft) {
-  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)) } catch {}
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+    localStorage.setItem(DRAFT_TS_KEY, String(Date.now()))
+  } catch {}
+}
+// True when a saved draft exists and was last written within DRAFT_TTL_MS.
+function draftIsFresh(): boolean {
+  try {
+    var ts = parseInt(localStorage.getItem(DRAFT_TS_KEY) || '0', 10)
+    return ts > 0 && (Date.now() - ts) < DRAFT_TTL_MS
+  } catch { return false }
 }
 function loadDraft(): ExperienceDraft | null {
   try {
@@ -390,7 +406,7 @@ function loadDraft(): ExperienceDraft | null {
   } catch { return null }
 }
 function clearDraft() {
-  try { localStorage.removeItem(DRAFT_KEY); localStorage.removeItem(ACCOUNT_KEY) } catch {}
+  try { localStorage.removeItem(DRAFT_KEY); localStorage.removeItem(DRAFT_TS_KEY); localStorage.removeItem(ACCOUNT_KEY) } catch {}
 }
 function saveAccount(a: AccountDraft) {
   try { localStorage.setItem(ACCOUNT_KEY, JSON.stringify(a)) } catch {}
@@ -633,6 +649,14 @@ export default function StartPage() {
       if (d) setDraft(d)
       var a = loadAccount()
       if (a) setAccount(a)
+    } else if (d && d.description && d.description.trim().length > 0 && draftIsFresh()) {
+      // V11.21.9 — the user wrote something, then navigated away (e.g.
+      // tapped a reveal match → report → Back) and returned within the
+      // TTL. Restore their work so they don't lose it and bounce. Stale
+      // drafts (past TTL) fall through to the clear branch below.
+      setDraft(d)
+      var ar = loadAccount()
+      if (ar) setAccount(ar)
     } else {
       clearDraft()
       try { clearStashedVideo() } catch {}
