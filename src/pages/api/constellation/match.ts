@@ -594,12 +594,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   var candidates: any[] | null = null
   var error: any = null
   var queryEmbedding: number[] | null = null
+  // V11.21.8 — REAL overlap count for the reveal headline. Previously the
+  // UI showed matches.length (= page size, always 8), so every story read
+  // "8 people reported something that overlaps." Instead we count DISTINCT
+  // archive reports whose semantic similarity to this story clears
+  // OVERLAP_SIM. This varies honestly by story: a common shadow-figure
+  // gets a big number, a one-off gets a small one. Capped by match_count.
+  var OVERLAP_SIM = 0.45
+  var overlapCount = 0
   if (description && description.trim().length > 0 && process.env.OPENAI_API_KEY) {
     try {
       queryEmbedding = await generateQueryEmbedding(description.slice(0, 1500))
       var sv = await supabase.rpc('search_vectors', {
         query_embedding: '[' + queryEmbedding.join(',') + ']',
-        match_count: 60,
+        // Pull a wide pool so the overlap count is meaningful (rows are
+        // light: id/text/similarity, no embeddings). Candidate scoring
+        // still only uses the top ~120 below.
+        match_count: 400,
         similarity_threshold: 0.3,
         filter_source_table: 'report',
         filter_metadata: null,
@@ -610,7 +621,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (reportId) seenId.add(reportId)
         for (var rowv of sv.data as any[]) {
           var sid = rowv.source_id
-          if (sid && !seenId.has(sid)) { seenId.add(sid); ids.push(sid) }
+          if (sid && !seenId.has(sid)) {
+            seenId.add(sid); ids.push(sid)
+            // First occurrence of a source_id is its highest-similarity
+            // chunk (rows arrive similarity-desc), so count distinct here.
+            if (typeof rowv.similarity === 'number' && rowv.similarity >= OVERLAP_SIM) overlapCount++
+          }
         }
         if (ids.length > 0) {
           var semFetch = await supabase.from('reports').select(SELECT_FIELDS)
@@ -791,6 +807,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       total_matched: matchCount,
       nearby: nearbyCount,
       strong: strongCount,
+      // V11.21.8 — distinct archive reports above OVERLAP_SIM; drives the
+      // reveal headline so it reflects the story, not the fixed page size.
+      overlap_count: overlapCount,
       total_database: totalReports || 0,
     },
     source: {

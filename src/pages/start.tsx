@@ -580,8 +580,8 @@ export default function StartPage() {
   var [reportId, setReportId] = useState<string | null>(null)
   var [reportSlug, setReportSlug] = useState<string | null>(null)
   var [matches, setMatches] = useState<MatchedReport[]>([])
-  var [matchStats, setMatchStats] = useState<{ total: number; nearby: number; database: number }>({
-    total: 0, nearby: 0, database: 0,
+  var [matchStats, setMatchStats] = useState<{ total: number; nearby: number; database: number; overlap: number }>({
+    total: 0, nearby: 0, database: 0, overlap: 0,
   })
 
   // Auto-resize textarea ref
@@ -1227,6 +1227,7 @@ export default function StartPage() {
           total: mData.stats?.total_matched || 0,
           nearby: mData.stats?.nearby || 0,
           database: mData.stats?.total_database || 0,
+          overlap: mData.stats?.overlap_count || 0,
         })
       }
     } catch { /* reveal is best-effort; show the step regardless */ }
@@ -2290,14 +2291,16 @@ export default function StartPage() {
 
               <div className="text-center">
                 <h1 className="text-2xl sm:text-3xl font-bold leading-tight">
-                  {matches.length > 0
+                  {matchStats.overlap > 0
                     ? 'You\'re not alone.'
                     : 'Yours is a rare one.'}
                 </h1>
                 <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed px-2">
-                  {matches.length > 0
-                    ? (matches.length === 1 ? '1 person' : matches.length + ' people') + ' reported something that overlaps with yours. Across ' + (matchStats.database || 0).toLocaleString() + ' patterns to explore.'
-                    : 'We haven\'t seen one quite like this yet. Create your account to save it — and we\'ll surface matches here as more people share.'}
+                  {matchStats.overlap > 0
+                    ? (matchStats.overlap === 1 ? '1 person' : matchStats.overlap.toLocaleString() + ' people') + ' reported something that overlaps with yours. Across ' + (matchStats.database || 0).toLocaleString() + ' patterns to explore.'
+                    : matches.length > 0
+                      ? 'Only loose echoes so far — nothing quite like yours yet. Create your account to save it, and we\'ll surface matches as more people share.'
+                      : 'We haven\'t seen one quite like this yet. Create your account to save it — and we\'ll surface matches here as more people share.'}
                 </p>
               </div>
 
