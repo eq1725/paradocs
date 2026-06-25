@@ -146,6 +146,13 @@ interface MatchedReport {
    * "[object Object], [object Object]" in the rendered match list.
    */
   match_dimensions: Array<{ label: string; score: number }>
+  /**
+   * V11.24 — explainable "why you match" phrases from the Haiku rerank.
+   * Concrete shared-specific details ("red eyes", "3am onset") that this
+   * report and the user's story share. Optional: absent/empty when the
+   * rerank is unavailable, in which case we fall back to dimension labels.
+   */
+  match_reasons?: string[]
 }
 
 const DRAFT_KEY = 'paradocs_onboarding_draft_v1'
@@ -2389,9 +2396,14 @@ export default function StartPage() {
                         <p className="text-sm font-medium text-white truncate">{m.title}</p>
                         <p className="text-[11px] text-gray-500 mt-0.5">
                           {Math.round(m.match_score * 100)}% match
-                          {m.match_dimensions && m.match_dimensions.length > 0 && (
+                          {/* V11.24 — prefer the Haiku rerank's concrete
+                              shared-specific phrases ("why you match"); fall
+                              back to dimension labels when reasons are absent. */}
+                          {m.match_reasons && m.match_reasons.length > 0 ? (
+                            <> · ✦ {m.match_reasons.join(' · ')}</>
+                          ) : m.match_dimensions && m.match_dimensions.length > 0 ? (
                             <> · {m.match_dimensions.map(function (d) { return d.label }).join(', ')}</>
-                          )}
+                          ) : null}
                         </p>
                       </Link>
                     )

@@ -30,6 +30,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
+import Anthropic from '@anthropic-ai/sdk'
 import { generateQueryEmbedding } from '@/lib/services/embedding.service'
 
 var SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -488,6 +489,103 @@ function computeMatchDimensions(
   return { overall: overall, dimensions: topDims, corroborated: corroborated } as any
 }
 
+// ── Haiku rerank — explainable "why you match" ────────────────────────────
+//
+// V11.24 — after the dimension-scored candidates are ranked, take the top
+// RERANK_N and rerank them with ONE Haiku call. The model acts as a
+// phenomenological matcher: it scores how genuinely similar the LIVED
+// experience is (same entities/behaviors/setting/sensory details, NOT just
+// the same broad category) and returns 1-3 concrete shared-specific phrases
+// per candidate that the two accounts share. These phrases become the
+// reveal's explainable "why you match" line. Fully optional: no key, an
+// API error, or unparseable output => null, and the reveal keeps its
+// dimension scores with no reasons.
+
+var RERANK_N = 15
+
+interface RerankResult {
+  score: number
+  reasons: string[]
+}
+
+async function rerankWithHaiku(
+  userStory: string,
+  candidates: Array<{ id: string; title: string; text: string }>
+): Promise<Map<string, RerankResult> | null> {
+  if (!process.env.ANTHROPIC_API_KEY) return null
+
+  try {
+    var anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+    var story = (userStory || '').slice(0, 1200)
+    var lines: string[] = []
+    for (var i = 0; i < candidates.length; i++) {
+      var c = candidates[i]
+      var ctext = (c.text || '').slice(0, 400)
+      lines.push((i + 1) + '. ' + (c.title || '(untitled)') + '\n' + ctext)
+    }
+    var candidateBlock = lines.join('\n\n')
+
+    var prompt = 'You are a phenomenological matcher for first-person accounts of anomalous experiences. ' +
+      'Your job is to judge how genuinely similar the LIVED EXPERIENCE of each candidate account is to the user\'s story — ' +
+      'same entities, behaviors, setting, sensory details, time of day, and emotional texture — NOT merely the same broad category. ' +
+      'Two reports that are both "a UFO sighting" are NOT a strong match unless the specifics align.\n\n' +
+      'USER\'S STORY:\n' + story + '\n\n' +
+      'CANDIDATE ACCOUNTS:\n' + candidateBlock + '\n\n' +
+      'For EACH candidate, return:\n' +
+      '- "score": an integer 0-100 for how genuinely similar the lived experience is (100 = nearly the same experience; 0 = unrelated).\n' +
+      '- "reasons": an array of 1-3 SHORT concrete shared-specific phrases that BOTH accounts contain (e.g. "red eyes", "3am onset", "felt paralyzed", "rural roadside", "hovered silently"). Keep each phrase under ~5 words. If there is nothing genuinely specific in common, return an empty array.\n\n' +
+      'Respond with STRICT JSON and NOTHING else, in exactly this shape:\n' +
+      '{"results":[{"i":<candidate number>,"score":<0-100>,"reasons":["...","..."]}]}'
+
+    var message = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }],
+    })
+
+    var textBlock = message.content.find(function (b) { return b.type === 'text' })
+    var raw = textBlock && (textBlock as any).type === 'text' ? (textBlock as any).text : ''
+    if (!raw) return null
+
+    var first = raw.indexOf('{')
+    var last = raw.lastIndexOf('}')
+    if (first === -1 || last === -1 || last <= first) return null
+    var jsonStr = raw.slice(first, last + 1)
+
+    var parsed: any
+    try {
+      parsed = JSON.parse(jsonStr)
+    } catch (_) {
+      return null
+    }
+
+    if (!parsed || !Array.isArray(parsed.results)) return null
+
+    var out = new Map<string, RerankResult>()
+    for (var ri = 0; ri < parsed.results.length; ri++) {
+      var r = parsed.results[ri]
+      if (!r || typeof r.i !== 'number') continue
+      var idx = r.i - 1
+      if (idx < 0 || idx >= candidates.length) continue
+      var cand = candidates[idx]
+      var score = typeof r.score === 'number' ? Math.max(0, Math.min(100, r.score)) : 0
+      var reasons: string[] = []
+      if (Array.isArray(r.reasons)) {
+        for (var rj = 0; rj < r.reasons.length && reasons.length < 3; rj++) {
+          var phrase = r.reasons[rj]
+          if (typeof phrase === 'string' && phrase.trim().length > 0) reasons.push(phrase.trim())
+        }
+      }
+      out.set(cand.id, { score: score, reasons: reasons })
+    }
+    return out
+  } catch (e: any) {
+    console.warn('[match] Haiku rerank failed (continuing without reasons):', e?.message || e)
+    return null
+  }
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -636,9 +734,52 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             }
           }
         }
-        if (ids.length > 0) {
+        // V11.24 — Hybrid retrieval. In ADDITION to the semantic id list
+        // (similarity-desc order in `ids`), run a lexical full-text search
+        // and fuse the two ranked lists via Reciprocal Rank Fusion (RRF):
+        //   rrf(id) = Σ 1/(60 + rank_in_list)   (rank is 0-based)
+        // This rescues lexically-obvious matches the embedding missed (and
+        // vice-versa). Fully optional: if the lexical query errors (e.g. the
+        // search_vector column is unavailable) we log + skip and proceed with
+        // semantic-only ordering, so behavior is unchanged. simById /
+        // overlapCount stay driven purely off the semantic sv.data above.
+        var lexIds: string[] = []
+        try {
+          var lexQuery = (description || '').replace(/\s+/g, ' ').trim().slice(0, 300)
+          if (lexQuery.length > 0) {
+            var lexResp = await supabase.from('reports').select('id')
+              .eq('status', 'approved')
+              .textSearch('search_vector', lexQuery, { type: 'websearch', config: 'english' })
+              .limit(80)
+            if (!lexResp.error && Array.isArray(lexResp.data)) {
+              for (var lri = 0; lri < lexResp.data.length; lri++) {
+                var lid = (lexResp.data[lri] as any).id
+                if (lid && (!reportId || lid !== reportId)) lexIds.push(lid)
+              }
+            }
+          }
+        } catch (le: any) {
+          console.warn('[match] lexical full-text search failed; using semantic-only:', le?.message || le)
+        }
+
+        // Reciprocal Rank Fusion over the semantic + lexical ranked lists.
+        var RRF_K = 60
+        var rrfScore = new Map<string, number>()
+        for (var si = 0; si < ids.length; si++) {
+          var sIdSem = ids[si]
+          rrfScore.set(sIdSem, (rrfScore.get(sIdSem) || 0) + 1 / (RRF_K + si))
+        }
+        for (var lx = 0; lx < lexIds.length; lx++) {
+          var sIdLex = lexIds[lx]
+          rrfScore.set(sIdLex, (rrfScore.get(sIdLex) || 0) + 1 / (RRF_K + lx))
+        }
+        var fusedIds = Array.from(rrfScore.keys()).sort(function (a, b) {
+          return (rrfScore.get(b) || 0) - (rrfScore.get(a) || 0)
+        })
+
+        if (fusedIds.length > 0) {
           var semFetch = await supabase.from('reports').select(SELECT_FIELDS)
-            .eq('status', 'approved').in('id', ids.slice(0, 120))
+            .eq('status', 'approved').in('id', fusedIds.slice(0, 120))
           candidates = semFetch.data as any[] | null
           error = semFetch.error
         }
@@ -782,6 +923,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       credibility: c.credibility,
       match_score: result.overall,
       match_dimensions: result.dimensions,
+      // V11.24 — explainable "why you match" phrases from the Haiku rerank
+      // (populated below for the top RERANK_N). Default [] so every match
+      // object carries the field even when rerank is unavailable.
+      match_reasons: [] as string[],
       // V11.17.34 PR-4-a — corroborated boolean (Bug #91). True when
       // at least 2 non-category dimensions scored ≥0.5 AND overall
       // ≥0.45. UI uses this to render an inline "* Strong match"
@@ -793,6 +938,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // Sort by match score descending
   scored.sort(function(a, b) { return b.match_score - a.match_score })
+
+  // V11.24 — Haiku rerank of the strongest candidates for precision +
+  // explainability. One synchronous Haiku call (~1-2s, founder-approved):
+  // it rescores the top RERANK_N by genuine lived-experience similarity and
+  // attaches concrete shared-specific phrases ("why you match"). Wrapped so
+  // ANY failure (no key, API error, unparseable output) NEVER breaks the
+  // reveal — on failure matches simply keep their dimension scores with no
+  // reasons. After rescoring we re-sort the WHOLE scored array so the final
+  // ordering (and topMatches) reflects the rerank.
+  try {
+    if ((description || '').trim().length > 0 && process.env.ANTHROPIC_API_KEY) {
+      var rerankTop = scored.slice(0, RERANK_N)
+      var rerankCands = rerankTop.map(function (m) {
+        return { id: m.id, title: m.title || '', text: m.summary || m.description || '' }
+      })
+      var rerankMap = await rerankWithHaiku((description || '').slice(0, 1200), rerankCands)
+      if (rerankMap) {
+        for (var rk = 0; rk < rerankTop.length; rk++) {
+          var rm = rerankTop[rk]
+          var rr = rerankMap.get(rm.id)
+          if (rr) {
+            rm.match_score = Math.max(0, Math.min(1, rr.score / 100))
+            rm.match_reasons = rr.reasons || []
+          }
+        }
+        // Re-sort everything so reranked items land in their new positions.
+        scored.sort(function(a, b) { return b.match_score - a.match_score })
+      }
+    }
+  } catch (re: any) {
+    console.warn('[match] rerank stage failed (continuing with dimension scores):', re?.message || re)
+  }
 
   // Take top N
   var topMatches = scored.slice(0, limit)
