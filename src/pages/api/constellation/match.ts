@@ -603,6 +603,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // gets a big number, a one-off gets a small one. Capped by match_count.
   var OVERLAP_SIM = 0.45
   var overlapCount = 0
+  // V11.23 — per-candidate semantic similarity, so the RADAR can plot a set
+  // of dots whose DENSITY tracks the real overlap (not the fixed 8-card
+  // page). Without this the dial showed 8 dots while the headline said 40.
+  var simById = new Map<string, number>()
   if (description && description.trim().length > 0 && process.env.OPENAI_API_KEY) {
     try {
       queryEmbedding = await generateQueryEmbedding(description.slice(0, 1500))
@@ -626,7 +630,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             seenId.add(sid); ids.push(sid)
             // First occurrence of a source_id is its highest-similarity
             // chunk (rows arrive similarity-desc), so count distinct here.
-            if (typeof rowv.similarity === 'number' && rowv.similarity >= OVERLAP_SIM) overlapCount++
+            if (typeof rowv.similarity === 'number') {
+              simById.set(sid, rowv.similarity)
+              if (rowv.similarity >= OVERLAP_SIM) overlapCount++
+            }
           }
         }
         if (ids.length > 0) {
@@ -796,6 +803,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     m.locked = i >= unlockLimit
   })
 
+  // V11.23 — RADAR points. The dial should feel consistent with the
+  // headline overlap count, so plot a SET of dots gated by the same
+  // semantic bar (OVERLAP_SIM) rather than just the 8 card matches.
+  // Lightweight fields only (no descriptions) since anon users see this.
+  // Density tracks the story: a rare account → few dots, a common one →
+  // a full dial (capped at RADAR_MAX). Falls back to top scored when no
+  // semantic signal (category-only path) so the dial is never empty.
+  var RADAR_MAX = 48
+  var radarSource = scored.filter(function(m) { return (simById.get(m.id) || 0) >= OVERLAP_SIM })
+  if (radarSource.length === 0) radarSource = scored.slice(0, Math.min(24, scored.length))
+  var radar_points = radarSource.slice(0, RADAR_MAX).map(function(m) {
+    return { id: m.id, title: m.title, slug: m.slug, category: m.category, match_score: m.match_score }
+  })
+
   // V12 — Inferred phenomenon-type suggestion for the onboarding details
   // picker. Compute the MODAL (most frequent) phenomenon_type among the
   // strongest matches so we can pre-select a best guess (clearly labeled
@@ -841,6 +862,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(200).json({
     matches: topMatches,
+    // V11.23 — denser, semantically-gated dot set for the RADAR dial.
+    radar_points: radar_points,
     stats: {
       total_matched: matchCount,
       nearby: nearbyCount,

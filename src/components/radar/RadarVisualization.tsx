@@ -141,20 +141,28 @@ function pulseDurationForRecency(createdAt?: string | null): number {
 
 // ── Position calculation ──────────────────────────────────────────────────────
 function positionForMatch(m: RadarMatch, radius: number, jitterSeed: number): { x: number; y: number } {
-  // Base angle from category, jittered ±15° so dots in the same category
-  // don't pile on top of each other.
+  // Base angle from category. V11.23 — widened angular jitter (±28°) and
+  // added a deterministic RADIAL jitter so denser sets (now up to ~48 dots
+  // gated by semantic overlap) spread across each category's wedge instead
+  // of stacking on one line. Same-category, same-score dots no longer
+  // overlap.
   const baseAngle = CATEGORY_ANGLES[m.category] ?? CATEGORY_ANGLES.psychological_experiences
-  // Deterministic per-match jitter via simple hash on the id.
+  // Two independent deterministic hashes on the id (different multipliers)
+  // so angular and radial jitter don't correlate.
   let h = 0
   for (let i = 0; i < m.id.length; i++) h = (h * 31 + m.id.charCodeAt(i)) | 0
-  const jitter = ((h % 31) - 15) // -15..+15 deg
+  let h2 = 7
+  for (let i = 0; i < m.id.length; i++) h2 = (h2 * 131 + m.id.charCodeAt(i)) | 0
+  const jitter = ((((h % 57) + 57) % 57) - 28) // -28..+28 deg
   const angleDeg = baseAngle + jitter
   const angleRad = angleDeg * Math.PI / 180
 
   // Distance from center: stronger match = closer.
   // Score 1.0 → 25% of radius (right next to center).
   // Score 0.0 → 95% of radius (at the edge).
-  const distRatio = 0.25 + (1 - Math.max(0, Math.min(1, m.match_score))) * 0.7
+  const radialJitter = ((((h2 % 21) + 21) % 21) - 10) / 100 // -0.10..+0.10
+  let distRatio = 0.25 + (1 - Math.max(0, Math.min(1, m.match_score))) * 0.7 + radialJitter
+  distRatio = Math.max(0.22, Math.min(0.95, distRatio))
   const dist = radius * distRatio
 
   return {

@@ -605,6 +605,9 @@ export default function StartPage() {
   var [suggestedType, setSuggestedType] = useState<{ id: string; name: string; category: string } | null>(null)
   var [relatedTypeSuggestions, setRelatedTypeSuggestions] = useState<{ id: string; name: string; category: string }[]>([])
   var [typeWasAutofilled, setTypeWasAutofilled] = useState(false)
+  // V11.23 — denser RADAR dot set (semantically gated server-side) so the
+  // dial's density tracks the headline overlap count instead of the 8 cards.
+  var [radarPoints, setRadarPoints] = useState<{ id: string; title: string; slug: string; category: string; match_score: number }[]>([])
 
   // Auto-resize textarea ref
   var textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -1296,6 +1299,8 @@ export default function StartPage() {
         // details step can pre-select the required picker (editable).
         setSuggestedType(mData.stats?.suggested_type || null)
         setRelatedTypeSuggestions(mData.stats?.related_types || [])
+        // V11.23 — denser RADAR dot set; fall back to the card matches.
+        setRadarPoints(mData.radar_points || [])
       }
     } catch { /* reveal is best-effort; show the step regardless */ }
     setBusy(false)
@@ -2335,7 +2340,7 @@ export default function StartPage() {
               <div className="flex justify-center pt-2">
                 <RadarVisualization
                   mode="reveal"
-                  matches={matches.map(function (m) {
+                  matches={(radarPoints.length > 0 ? radarPoints : matches).map(function (m) {
                     return {
                       id: m.id,
                       title: m.title,
