@@ -580,6 +580,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       witness_count, has_physical_evidence, has_photo_video,
       source_type, source_url, source_reference,
       credibility,
+      phenomenon_type_id,
       phenomenon_type:phenomenon_types(name)
     `
 
@@ -749,6 +750,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       title: c.title,
       slug: c.slug,
       category: c.category,
+      // V12 — carry the FK + join name so the reveal can infer a best-guess
+      // phenomenon type for the onboarding details picker (modal of the
+      // strongest matches). Kept off the wire-facing fields below.
+      phenomenon_type_id: c.phenomenon_type_id || null,
+      phenomenon_type_name: c.phenomenon_type?.name || null,
       type_name: c.phenomenon_type?.name || c.category,
       location_description: c.location_description,
       city: c.city,
@@ -790,6 +796,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     m.locked = i >= unlockLimit
   })
 
+  // V12 — Inferred phenomenon-type suggestion for the onboarding details
+  // picker. Compute the MODAL (most frequent) phenomenon_type among the
+  // strongest matches so we can pre-select a best guess (clearly labeled
+  // + editable) instead of leaving the required picker empty. Consider
+  // matches scoring >= 0.4; if fewer than 3 qualify, fall back to the top
+  // 8 regardless of score. Count by phenomenon_type_id (skip null/empty).
+  var suggestionPool = topMatches.filter(function (m) { return m.match_score >= 0.4 })
+  if (suggestionPool.length < 3) suggestionPool = topMatches.slice(0, 8)
+
+  var typeCounts: Record<string, number> = {}
+  var typeRep: Record<string, any> = {}  // representative candidate per type id
+  suggestionPool.forEach(function (m) {
+    var tid = (m as any).phenomenon_type_id
+    if (!tid) return
+    typeCounts[tid] = (typeCounts[tid] || 0) + 1
+    if (!typeRep[tid]) typeRep[tid] = m
+  })
+  var rankedTypeIds = Object.keys(typeCounts).sort(function (a, b) { return typeCounts[b] - typeCounts[a] })
+
+  function buildTypeSuggestion(tid: string) {
+    var rep = typeRep[tid]
+    return {
+      id: tid,
+      name: (rep && ((rep as any).phenomenon_type_name || rep.type_name)) || '',
+      category: (rep && rep.category) || '',
+    }
+  }
+
+  var suggested_type = rankedTypeIds.length > 0 ? buildTypeSuggestion(rankedTypeIds[0]) : null
+  // up to 3 OTHER distinct types (next most frequent), excluding the suggested one
+  var related_types = rankedTypeIds.slice(1, 4).map(buildTypeSuggestion)
+
   // Summary stats
   var matchCount = topMatches.filter(function(m) { return m.match_score >= 0.3 }).length
   var nearbyCount = topMatches.filter(function(m) { return m.match_score >= 0.5 && !m.locked }).length
@@ -811,6 +849,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // reveal headline so it reflects the story, not the fixed page size.
       overlap_count: overlapCount,
       total_database: totalReports || 0,
+      // V12 — best-guess phenomenon type (modal of strongest matches) + up
+      // to 3 related types, for pre-selecting the onboarding details picker.
+      suggested_type: suggested_type || null,
+      related_types: related_types,
     },
     source: {
       category: category,

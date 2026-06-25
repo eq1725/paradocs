@@ -599,6 +599,12 @@ export default function StartPage() {
   var [matchStats, setMatchStats] = useState<{ total: number; nearby: number; database: number; overlap: number }>({
     total: 0, nearby: 0, database: 0, overlap: 0,
   })
+  // V12 — best-guess phenomenon type inferred from the matcher (modal of
+  // the strongest matches). Used to pre-select the REQUIRED details-step
+  // type picker so it doesn't start empty (clearly labeled + editable).
+  var [suggestedType, setSuggestedType] = useState<{ id: string; name: string; category: string } | null>(null)
+  var [relatedTypeSuggestions, setRelatedTypeSuggestions] = useState<{ id: string; name: string; category: string }[]>([])
+  var [typeWasAutofilled, setTypeWasAutofilled] = useState(false)
 
   // Auto-resize textarea ref
   var textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -1069,11 +1075,15 @@ export default function StartPage() {
     setTypeSearch('')
     setTypeSearchFocused(false)
     setShowBrowseCategories(false)
+    // User picked their own type — drop the "best guess" label.
+    setTypeWasAutofilled(false)
   }
 
   function clearTypeSelection() {
     setDraft(function (d) { return { ...d, category: '', phenomenon_type_id: '' } })
     setTypeSearch('')
+    // Cleared the autofilled guess — drop the "best guess" label.
+    setTypeWasAutofilled(false)
   }
 
   // Rotate the example carousel.
@@ -1178,6 +1188,35 @@ export default function StartPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
 
+  // V12 — Pre-select a best-guess phenomenon type on the details step.
+  // The type picker is REQUIRED but starts empty, which adds friction. We
+  // infer a likely type from the matcher (modal of the strongest matches)
+  // and apply it once, clearly labeled as a guess + fully editable. Runs
+  // only when: on the details step, no type chosen yet, a suggestion
+  // exists, and the phenomenon-types list has loaded (so selectedType can
+  // resolve). Guarded by a ref so it fires at most once.
+  var prefilledTypeRef = useRef(false)
+  useEffect(function () {
+    if (step !== 'details') return
+    if (prefilledTypeRef.current) return
+    if (draft.phenomenon_type_id) return
+    if (!suggestedType) return
+    if (phenomenonTypes.length === 0) return
+    // Confirm the suggested type id actually exists in the loaded list so
+    // the selector can render it; otherwise wait (don't burn the ref).
+    var match = phenomenonTypes.find(function (t) { return t.id === suggestedType.id })
+    if (!match) return
+    prefilledTypeRef.current = true
+    var guess = suggestedType
+    setDraft(function (d) {
+      // Never clobber a type the user picked between render and callback.
+      if (d.phenomenon_type_id) return d
+      return { ...d, category: guess.category as PhenomenonCategory, phenomenon_type_id: guess.id }
+    })
+    setTypeWasAutofilled(true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, suggestedType, phenomenonTypes.length])
+
   // ---------------- step 1 (experience) → reveal  [V11.19 reorder]
 
   // Compute the mirror from the DRAFT, BEFORE any account gate. The
@@ -1253,6 +1292,10 @@ export default function StartPage() {
           database: mData.stats?.total_database || 0,
           overlap: mData.stats?.overlap_count || 0,
         })
+        // V12 — stash the inferred best-guess type + related types so the
+        // details step can pre-select the required picker (editable).
+        setSuggestedType(mData.stats?.suggested_type || null)
+        setRelatedTypeSuggestions(mData.stats?.related_types || [])
       }
     } catch { /* reveal is best-effort; show the step regardless */ }
     setBusy(false)
@@ -2424,24 +2467,34 @@ export default function StartPage() {
 
                 {draft.category && selectedType ? (
                   /* Type selected — show chip with category context */
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div className={classNames(
-                      'flex items-center gap-2 px-3 py-2 rounded-lg border',
-                      selectedCategoryConfig
-                        ? selectedCategoryConfig.bgColor + ' border-current ' + selectedCategoryConfig.color
-                        : 'bg-white/5 border-white/10'
-                    )}>
-                      <CategoryIcon category={draft.category as PhenomenonCategory} size={16} />
-                      <span className="text-sm font-medium text-white">{friendlyTypeName(selectedType.name, selectedType.description).primary}</span>
-                      <span className="text-xs text-gray-400">in {selectedCategoryConfig?.label}</span>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className={classNames(
+                        'flex items-center gap-2 px-3 py-2 rounded-lg border',
+                        selectedCategoryConfig
+                          ? selectedCategoryConfig.bgColor + ' border-current ' + selectedCategoryConfig.color
+                          : 'bg-white/5 border-white/10'
+                      )}>
+                        <CategoryIcon category={draft.category as PhenomenonCategory} size={16} />
+                        <span className="text-sm font-medium text-white">{friendlyTypeName(selectedType.name, selectedType.description).primary}</span>
+                        <span className="text-xs text-gray-400">in {selectedCategoryConfig?.label}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={clearTypeSelection}
+                        className="text-xs text-gray-400 hover:text-white flex items-center gap-1 transition-colors"
+                      >
+                        <X className="w-3 h-3" /> Change
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={clearTypeSelection}
-                      className="text-xs text-gray-400 hover:text-white flex items-center gap-1 transition-colors"
-                    >
-                      <X className="w-3 h-3" /> Change
-                    </button>
+                    {/* V12 — best-guess label, shown only when we auto-selected
+                        this type from the user's story. Disappears once they
+                        change it (clearTypeSelection / pick another). */}
+                    {typeWasAutofilled && (
+                      <p className="text-xs text-gray-400 mt-2">
+                        Our best guess from your story &mdash; change if needed.
+                      </p>
+                    )}
                   </div>
                 ) : draft.category && !selectedType ? (
                   /* Category-only — chip + optional narrow-it-down dropdown */
@@ -2476,6 +2529,7 @@ export default function StartPage() {
                           onChange={function (e) {
                             var v = e.target.value
                             setDraft(function (d) { return { ...d, phenomenon_type_id: v } })
+                            setTypeWasAutofilled(false)
                           }}
                           className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
                         >
@@ -2976,13 +3030,26 @@ export default function StartPage() {
                   filled={draft.additional_type_ids.length > 0}
                 >
                   {(function () {
-                    // Suggested types from primary-type associations.
-                    var suggestedTypes = typeAssociations
+                    // Suggested types — V12: lead with the matcher's inferred
+                    // related types (from the user's own story), then fall in
+                    // behind the static primary-type associations. Deduped,
+                    // primary excluded, editorial types dropped.
+                    var matcherRelated = relatedTypeSuggestions
+                      .map(function (r) { return phenomenonTypes.find(function (t) { return t.id === r.id }) })
+                      .filter(function (t): t is PhenomenonType { return !!t })
+                    var assocRelated = typeAssociations
                       .map(function (a) { return phenomenonTypes.find(function (t) { return t.id === a.type_id }) })
-                      .filter(function (t): t is PhenomenonType {
-                        return !!t && t.id !== draft.phenomenon_type_id && !isEditorialType(t.name, t.slug)
+                      .filter(function (t): t is PhenomenonType { return !!t })
+                    var suggestedSeen: Record<string, boolean> = {}
+                    var suggestedTypes = matcherRelated.concat(assocRelated)
+                      .filter(function (t) {
+                        if (t.id === draft.phenomenon_type_id) return false
+                        if (isEditorialType(t.name, t.slug)) return false
+                        if (suggestedSeen[t.id]) return false
+                        suggestedSeen[t.id] = true
+                        return true
                       })
-                      .slice(0, 5)
+                      .slice(0, 6)
 
                     var rq = relatedSearch.trim().toLowerCase()
                     var rqWords = rq.split(/\s+/).filter(function (w) { return w.length >= 2 })
