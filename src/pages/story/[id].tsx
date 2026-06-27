@@ -80,7 +80,7 @@ export var getServerSideProps: GetServerSideProps = async function(context) {
   var teaser = (r.description || '').substring(0, 280);
   if ((r.description || '').length > 280) teaser += '...';
 
-  var baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://beta.discoverparadocs.com';
+  var baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.discoverparadocs.com';
 
   return {
     props: {

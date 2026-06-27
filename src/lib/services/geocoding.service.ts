@@ -71,7 +71,7 @@ async function geocodeWithNominatim(location: string): Promise<GeocodingResult |
 
     var response = await fetch(url, {
       headers: {
-        'User-Agent': 'Paradocs/1.0 (beta.discoverparadocs.com)'
+        'User-Agent': 'Paradocs/1.0 (www.discoverparadocs.com)'
       }
     });
 

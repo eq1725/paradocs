@@ -27,7 +27,7 @@ export default async function handler(
   try {
     var supabase = createServerClient();
     var stats = { checked: 0, emails_sent: 0, errors: 0 };
-    var baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://beta.discoverparadocs.com';
+    var baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.discoverparadocs.com';
 
     var sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     var thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();

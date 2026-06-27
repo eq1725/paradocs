@@ -211,7 +211,7 @@ function getAlertSubject(matches: any[]) {
 }
 
 function generateAlertEmail(user: any, matches: any[]) {
-  var baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://beta.discoverparadocs.com';
+  var baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.discoverparadocs.com';
   var name = user.display_name || 'Investigator';
 
   var reportCards = matches.map(function(m: any) {

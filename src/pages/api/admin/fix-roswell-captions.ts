@@ -59,7 +59,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       var findAGraveUrl = 'https://images.findagrave.com/photos/2013/137/104144580_136879879750.jpg';
       var imgResponse = await fetch(findAGraveUrl, {
         headers: {
-          'User-Agent': 'Paradocs/1.0 (https://beta.discoverparadocs.com; research platform)',
+          'User-Agent': 'Paradocs/1.0 (https://www.discoverparadocs.com; research platform)',
         },
       });
 

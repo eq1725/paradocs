@@ -2565,7 +2565,7 @@ export const getServerSideProps: GetServerSideProps<DiscoverPageProps> = async f
     var base = process.env.NEXT_PUBLIC_SITE_URL || (
       ctx.req.headers.host
         ? (ctx.req.headers['x-forwarded-proto'] === 'https' ? 'https://' : 'http://') + ctx.req.headers.host
-        : 'https://beta.discoverparadocs.com'
+        : 'https://www.discoverparadocs.com'
     )
     var otdRes: any = await fetch(base + '/api/discover/on-this-date')
     if (otdRes && otdRes.ok) {

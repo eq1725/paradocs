@@ -144,7 +144,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     },
     share: {
       text: profile.display_name + '\'s ' + year + ' Paradocs Year in Review: ' + submitted.length + ' reports submitted, ' + totalViews + ' views earned. Persona: ' + persona + ' \u2726',
-      url: (process.env.NEXT_PUBLIC_BASE_URL || 'https://beta.discoverparadocs.com') + '/year-in-review/' + year
+      url: (process.env.NEXT_PUBLIC_BASE_URL || 'https://www.discoverparadocs.com') + '/year-in-review/' + year
     }
   };
 

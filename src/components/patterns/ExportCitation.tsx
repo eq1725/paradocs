@@ -47,7 +47,7 @@ export default function ExportCitation({ pattern, className = '' }: ExportCitati
   const year = currentDate.getFullYear()
 
   const generateCitation = (style: CitationStyle): string => {
-    const url = `https://beta.discoverparadocs.com/insights/patterns/${pattern.id}`
+    const url = `https://www.discoverparadocs.com/insights/patterns/${pattern.id}`
 
     switch (style) {
       case 'apa':
@@ -88,7 +88,7 @@ export default function ExportCitation({ pattern, className = '' }: ExportCitati
           categories: pattern.categories,
           center_point: pattern.centerPoint,
           source: 'Paradocs Paranormal Database',
-          url: `https://beta.discoverparadocs.com/insights/patterns/${pattern.id}`,
+          url: `https://www.discoverparadocs.com/insights/patterns/${pattern.id}`,
           exported_at: new Date().toISOString()
         }, null, 2)
 
@@ -120,7 +120,7 @@ ${pattern.centerPoint ? `## Location
 - **Longitude:** ${pattern.centerPoint.lng}` : ''}
 
 ---
-*Source: [Paradocs Paranormal Database](https://beta.discoverparadocs.com/insights/patterns/${pattern.id})*
+*Source: [Paradocs Paranormal Database](https://www.discoverparadocs.com/insights/patterns/${pattern.id})*
 *Exported: ${new Date().toISOString()}*`
 
       default:
@@ -245,7 +245,7 @@ ${pattern.centerPoint ? `## Location
           <span className="text-xs text-gray-500">Permanent Link</span>
           <button
             onClick={() => copyToClipboard(
-              `https://beta.discoverparadocs.com/insights/patterns/${pattern.id}`,
+              `https://www.discoverparadocs.com/insights/patterns/${pattern.id}`,
               'permalink'
             )}
             className="flex items-center gap-1 text-xs text-primary-400 hover:text-primary-300"

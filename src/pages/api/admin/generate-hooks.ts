@@ -16,7 +16,7 @@
  * Requires ADMIN_API_KEY header for authentication.
  *
  * Example:
- *   curl -X POST "https://beta.discoverparadocs.com/api/admin/generate-hooks?limit=50" \
+ *   curl -X POST "https://www.discoverparadocs.com/api/admin/generate-hooks?limit=50" \
  *     -H "x-admin-api-key: YOUR_KEY"
  */
 

@@ -29,7 +29,9 @@ const tierConfig: Record<TierName, {
     icon: User
   },
   basic: {
-    label: 'Basic',
+    // V11.28 — slug stays 'basic' but the single paid tier is branded
+    // "Member" everywhere user-facing.
+    label: 'Member',
     bgColor: 'bg-blue-900/50',
     textColor: 'text-blue-300',
     borderColor: 'border-blue-700',

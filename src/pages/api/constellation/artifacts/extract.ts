@@ -155,7 +155,7 @@ async function fetchWithTimeout(url: string, timeoutMs = 5000, maxBytes = 2 * 10
       redirect: 'follow',
       headers: {
         // Identifies Paradocs on server logs so publishers can whitelist us later.
-        'User-Agent': 'ParadocsBot/1.0 (+https://beta.discoverparadocs.com)',
+        'User-Agent': 'ParadocsBot/1.0 (+https://www.discoverparadocs.com)',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       },
     })
@@ -215,7 +215,7 @@ async function extractReddit(url: string): Promise<Partial<ExtractResult>> {
   try {
     const res = await fetch(oembedUrl, {
       signal: AbortSignal.timeout(5000),
-      headers: { 'User-Agent': 'ParadocsBot/1.0 (+https://beta.discoverparadocs.com)' },
+      headers: { 'User-Agent': 'ParadocsBot/1.0 (+https://www.discoverparadocs.com)' },
     })
     if (!res.ok) return {}
     const data = await res.json() as {
@@ -241,7 +241,7 @@ async function extractWikipedia(url: string): Promise<Partial<ExtractResult>> {
     const apiUrl = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(pageTitle)}`
     const res = await fetch(apiUrl, {
       signal: AbortSignal.timeout(5000),
-      headers: { 'User-Agent': 'ParadocsBot/1.0 (+https://beta.discoverparadocs.com)' },
+      headers: { 'User-Agent': 'ParadocsBot/1.0 (+https://www.discoverparadocs.com)' },
     })
     if (!res.ok) return {}
     const data = await res.json() as {

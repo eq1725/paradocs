@@ -10,9 +10,9 @@
  * - ?format=script -> Returns a JS snippet that creates the embed
  *
  * Usage on external sites:
- *   <iframe src="https://beta.discoverparadocs.com/api/embed/roswell-incident?format=html" width="400" height="300"></iframe>
+ *   <iframe src="https://www.discoverparadocs.com/api/embed/roswell-incident?format=html" width="400" height="300"></iframe>
  *   OR
- *   <script src="https://beta.discoverparadocs.com/api/embed/roswell-incident?format=script"></script>
+ *   <script src="https://www.discoverparadocs.com/api/embed/roswell-incident?format=script"></script>
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -20,7 +20,7 @@ import { createClient } from '@supabase/supabase-js';
 
 var supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 var supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-var baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://beta.discoverparadocs.com';
+var baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.discoverparadocs.com';
 
 var categoryIcons: Record<string, string> = {
   ufo: '\uD83D\uDEF8', cryptid: '\uD83E\uDDB6', ghost: '\uD83D\uDC7B',

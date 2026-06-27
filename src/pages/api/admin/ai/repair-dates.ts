@@ -41,7 +41,7 @@
  *   force:     'true' repair even phenomena with plausible dates
  *
  * Example:
- *   curl -X POST 'https://beta.discoverparadocs.com/api/admin/ai/repair-dates?onlyPlaceholders=true&limit=50' \
+ *   curl -X POST 'https://www.discoverparadocs.com/api/admin/ai/repair-dates?onlyPlaceholders=true&limit=50' \
  *     -H 'x-admin-api-key: $ADMIN_API_KEY'
  *
  * SWC: const at module top is fine; var/function expressions inside.

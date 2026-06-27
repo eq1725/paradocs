@@ -105,10 +105,10 @@ export default async function handler(
     var plan = (req.body.plan || 'pro') as string;
     var interval = (req.body.interval || 'monthly') as string;
     // V11.27 — derive the return URL from NEXT_PUBLIC_SITE_URL if set, else
-    // from the ACTUAL request host. The old fallback was a hardcoded
-    // 'https://beta.discoverparadocs.com' which has no DNS, so post-checkout
-    // Stripe redirected paying users to a dead page. Using req host means the
-    // success/cancel URLs always match the domain the user is actually on.
+    // from the ACTUAL request host. The old fallback was a hardcoded dead
+    // beta domain (no DNS), so post-checkout Stripe redirected paying users
+    // to an unreachable page. Using req host means the success/cancel URLs
+    // always match the domain the user is actually on.
     var siteBase = process.env.NEXT_PUBLIC_SITE_URL || ('https://' + (req.headers.host || 'www.discoverparadocs.com'));
     // Normalize cadence to the new 'annual' naming used in metadata
     // + URLs even when the caller still sends 'yearly'.

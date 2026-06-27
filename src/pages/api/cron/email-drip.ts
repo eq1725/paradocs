@@ -28,7 +28,7 @@ export default async function handler(
   try {
     var supabase = createServerClient();
     var stats = { email1_sent: 0, email2_sent: 0, email3_sent: 0, errors: 0 };
-    var baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://beta.discoverparadocs.com';
+    var baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.discoverparadocs.com';
 
     // Get beta signups that need drip emails
     var signupsResult = await (supabase

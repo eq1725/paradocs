@@ -56,7 +56,7 @@ export default function AIInsight() {
       navigator.share({
         title: 'AI Pattern Discovery — Paradocs',
         text: shareText,
-        url: 'https://beta.discoverparadocs.com/lab',
+        url: 'https://www.discoverparadocs.com/lab',
       }).catch(function() { /* user cancelled */ })
     } else {
       navigator.clipboard.writeText(shareText).then(function() {

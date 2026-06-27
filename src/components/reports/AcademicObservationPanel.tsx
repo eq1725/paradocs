@@ -164,7 +164,7 @@ export default function AcademicObservationPanel({ reportSlug, className, isExpa
       year: 'numeric', month: 'long', day: 'numeric'
     }) : 'Date unknown'
 
-    return `Paradocs Case #${data.caseSlug}. "${data.title}." ${data.location.name || 'Location unspecified'}, ${date}. Paradocs Database. Accessed ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}. https://beta.discoverparadocs.com/report/${data.caseSlug}`
+    return `Paradocs Case #${data.caseSlug}. "${data.title}." ${data.location.name || 'Location unspecified'}, ${date}. Paradocs Database. Accessed ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}. https://www.discoverparadocs.com/report/${data.caseSlug}`
   }
 
   function generateStructuredExport(): string {

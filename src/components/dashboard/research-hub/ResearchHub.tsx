@@ -223,7 +223,7 @@ export function ResearchHub() {
       isOpen: true,
       type: 'theory',
       title: theory.title,
-      url: 'https://beta.discoverparadocs.com/theory/' + theory.id,
+      url: 'https://www.discoverparadocs.com/theory/' + theory.id,
       embedId: theory.id,
     })
   }, [])

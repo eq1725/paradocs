@@ -58,7 +58,7 @@ export async function processMediaItem(
     // Download the external media
     var fetchResponse = await fetch(mediaItem.url, {
       headers: {
-        'User-Agent': 'Paradocs/1.0 (https://beta.discoverparadocs.com; research platform)',
+        'User-Agent': 'Paradocs/1.0 (https://www.discoverparadocs.com; research platform)',
       },
       signal: AbortSignal.timeout(15000), // 15s timeout
     });

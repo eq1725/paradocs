@@ -5,7 +5,7 @@ import React from 'react'
 /**
  * App Store + Google Play badges with QR code.
  * Badges are non-interactive until native apps are published.
- * QR code links to the PWA at beta.discoverparadocs.com.
+ * QR code links to the PWA at www.discoverparadocs.com.
  */
 export default function AppStoreBadges() {
   return (

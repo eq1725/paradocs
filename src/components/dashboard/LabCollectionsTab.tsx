@@ -665,7 +665,7 @@ function EditCaseFileModal({
   const [error, setError] = useState<string | null>(null)
 
   const publicUrl = publicSlug
-    ? (typeof window !== 'undefined' ? window.location.origin : 'https://beta.discoverparadocs.com') + '/cases/public/' + publicSlug
+    ? (typeof window !== 'undefined' ? window.location.origin : 'https://www.discoverparadocs.com') + '/cases/public/' + publicSlug
     : null
 
   const handleCopyLink = async () => {

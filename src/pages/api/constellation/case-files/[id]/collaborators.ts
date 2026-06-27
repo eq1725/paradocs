@@ -17,7 +17,7 @@ import crypto from 'crypto'
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const RESEND_API_KEY = process.env.RESEND_API_KEY
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://beta.discoverparadocs.com'
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.discoverparadocs.com'
 
 const VALID_ROLES = new Set(['editor', 'viewer'])
 const INVITE_TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000 // 14 days
@@ -215,7 +215,7 @@ async function sendInviteEmail(opts: {
   const { Resend } = await import('resend')
   const resend = new Resend(RESEND_API_KEY)
   await resend.emails.send({
-    from: 'Paradocs <invites@beta.discoverparadocs.com>',
+    from: 'Paradocs <invites@www.discoverparadocs.com>',
     to: opts.to,
     subject: opts.inviterName + ' invited you to investigate "' + opts.caseFileTitle + '" on Paradocs',
     html: buildInviteHtml(opts),

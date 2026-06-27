@@ -119,7 +119,7 @@ export async function generateUserDigest(
   const supabase = createServerClient()
   const weekStartStr = weekStart.toISOString().split('T')[0]
   const weekEndStr = weekEnd.toISOString().split('T')[0]
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://beta.discoverparadocs.com'
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.discoverparadocs.com'
 
   // Run all queries in parallel
   const [
@@ -312,7 +312,7 @@ export async function markDigestRead(digestId: string): Promise<void> {
  * Generate the HTML email for a weekly digest
  */
 export function generateDigestEmailHtml(digest: UserDigestData): string {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://beta.discoverparadocs.com'
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.discoverparadocs.com'
 
   const renderReport = (report: DigestReport): string => {
     const catConfig = CATEGORY_LABELS[report.category] || CATEGORY_LABELS.other

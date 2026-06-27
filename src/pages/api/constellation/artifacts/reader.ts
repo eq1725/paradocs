@@ -70,7 +70,7 @@ async function fetchHtml(url: string, timeoutMs = 6000, maxBytes = 3 * 1024 * 10
       signal: controller.signal,
       redirect: 'follow',
       headers: {
-        'User-Agent': 'ParadocsBot/1.0 (+https://beta.discoverparadocs.com)',
+        'User-Agent': 'ParadocsBot/1.0 (+https://www.discoverparadocs.com)',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       },
     })

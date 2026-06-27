@@ -29,7 +29,7 @@ export default async function handler(
   try {
     var supabase = createServerClient();
     var stats = { checked: 0, email1_sent: 0, email2_sent: 0, email3_sent: 0, errors: 0 };
-    var baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://beta.discoverparadocs.com';
+    var baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.discoverparadocs.com';
     var now = Date.now();
 
     // Get churned users (had a subscription that ended)

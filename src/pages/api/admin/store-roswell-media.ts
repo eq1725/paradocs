@@ -106,7 +106,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // Download the external image
           var fetchResponse = await fetch(externalUrl, {
             headers: {
-              'User-Agent': 'Paradocs/1.0 (https://beta.discoverparadocs.com; research platform)',
+              'User-Agent': 'Paradocs/1.0 (https://www.discoverparadocs.com; research platform)',
             },
           });
 

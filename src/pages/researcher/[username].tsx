@@ -215,7 +215,7 @@ export default function ResearcherProfile() {
         <meta property="og:title" content={`${profile.displayName}'s RADAR | Paradocs`} />
         <meta property="og:description" content={ogDescription} />
         <meta property="og:type" content="profile" />
-        <meta property="og:url" content={`https://beta.discoverparadocs.com/researcher/${username}`} />
+        <meta property="og:url" content={`https://www.discoverparadocs.com/researcher/${username}`} />
       </Head>
 
       <div className="min-h-screen bg-gray-950">
