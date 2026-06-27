@@ -104,6 +104,12 @@ export default async function handler(
     var user = userResult.data.user;
     var plan = (req.body.plan || 'pro') as string;
     var interval = (req.body.interval || 'monthly') as string;
+    // V11.27 — derive the return URL from NEXT_PUBLIC_SITE_URL if set, else
+    // from the ACTUAL request host. The old fallback was a hardcoded
+    // 'https://beta.discoverparadocs.com' which has no DNS, so post-checkout
+    // Stripe redirected paying users to a dead page. Using req host means the
+    // success/cancel URLs always match the domain the user is actually on.
+    var siteBase = process.env.NEXT_PUBLIC_SITE_URL || ('https://' + (req.headers.host || 'www.discoverparadocs.com'));
     // Normalize cadence to the new 'annual' naming used in metadata
     // + URLs even when the caller still sends 'yearly'.
     var cadence = interval.toLowerCase() === 'yearly' ? 'annual' : interval.toLowerCase();
@@ -115,7 +121,7 @@ export default async function handler(
       // STRIPE_SECRET_KEY is set, so we never charge users at the
       // wrong (legacy) price while Stripe products are being set up.
       return res.status(200).json({
-        url: (process.env.NEXT_PUBLIC_SITE_URL || 'https://beta.discoverparadocs.com') +
+        url: siteBase +
           '/account/subscription?checkout=mock&plan=' + plan + '&cadence=' + cadence,
         mock: true,
         reason: 'stripe_price_not_configured'
@@ -129,7 +135,7 @@ export default async function handler(
     } catch (e) {
       // Stripe not installed \u2014 return mock checkout
       return res.status(200).json({
-        url: (process.env.NEXT_PUBLIC_SITE_URL || 'https://beta.discoverparadocs.com') +
+        url: siteBase +
           '/account/subscription?checkout=mock&plan=' + plan + '&cadence=' + cadence,
         mock: true
       });
@@ -162,7 +168,7 @@ export default async function handler(
         .eq('id', user.id);
     }
 
-    var baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://beta.discoverparadocs.com';
+    var baseUrl = siteBase;
 
     // Create checkout session
     var session = await stripe.checkout.sessions.create({

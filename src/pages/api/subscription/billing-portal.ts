@@ -54,7 +54,9 @@ export default async function handler(
       apiVersion: '2023-10-16' as any
     });
 
-    var baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://beta.discoverparadocs.com';
+    // V11.27 — see create-checkout.ts: the old hardcoded beta fallback is a
+    // dead domain. Use NEXT_PUBLIC_SITE_URL if set, else the real request host.
+    var baseUrl = process.env.NEXT_PUBLIC_SITE_URL || ('https://' + (req.headers.host || 'www.discoverparadocs.com'));
 
     var session = await stripe.billingPortal.sessions.create({
       customer: customerId,
