@@ -57,7 +57,11 @@ const SNAP = path.resolve(process.cwd(), 'outputs/ca-semdedup-snapshot.json')
 
 const START = Date.now()
 const GATHER_DEADLINE = START + 25000
-const RUN_DEADLINE = START + RUN_BUDGET_SEC * 1000
+// Mutable: reset AFTER gather+embeddings so the budget covers clustering
+// (not the embedding fetch), and reset again before the archive phase so
+// archiving always gets its own fresh budget instead of inheriting an
+// already-exhausted clock.
+let RUN_DEADLINE = START + RUN_BUDGET_SEC * 1000
 
 interface CaRow {
   id: string
@@ -249,6 +253,9 @@ async function main() {
   }
 
   let timedOut = false
+  // Reset the clock now that gather + embedding-fetch are done, so the
+  // clustering budget isn't consumed by I/O setup.
+  RUN_DEADLINE = Date.now() + RUN_BUDGET_SEC * 1000
   // Stable order: created_at ascending then id.
   const ordered = [...rows].sort((a, b) =>
     createdKey(a.created_at).localeCompare(createdKey(b.created_at)) || a.id.localeCompare(b.id))
@@ -356,6 +363,9 @@ async function main() {
   let archivedN = 0, sinceFlush = 0
   const flush = () => { fs.writeFileSync(SNAP, JSON.stringify(snap)) }
 
+  // Fresh budget for the archive phase so it never inherits an exhausted
+  // clustering clock (the bug that left it archiving 0 every run).
+  RUN_DEADLINE = Date.now() + RUN_BUDGET_SEC * 1000
   for (const c of realClusters) {
     if (Date.now() >= RUN_DEADLINE) { timedOut = true; break }
     for (const a of c.archived) {
