@@ -65,6 +65,9 @@ NARRATE_BUDGET_SEC=${NARRATE_BUDGET_SEC:-120}
 NARRATE_MAX_COST_USD=${NARRATE_MAX_COST_USD:-10}
 SEMDEDUP_BUDGET_SEC=${SEMDEDUP_BUDGET_SEC:-180}
 SLEEP_SEC=${SLEEP_SEC:-120}
+# V11.31 — when 1, exit cleanly after the wave that finds the tranche mined
+# out (harvest adds 0 new shards). Lets a chain wrapper advance year ranges.
+STOP_WHEN_DRAINED=${STOP_WHEN_DRAINED:-0}
 ONESHOT=${ONESHOT:-0}
 
 mkdir -p outputs
@@ -103,6 +106,7 @@ log "ca-ingest-daemon start (pid $$) | WORKERS=$WORKERS YEARS=$YEARS TERMS=$TERM
 log "node=$(node -v 2>/dev/null || echo missing)"
 
 WAVE=0
+ZERO_HARVEST=0   # consecutive harvest waves that added no new shards (drain detector)
 while true; do
   if [ -f "$STOP_FILE" ]; then
     log "STOP file present ($STOP_FILE) — exiting cleanly. (launchd will not relaunch a clean exit.)"
@@ -114,10 +118,31 @@ while true; do
   fi
 
   WAVE=$(( WAVE + 1 ))
+  # V11.31 — STOP_WHEN_DRAINED: detect tranche exhaustion by comparing the
+  # shard count before/after the harvest wave. When a full harvest wave adds
+  # ZERO new shards, every term×year slice for this YEARS range is searched +
+  # OCR'd — the tranche is mined out. We then finish this wave's extract/
+  # narrate/approve/dedup (to drain) and exit cleanly so a chain wrapper can
+  # advance to the next year range. (Residual un-narrated pending is fine —
+  # it's not year-scoped, so the next tranche's narrate wave drains it.)
+  SHARDS_BEFORE=$(ls outputs/ca-shards/*.json 2>/dev/null | wc -l | tr -d ' ')
   log "===== WAVE $WAVE : harvest ====="
   WORKERS="$WORKERS" YEARS="$YEARS" TERMS="$TERMS" MAX_PAGES="$MAX_PAGES" \
     RATE_MS="$RATE_MS" BUDGET_SEC="$HARVEST_BUDGET" \
     bash scripts/ca-harvest-parallel.sh >> "$LOG" 2>&1 || log "harvest wave returned non-zero (continuing)"
+  SHARDS_AFTER=$(ls outputs/ca-shards/*.json 2>/dev/null | wc -l | tr -d ' ')
+  DRAINED=0
+  if [ "$SHARDS_AFTER" = "$SHARDS_BEFORE" ]; then
+    ZERO_HARVEST=$(( ZERO_HARVEST + 1 ))
+  else
+    ZERO_HARVEST=0
+  fi
+  # Require TWO consecutive empty harvest waves before declaring the tranche
+  # mined out, so a single transient loc.gov outage can't falsely complete it.
+  if [ "$STOP_WHEN_DRAINED" = "1" ] && [ "$ZERO_HARVEST" -ge 2 ]; then
+    DRAINED=1
+    log "harvest added 0 new shards for $ZERO_HARVEST consecutive waves — tranche YEARS=$YEARS mined out; will drain + exit (STOP_WHEN_DRAINED)."
+  fi
 
   if [ -f "$STOP_FILE" ] || [ "$STOPPING" = "1" ]; then
     log "Stop requested after harvest — exiting before extract."
@@ -188,6 +213,10 @@ while true; do
     >> "$LOG" 2>&1 || log "semantic-dedup wave returned non-zero (continuing)"
 
   log "===== WAVE $WAVE done ====="
+  if [ "$DRAINED" = "1" ]; then
+    log "STOP_WHEN_DRAINED — tranche YEARS=$YEARS mined out and drained; exiting 0 so the chain can advance."
+    exit 0
+  fi
   if [ "$ONESHOT" = "1" ]; then
     log "ONESHOT — exiting after one wave."
     exit 0
