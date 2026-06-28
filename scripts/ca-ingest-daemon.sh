@@ -63,6 +63,7 @@ POLL_INTERVAL=${POLL_INTERVAL:-60}
 MAX_WAIT=${MAX_WAIT:-7200}
 NARRATE_BUDGET_SEC=${NARRATE_BUDGET_SEC:-120}
 NARRATE_MAX_COST_USD=${NARRATE_MAX_COST_USD:-10}
+SEMDEDUP_BUDGET_SEC=${SEMDEDUP_BUDGET_SEC:-180}
 SLEEP_SEC=${SLEEP_SEC:-120}
 ONESHOT=${ONESHOT:-0}
 
@@ -166,6 +167,25 @@ while true; do
   log "===== WAVE $WAVE : auto-approve gate ====="
   npx tsx scripts/ca-auto-approve.ts --apply \
     >> "$LOG" 2>&1 || log "auto-approve wave returned non-zero (continuing)"
+
+  if [ -f "$STOP_FILE" ] || [ "$STOPPING" = "1" ]; then
+    log "Stop requested after auto-approve — exiting before semantic-dedup."
+    exit 0
+  fi
+
+  # ── SEMANTIC-DEDUP WAVE ─────────────────────────────────────────────
+  # Catch reworded same-event reprints the content-fingerprint guard can't
+  # (the same syndicated story extracted into different prose → different fp,
+  # identical meaning). Embedding-based, so it can only act on rows the
+  # embed-reports cron has already embedded — it's time-boxed + resumable, so
+  # each wave catches whatever's embedded so far and the rest next time. Cache
+  # is cleared each wave so newly-embedded reports are re-scanned. Free (DB
+  # only, no AI). Reversible via scripts/ca-semantic-dedup.ts --revert.
+  log "===== WAVE $WAVE : semantic-dedup (budget ${SEMDEDUP_BUDGET_SEC}s) ====="
+  rm -f outputs/ca-semdedup-cache.json outputs/ca-semdedup-processed.json outputs/ca-semdedup-clusters.json 2>/dev/null
+  SEMDEDUP_RUN_BUDGET_SEC="$SEMDEDUP_BUDGET_SEC" \
+    npx tsx scripts/ca-semantic-dedup.ts --apply \
+    >> "$LOG" 2>&1 || log "semantic-dedup wave returned non-zero (continuing)"
 
   log "===== WAVE $WAVE done ====="
   if [ "$ONESHOT" = "1" ]; then

@@ -200,7 +200,7 @@ Each account object:
   "modern_summary": string,      // 1-2 sentences, modern English, for a feed card
   "modern_body": string,         // 120-350 words. Faithful modern retelling. Keep the original's hedges ("it is said", "claims to have seen"). Preserve witness names, places, and dates exactly as printed. Present testimony as testimony ("she told the reporter"). Close with one plain sentence citing the newspaper and date, e.g. "The account appeared in the San Antonio Daily Light on November 13, 1895."
   "event_date": string|null,     // YYYY-MM-DD, when the EXPERIENCE occurred per the story text. The paper's print date is the CEILING (the event cannot postdate the paper) and is usually within days of the event. Use -01 for unknown month/day. null if indeterminable.
-  "location": {"city": string|null, "state": string|null},  // where the EVENT happened per the story text; null fields fall back to the paper's own city/state downstream
+  "location": {"city": string|null, "state": string|null, "country": string|null},  // where the EVENT actually happened per the story text (NOT where the paper was published — 1900s US papers reprinted foreign stories). country: full English name e.g. "United States","United Kingdom","China"; null only if the story gives no geographic clue. city/state null fields fall back to the paper's own locale downstream
   "category": "ghosts_hauntings"|"psychic_phenomena"|"ufos_aliens"|"cryptids"|"religion_mythology"|"esoteric_practices",
   "verbatim_quote": string,      // ONE striking sentence copied EXACTLY from the snippet (OCR warts and all) — used for verification, do not paraphrase
   "genre_flags": {"fiction_suspected": boolean, "advertisement": boolean, "retold_folklore": boolean, "period_sensitive": boolean}
@@ -347,7 +347,7 @@ interface ExtractedAccount {
   modern_summary?: string;
   modern_body?: string;
   event_date?: string | null;
-  location?: { city?: string | null; state?: string | null };
+  location?: { city?: string | null; state?: string | null; country?: string | null };
   category?: string;
   verbatim_quote?: string;
   genre_flags?: { fiction_suspected?: boolean; advertisement?: boolean; retold_folklore?: boolean; period_sensitive?: boolean };
@@ -743,12 +743,20 @@ async function main() {
 
     const city = (acc.location && acc.location.city) || s.city || null;
     const stateProv = (acc.location && acc.location.state) || s.state || null;
+    // V11.29 — use the AI-determined EVENT country instead of hardcoding US.
+    // The old hardcoded 'United States' is the wrong-country bug: a story set
+    // in "Cheshire, England" geocoded to a US Cheshire. Pass the AI country by
+    // NAME with country_code:null so normalizeLocation resolves it in the right
+    // country; fall back to the paper's US locale only when the AI gave none.
+    const aiCountry = (acc.location && acc.location.country) ? String(acc.location.country).trim() : null;
 
     let normalized: any = null;
     try {
       normalized = await normalizeLocation(
         {
-          city, state_province: stateProv, country: 'United States', country_code: 'US',
+          city, state_province: stateProv,
+          country: aiCountry || 'United States',
+          country_code: aiCountry ? null : 'US',
           location_name: [city, stateProv].filter(Boolean).join(', ') || null,
           latitude: null, longitude: null,
         },
@@ -764,8 +772,8 @@ async function main() {
       description: acc.modern_body,
       category: acc.category,
       location_name: normalized ? normalized.location_name : [city, stateProv].filter(Boolean).join(', ') || null,
-      country: normalized ? normalized.country : 'United States',
-      country_code: normalized ? normalized.country_code : 'US',
+      country: normalized ? normalized.country : (aiCountry || 'United States'),
+      country_code: normalized ? normalized.country_code : (aiCountry ? null : 'US'),
       state_province: normalized ? normalized.state_province : stateProv,
       city: normalized ? normalized.city : city,
       latitude: normalized ? normalized.latitude : null,
@@ -776,7 +784,11 @@ async function main() {
       credibility: 'medium',
       source_type: 'chronicling-america',
       original_report_id: originalReportId,
-      status: 'pending_review',
+      // V11.29 — archive off-schema genres AT INGEST so they never pollute the
+      // pending/narrate/approve flow (folklore is retold legend, not a witnessed
+      // experience; fiction/ads aren't accounts at all — founder decision).
+      // period_sensitive stays pending for individual review. Reversible.
+      status: (gf.retold_folklore || gf.fiction_suspected || gf.advertisement) ? 'archived' : 'pending_review',
       tags: ['newspaper', 'historical', caTermSlug(s.hitTerm)],
       source_label: s.paperTitle + ' (' + s.date + ')',
       source_url: s.resourceUrl,
@@ -793,7 +805,8 @@ async function main() {
         content_fp: fp.length >= FP_MIN_LEN ? fp : null,   // syndication-dedup family key
         original_snippet: s.snippet,         // PD — held outright
         extraction: 'consolidated-v1',
-        genre_flags: { fiction_suspected: !!gf.fiction_suspected, advertisement: !!gf.advertisement, retold_folklore: !!gf.retold_folklore },
+        genre_flags: { fiction_suspected: !!gf.fiction_suspected, advertisement: !!gf.advertisement, retold_folklore: !!gf.retold_folklore, period_sensitive: !!gf.period_sensitive },
+        ingest_archived_reason: (gf.retold_folklore ? 'retold_folklore' : gf.fiction_suspected ? 'fiction_suspected' : gf.advertisement ? 'advertisement' : null),
         verbatim_quote: acc.verbatim_quote,
         paper_city: s.city,
         paper_state: s.state,
