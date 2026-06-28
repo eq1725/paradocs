@@ -12,6 +12,7 @@
 // this revision; see scripts/audit-state-coord-mismatch.ts).
 import stateCentroids from '../ingestion/utils/state-centroids.json'
 import countryCentroids from '../ingestion/utils/country-centroids.json'
+import stateBBoxes from '../ingestion/utils/state-bboxes.json'
 
 // V11.17.6 — accuracy field exposes the geocoder's place_type so the
 // caller can set location_precision honestly. Without this, callers
@@ -471,6 +472,52 @@ function resolveStateCentroid(countryCode: string | null, state: string | null |
   return { lat: entry.lat, lng: entry.lng, name: entry.name }
 }
 
+// ============================================================================
+// V11.32 — wrong-state geocode guard
+// ============================================================================
+// The geocoder takes the top (limit=1) result ranked by prominence. For an
+// ambiguous city name it can return the wrong state even when the state was
+// in the query: "Lumberton, Texas" → Lumberton, NC (the more prominent of
+// the two). The pre-existing degrade/over-specify checks don't catch this —
+// the result is a valid 'locality', just in the wrong state. We validate the
+// returned coord against the claimed state's bounding box and, when it lands
+// outside, fall back to the state centroid (same posture as the country-
+// degrade path). state-bboxes.json covers US/CA/GB/AU with the same 2-letter
+// subdivision keys as state-centroids.json. Margin tolerates bbox-edge /
+// coastal points.
+const STATE_BBOX_MARGIN_DEG = 0.5
+
+/** Resolve a state string to its 2-letter subdivision key (or null). */
+function resolveStateKey(countryCode: string | null, state: string | null | undefined): string | null {
+  if (!countryCode || !state) return null
+  var map = STATE_BY_KEY[countryCode]
+  if (!map) return null
+  return map[normalizeKey(String(state))] || null
+}
+
+/**
+ * Validate a coordinate against the claimed state's bounding box.
+ *   true  → inside (±margin) the state bbox
+ *   false → OUTSIDE the bbox (wrong-state geocode)
+ *   null  → cannot judge (no bbox for this country/state) — not rejected
+ * `stateKey` must be the 2-letter subdivision key (US/CA/GB/AU).
+ */
+export function coordInStateBBox(
+  countryCode: string | null,
+  stateKey: string | null,
+  lat: number,
+  lng: number,
+): boolean | null {
+  if (!countryCode || !stateKey) return null
+  var byCountry = (stateBBoxes as Record<string, Record<string, number[]>>)[countryCode]
+  if (!byCountry) return null
+  var bb = byCountry[stateKey]
+  if (!bb || bb.length < 4) return null
+  var w = bb[0], s = bb[1], e = bb[2], n = bb[3]
+  var m = STATE_BBOX_MARGIN_DEG
+  return lng >= w - m && lng <= e + m && lat >= s - m && lat <= n + m
+}
+
 /**
  * V11.17.83 — Structured geocode with centroid fallback.
  *
@@ -587,7 +634,17 @@ export async function geocodeStructuredLocation(
     // anything finer is fabricated specificity.
     var overspecified = hadPrefix && (acc === 'address' || acc === 'street')
 
-    if (!degraded && !overspecified) {
+    // V11.32 — wrong-state guard. The geocoder took the top prominence
+    // hit; for an ambiguous city name that can be the wrong state even
+    // with the state in the query ("Lumberton, Texas" → Lumberton, NC).
+    // When a state was supplied and we have its bbox, reject a coord that
+    // lands outside it and fall back to the state centroid below — the
+    // pin then at least lands in the right state.
+    var stateKey = resolveStateKey(countryCode, input.state || null)
+    var inStateBox = coordInStateBBox(countryCode, stateKey, geocoded.latitude, geocoded.longitude)
+    var wrongState = inStateBox === false
+
+    if (!degraded && !overspecified && !wrongState) {
       return {
         latitude: geocoded.latitude,
         longitude: geocoded.longitude,
@@ -596,7 +653,14 @@ export async function geocodeStructuredLocation(
         source: hadPrefix ? (query + ' (prefix stripped)') : query,
       }
     }
-    if (degraded) {
+    if (wrongState) {
+      console.log(
+        '[Geocoding] V11.32 — geocode for "' + query + '" landed outside ' +
+        (input.state || '(state)') + ' at (' + geocoded.latitude.toFixed(3) + ',' +
+        geocoded.longitude.toFixed(3) + '); falling back to state centroid (' +
+        (stateCentroid?.name || '(none)') + ')',
+      )
+    } else if (degraded) {
       console.log(
         '[Geocoding] V11.17.83 — geocoder returned country precision for "' + query +
         '"; falling back to state centroid (' + (stateCentroid?.name || '(none)') + ')',

@@ -56,6 +56,7 @@
 // flag the project already sets in tsconfig.
 import countryCentroids from './country-centroids.json'
 import stateCentroids from './state-centroids.json'
+import stateBBoxes from './state-bboxes.json'
 
 export type LocationPrecision = 'exact' | 'city' | 'region' | 'country' | 'unknown'
 
@@ -338,6 +339,22 @@ export async function normalizeLocation(
         }
       } catch (e) {
         coord = null
+      }
+    }
+    // V11.32 — wrong-state guard. The geocoder returns the top prominence
+    // hit, which for an ambiguous city name can be the wrong state even
+    // with the state in the query ("Lumberton, Texas" → Lumberton, NC).
+    // Reject a coord that lands outside the claimed state's bbox; nulling
+    // it routes to the 3c state-centroid fallback so the pin lands in the
+    // right state. state-bboxes.json covers US/CA/GB/AU (same 2-letter
+    // keys as state-centroids.json); other countries skip the check.
+    if (coord && stateKey && countryCode) {
+      const bb = (stateBBoxes as Record<string, Record<string, number[]>>)[countryCode]?.[stateKey]
+      if (bb && bb.length >= 4) {
+        const m = 0.5
+        const inBox = coord.lng >= bb[0] - m && coord.lng <= bb[2] + m &&
+                      coord.lat >= bb[1] - m && coord.lat <= bb[3] + m
+        if (!inBox) coord = null
       }
     }
     if (coord && isValidCoord(coord.lat, coord.lng)) {
