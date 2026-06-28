@@ -741,14 +741,18 @@ async function main() {
     else if (/-01-01$/.test(eventDate)) datePrecision = 'year';
     else if (/-01$/.test(eventDate)) datePrecision = 'month';
 
-    const city = (acc.location && acc.location.city) || s.city || null;
-    const stateProv = (acc.location && acc.location.state) || s.state || null;
     // V11.29 — use the AI-determined EVENT country instead of hardcoding US.
     // The old hardcoded 'United States' is the wrong-country bug: a story set
     // in "Cheshire, England" geocoded to a US Cheshire. Pass the AI country by
     // NAME with country_code:null so normalizeLocation resolves it in the right
     // country; fall back to the paper's US locale only when the AI gave none.
     const aiCountry = (acc.location && acc.location.country) ? String(acc.location.country).trim() : null;
+    // V11.29.1 — only borrow the PAPER's city/state when the event is DOMESTIC.
+    // For a foreign event the US paper's locale is wrong (the "Sydney,
+    // Australia / New York" bug), so use only what the AI extracted, else null.
+    const eventIsForeign = !!aiCountry && !/^(united states|usa|u\.s\.a\.|u\.s\.|us)$/i.test(aiCountry);
+    const city = (acc.location && acc.location.city) || (eventIsForeign ? null : s.city) || null;
+    const stateProv = (acc.location && acc.location.state) || (eventIsForeign ? null : s.state) || null;
 
     let normalized: any = null;
     try {
