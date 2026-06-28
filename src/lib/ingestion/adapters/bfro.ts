@@ -24,13 +24,6 @@ const STATE_MAP: Record<string, string> = {
   'SK': 'Saskatchewan', 'YT': 'Yukon'
 };
 
-// BFRO classification mapping
-const CLASSIFICATION_MAP: Record<string, { credibility: 'low' | 'medium' | 'high'; description: string }> = {
-  'Class A': { credibility: 'high', description: 'Clear sightings in circumstances where misidentification is unlikely' },
-  'Class B': { credibility: 'medium', description: 'Incidents where evidence suggests sasquatch activity but no clear visual sighting' },
-  'Class C': { credibility: 'low', description: 'Second-hand reports or reports that cannot be adequately verified' }
-};
-
 // Keywords for tag extraction
 const TAG_KEYWORDS: Record<string, string[]> = {
   'forest': ['forest', 'woods', 'trees', 'timber', 'woodland'],
@@ -199,15 +192,6 @@ function generateSummary(description: string, classification: string): string {
   }
 
   return summary;
-}
-
-function getCredibility(classification: string): 'low' | 'medium' | 'high' {
-  for (const [key, value] of Object.entries(CLASSIFICATION_MAP)) {
-    if (classification.includes(key)) {
-      return value.credibility;
-    }
-  }
-  return 'medium';
 }
 
 function determineCountry(state: string): string {
@@ -991,7 +975,6 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
       event_time: eventTime,
       event_date_precision: eventDatePrecision,
       event_date_extracted_from: bfroDateSource,
-      credibility: getCredibility(classification),
       witness_count: witnessCount,
       has_official_report: !!followUp, // BFRO follow-up = investigated
       source_type: 'bfro',
@@ -1003,6 +986,14 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
       // No media stored — we link to source page instead (same as NUFORC approach)
       has_photo_video: hasMedia,
       metadata: {
+        // Deterministic encyclopedia linker target — every BFRO report is a
+        // Bigfoot/Sasquatch sighting (phenomenon_types.slug='bigfoot',
+        // category 'cryptids'). Mirrors NDERF's experienceTypeSlug so the
+        // mass-ingest linker tags the canonical phenomenon without relying
+        // on the AI classifier.
+        experienceTypeSlug: 'bigfoot',
+        // Neutral source provenance (BFRO's own Class A/B/C field). NOT a
+        // credibility label — credibility was deprecated site-wide.
         bfroClass: classification,
         reportNumber,
         nearestTown: nearestTown || undefined,
