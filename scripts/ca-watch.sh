@@ -39,15 +39,30 @@ while true; do
   echo "  CA tranche-one — live  ($(date '+%Y-%m-%d %H:%M:%S'))   refresh ${INTERVAL}s"
   echo "════════════════════════════════════════════════════════════════"
 
-  # ── launchd state ───────────────────────────────────────────────────
-  LD=$(launchctl list 2>/dev/null | grep com.paradocs.ca-ingest || true)
-  if [ -n "$LD" ]; then
-    DPID=$(echo "$LD" | awk '{print $1}')
-    echo "  daemon: RUNNING (launchd pid $DPID)"
+  # ── daemon state (works for both `nohup` and launchd launches) ──────
+  # Authoritative check: the single-instance lock holds the live PID. We
+  # verify the process is actually alive with kill -0, so a stale lock or a
+  # dormant launchd entry can't read as "running" (the old "pid -" bug).
+  DLOG=$(ls -t outputs/ca-daemon-*.log 2>/dev/null | head -1)
+  DPID=""
+  [ -f outputs/ca-daemon.lock/pid ] && DPID=$(cat outputs/ca-daemon.lock/pid 2>/dev/null | tr -dc '0-9')
+  if [ -n "$DPID" ] && kill -0 "$DPID" 2>/dev/null; then
+    echo "  daemon: ● RUNNING  (pid $DPID)"
   else
-    echo "  daemon: NOT loaded in launchd"
+    echo "  daemon: ○ NOT RUNNING  (no live process holding the lock)"
   fi
   [ -f outputs/ca-daemon.STOP ] && echo "  ⚠ STOP file present — daemon will exit after current wave"
+
+  # Which tranche + what it's doing RIGHT NOW (so this run is unmistakable).
+  if [ -n "$DLOG" ]; then
+    YEARS=$(grep -oE 'YEARS=[0-9]+-[0-9]+' "$DLOG" 2>/dev/null | tail -1 | cut -d= -f2)
+    STARTED=$(grep -E 'ca-ingest-daemon start' "$DLOG" 2>/dev/null | tail -1 | grep -oE '^\[[^]]+\]' | tr -d '[]')
+    PHASE=$(grep -E '===== WAVE [0-9]+ :' "$DLOG" 2>/dev/null | tail -1 | sed -E 's/.*(===== )?WAVE ([0-9]+) : ([a-z+ -]+[a-z]) =====.*/wave \2 — \3/')
+    echo "  tranche: ${YEARS:-?}   started: ${STARTED:-?}"
+    echo "  NOW:     ${PHASE:-starting up…}"
+    INGEST=$(grep -oE 'inserted pending_review:[0-9]+' "$DLOG" 2>/dev/null | grep -oE '[0-9]+$' | awk '{s+=$1} END{print s+0}')
+    echo "  this run: ${INGEST:-0} reports extracted so far"
+  fi
 
   # ── harvest artifacts ───────────────────────────────────────────────
   SHARDS=$(ls outputs/ca-shards/*.json 2>/dev/null | wc -l | tr -d ' ')
@@ -70,8 +85,11 @@ while true; do
   if [ -n "$WLOG" ]; then
     echo "  harvest worker  ($(basename "$WLOG")):"
     grep -E '\[ca-harvest\]|HTTP (429|50[0-9])|search|ocr ' "$WLOG" 2>/dev/null | tail -3 | sed 's/^/    /'
-    H429=$(grep -c 'HTTP 429' "$WLOG" 2>/dev/null || echo 0)
-    [ "$H429" -gt 0 ] && echo "    ⚠ $H429 HTTP 429 lines in this worker log — loc.gov throttling"
+    # grep -c prints "0" but EXITS 1 on no matches; the old `|| echo 0` then
+    # appended a second "0" → "0\n0" → the line-74 integer error. Strip to a
+    # clean integer instead.
+    H429=$(grep -c '429' "$WLOG" 2>/dev/null | tr -dc '0-9'); [ -z "$H429" ] && H429=0
+    [ "$H429" -gt 0 ] && echo "    ⚠ $H429 lines mention 429 in this worker log — loc.gov throttling"
   else
     echo "  harvest worker: (no worker log yet — wave may be between harvest/extract)"
   fi
