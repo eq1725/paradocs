@@ -214,9 +214,7 @@ async function main() {
   const rows = await gather(sb)
   const byId = new Map<string, Lite>(rows.map(r => [r.id, r]))
   const inScope = new Set<string>(rows.map(r => r.id))
-  const embeddings = await fetchEmbeddings(sb, rows.map(r => r.id))
-  const withEmb = rows.filter(r => embeddings.has(r.id)).length
-  console.log(`scope: ${rows.length} approved (${CATEGORY}) | embedded: ${withEmb}`)
+  console.log(`scope: ${rows.length} approved (${CATEGORY})`)
 
   const assigned = new Set<string>(fs.existsSync(PROC) ? JSON.parse(fs.readFileSync(PROC, 'utf8')) : [])
   let clusters: MergeCluster[] = fs.existsSync(CLUSTERS) ? JSON.parse(fs.readFileSync(CLUSTERS, 'utf8')) : []
@@ -228,9 +226,18 @@ async function main() {
 
   RUN_DEADLINE = Date.now() + RUN_BUDGET_SEC * 1000
   const ordered = [...rows].sort((a, b) => createdKey(a.created_at).localeCompare(createdKey(b.created_at)) || a.id.localeCompare(b.id))
+  // Fetch embeddings JUST-IN-TIME, in chunks, only for the reports this
+  // time-boxed pass will actually reach. Fetching all 141k up front cost
+  // ~6 min/run; this fetches ~one budget's worth (a few thousand) per pass.
+  const pending = ordered.filter(r => !assigned.has(r.id))
+  const EMB_CHUNK = 400
   let timedOut = false
 
-  for (const R of ordered) {
+  for (let ci = 0; ci < pending.length && !timedOut; ci += EMB_CHUNK) {
+    if (Date.now() >= RUN_DEADLINE) { timedOut = true; break }
+    const chunk = pending.slice(ci, ci + EMB_CHUNK)
+    const embeddings = await fetchEmbeddings(sb, chunk.map(r => r.id))
+    for (const R of chunk) {
     if (Date.now() >= RUN_DEADLINE) { timedOut = true; break }
     if (assigned.has(R.id)) continue
     const vec = embeddings.get(R.id)
@@ -290,6 +297,7 @@ async function main() {
     }))
     const alsoReportedIn = Array.from(new Set(clusterRows.map(cr => cr.source_type).filter(Boolean) as string[]))
     clusters.push({ canonicalId: kept.id, canonicalSource: kept.source_type, members, alsoReportedIn })
+    }
   }
   persist()
 
@@ -319,6 +327,7 @@ async function main() {
   RUN_DEADLINE = Date.now() + RUN_BUDGET_SEC * 1000
   for (const c of real) {
     if (Date.now() >= RUN_DEADLINE) { timedOut = true; break }
+    if (c.members.every(m => done.has(m.id))) continue  // cluster fully archived on a prior pass — skip
     // Stamp provenance on the canonical (merge into existing metadata).
     try {
       const cur = await sb.from('reports').select('metadata').eq('id', c.canonicalId).single()
