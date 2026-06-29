@@ -61,6 +61,7 @@ const CACHE = path.resolve(process.cwd(), `outputs/xsource-cache-${SLUG}.json`)
 const PROC = path.resolve(process.cwd(), `outputs/xsource-processed-${SLUG}.json`)
 const CLUSTERS = path.resolve(process.cwd(), `outputs/xsource-clusters-${SLUG}.json`)
 const SNAP = path.resolve(process.cwd(), `outputs/xsource-snapshot-${SLUG}.json`)
+const SCANNED = path.resolve(process.cwd(), `outputs/xsource-scanned-${SLUG}.json`)
 
 const START = Date.now()
 const GATHER_DEADLINE = START + 25000
@@ -217,10 +218,14 @@ async function main() {
   console.log(`scope: ${rows.length} approved (${CATEGORY})`)
 
   const assigned = new Set<string>(fs.existsSync(PROC) ? JSON.parse(fs.readFileSync(PROC, 'utf8')) : [])
+  // `scanned` = every report already processed as a query (clustered OR not).
+  // Without this the loop re-scans the same front each pass and never advances.
+  const scanned = new Set<string>(fs.existsSync(SCANNED) ? JSON.parse(fs.readFileSync(SCANNED, 'utf8')) : [])
   let clusters: MergeCluster[] = fs.existsSync(CLUSTERS) ? JSON.parse(fs.readFileSync(CLUSTERS, 'utf8')) : []
   const persist = () => {
     fs.mkdirSync(path.dirname(PROC), { recursive: true })
     fs.writeFileSync(PROC, JSON.stringify(Array.from(assigned)))
+    fs.writeFileSync(SCANNED, JSON.stringify(Array.from(scanned)))
     fs.writeFileSync(CLUSTERS, JSON.stringify(clusters, null, 2))
   }
 
@@ -229,7 +234,7 @@ async function main() {
   // Fetch embeddings JUST-IN-TIME, in chunks, only for the reports this
   // time-boxed pass will actually reach. Fetching all 141k up front cost
   // ~6 min/run; this fetches ~one budget's worth (a few thousand) per pass.
-  const pending = ordered.filter(r => !assigned.has(r.id))
+  const pending = ordered.filter(r => !assigned.has(r.id) && !scanned.has(r.id))
   const EMB_CHUNK = 400
   let timedOut = false
 
@@ -240,6 +245,8 @@ async function main() {
     for (const R of chunk) {
     if (Date.now() >= RUN_DEADLINE) { timedOut = true; break }
     if (assigned.has(R.id)) continue
+    scanned.add(R.id)                                  // mark processed so the scan advances
+    if (scanned.size % 250 === 0) persist()            // checkpoint progress (survives Ctrl-C)
     const vec = embeddings.get(R.id)
     if (!vec) continue
 
