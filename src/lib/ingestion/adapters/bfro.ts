@@ -279,6 +279,23 @@ async function parseStateListingPage(html: string): Promise<Array<{ link: string
   return reports;
 }
 
+// V11.34 — extract per-county listing URLs from a state page.
+// BFRO state pages (state_listing.asp?state=XX) show only the ~3 "most
+// recent" reports as direct show_report links; the full set (e.g. WA = 725)
+// is behind per-county pages: show_county_reports.asp?state=XX&county=YY.
+// The adapter must follow these to capture a state's full corpus.
+function parseCountyLinks(html: string, baseUrl: string): string[] {
+  const urls = new Set<string>();
+  const re = /href=["']([^"']*show_county_reports\.asp\?[^"']*)["']/gi;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    let u = m[1].replace(/&amp;/g, '&');
+    if (!/^https?:/i.test(u)) u = u.startsWith('/') ? `${baseUrl}${u}` : `${baseUrl}/GDB/${u}`;
+    urls.add(u);
+  }
+  return Array.from(urls);
+}
+
 // Parse individual BFRO report page
 async function parseReportPage(html: string, reportNumber: string, baseUrl: string): Promise<ScrapedReport | null> {
   try {
@@ -320,29 +337,37 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
 
     // Location details
     let county = extractField(['County', 'Parish']);
-    let stateRaw = extractField(['State', 'State/Province', 'Province']);
-    const state = STATE_MAP[stateRaw] || stateRaw;
+    let stateRaw = (extractField(['State', 'State/Province', 'Province']) || '').trim();
 
-    // If state is still empty, try the page title
-    let fallbackState = state;
-    if (!fallbackState) {
+    // V11.34 — validate the parsed state. BFRO pages occasionally drop a
+    // town/landmark into the State field (the "Port Townsend as state" bug),
+    // and the old `STATE_MAP[raw] || raw` passed that garbage straight through
+    // AND short-circuited the reliable breadcrumb fallback. Resolve an
+    // abbreviation OR an exact known full-name; reject anything else so the
+    // authoritative fallbacks below fire.
+    const VALID_STATE_NAMES = new Set(Object.values(STATE_MAP));
+    let state = STATE_MAP[stateRaw.toUpperCase()]
+      || (VALID_STATE_NAMES.has(stateRaw) ? stateRaw : '');
+
+    // Authoritative fallback: the state_listing.asp?state=XX breadcrumb is the
+    // listing page this report was filed under — ground truth for BFRO, which
+    // organizes every report by state. Prefer it over any text heuristic.
+    if (!state) {
+      const breadcrumbMatch = html.match(/state_listing\.asp\?state=(\w{2})/i);
+      if (breadcrumbMatch) state = STATE_MAP[breadcrumbMatch[1].toUpperCase()] || '';
+    }
+
+    // Last resort: page title "in/near X" — validated against the known state
+    // list so a town name can never masquerade as a state.
+    if (!state) {
       const titleMatch = html.match(/<title[^>]*>([^<]+)/i);
       if (titleMatch) {
-        const stateInTitle = titleMatch[1].match(/(?:in|near)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
-        if (stateInTitle) fallbackState = stateInTitle[1];
+        const m = titleMatch[1].match(/(?:in|near)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
+        if (m && VALID_STATE_NAMES.has(m[1])) state = m[1];
       }
     }
 
-    // If state is STILL empty, try the URL of the state listing page that linked here
-    // BFRO URLs like state_listing.asp?state=wa encode the state
-    if (!fallbackState) {
-      // Try to find the state in the page breadcrumbs or navigation links
-      const breadcrumbMatch = html.match(/state_listing\.asp\?state=(\w{2})/i);
-      if (breadcrumbMatch) {
-        const stateCode = breadcrumbMatch[1].toUpperCase();
-        fallbackState = STATE_MAP[stateCode] || '';
-      }
-    }
+    const fallbackState = state;
 
     // Date — BFRO pages use separate YEAR, MONTH, DATE fields.
     // Strategy: first try to grab the whole date block from the HTML as one chunk,
@@ -1042,9 +1067,25 @@ export const bfroAdapter: SourceAdapter = {
         const listingHtml = await fetchWithRetry(listingUrl);
 
         if (listingHtml) {
+          // Direct "Most Recent Reports" links shown on the state page (~3).
           const stateReports = await parseStateListingPage(listingHtml);
           allReportLinks.push(...stateReports);
-          console.log(`[BFRO] Found ${stateReports.length} reports in ${stateCode.toUpperCase()}`);
+
+          // V11.34 — county drill-down. Follow each per-county listing page to
+          // capture the full state corpus (state page alone yields only a
+          // handful; WA has 725 across ~30 counties). Rate-limited + capped.
+          const countyUrls = parseCountyLinks(listingHtml, baseUrl);
+          console.log(`[BFRO] ${stateCode.toUpperCase()}: ${stateReports.length} direct + ${countyUrls.length} county pages to follow`);
+          for (const countyUrl of countyUrls) {
+            if (allReportLinks.length >= limit) break;
+            await new Promise(resolve => setTimeout(resolve, rateLimitMs));
+            const countyHtml = await fetchWithRetry(countyUrl);
+            if (countyHtml) {
+              const countyReports = await parseStateListingPage(countyHtml);
+              allReportLinks.push(...countyReports);
+            }
+          }
+          console.log(`[BFRO] Found ${allReportLinks.length} total report links in ${stateCode.toUpperCase()}`);
         }
 
         // Rate limiting between state fetches
