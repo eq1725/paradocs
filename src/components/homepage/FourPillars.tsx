@@ -59,7 +59,7 @@ export default function FourPillars() {
     {
       icon: <Database className="w-6 h-6" />,
       title: 'The Database',
-      description: 'Every UFO sighting, cryptid encounter, ghost report, and unexplained event\u2014aggregated from thousands of sources and filtered by AI for credibility. Search by location, date, phenomenon type, or keywords across the largest paranormal database ever assembled.',
+      description: 'Every UFO sighting, cryptid encounter, ghost report, and unexplained event\u2014aggregated from thousands of sources and filtered by AI for quality and relevance. Search by location, date, phenomenon type, or keywords across the largest paranormal database ever assembled.',
       ctaText: 'Search the database',
       ctaHref: '/explore',
       badge: undefined

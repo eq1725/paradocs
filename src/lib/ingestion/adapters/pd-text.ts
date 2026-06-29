@@ -387,7 +387,6 @@ export function pdCaseToReport(c: PdParsedCase, cfg: PdSourceConfig): ScrapedRep
     summary,
     description: c.body,
     category: cfg.category,
-    credibility: 'medium',
     source_type: cfg.sourceType,
     source_label: cfg.sourceLabel,
     source_url: 'https://archive.org/details/' + c.archiveId,

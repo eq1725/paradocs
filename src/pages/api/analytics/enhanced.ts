@@ -28,7 +28,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       categoryBreakdown,
       countryBreakdown,
       monthlyTrend,
-      credibilityBreakdown,
       timeOfDayData,
       dayOfWeekData,
       evidenceAnalysis,
@@ -41,7 +40,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       getCategoryBreakdown(supabaseAdmin),
       getCountryBreakdown(supabaseAdmin),
       getMonthlyTrend(supabaseAdmin),
-      getCredibilityBreakdown(supabaseAdmin),
       getTimeOfDayData(supabaseAdmin),
       getDayOfWeekData(supabaseAdmin),
       getEvidenceAnalysis(supabaseAdmin),
@@ -59,7 +57,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       categoryBreakdown,
       countryBreakdown,
       monthlyTrend,
-      credibilityBreakdown,
       timeOfDayData,
       dayOfWeekData,
       evidenceAnalysis,
@@ -241,36 +238,6 @@ async function getMonthlyTrend(supabase: any) {
     count: data.total,
     byCategory: data.byCategory,
   }))
-}
-
-async function getCredibilityBreakdown(supabase: any) {
-  try {
-    const { data, error } = await supabase.rpc('get_credibility_breakdown')
-    if (!error && data) {
-      return data.map((r: any) => ({ name: r.credibility, value: Number(r.count) }))
-        .filter((d: any) => d.value > 0)
-    }
-  } catch {
-    // RPC not available
-  }
-
-  // Fallback
-  const { data } = await supabase
-    .from('reports')
-    .select('credibility')
-    .eq('status', 'approved')
-    .limit(10000)
-
-  const counts: Record<string, number> = {}
-  data?.forEach((r: any) => {
-    counts[r.credibility] = (counts[r.credibility] || 0) + 1
-  })
-
-  const order = ['confirmed', 'high', 'medium', 'low', 'unverified']
-  return order.map(level => ({
-    name: level,
-    value: counts[level] || 0,
-  })).filter(d => d.value > 0)
 }
 
 async function getTimeOfDayData(supabase: any) {

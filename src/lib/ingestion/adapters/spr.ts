@@ -342,7 +342,6 @@ export function caseToReport(c: SprParsedCase): ScrapedReport {
     summary,
     description: c.body,
     category: 'psychic_phenomena',
-    credibility: 'medium',
     source_type: SOURCE_TYPE,
     source_label: SOURCE_LABEL,
     source_url: 'https://archive.org/details/' + c.archiveId,

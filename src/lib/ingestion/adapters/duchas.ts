@@ -225,7 +225,6 @@ export function mapItemToReport(ctx: ItemContext): ScrapedReport | null {
     event_date: undefined,
     event_date_precision: 'unknown',
     event_date_extracted_from: 'none',
-    credibility: 'medium',
     source_type: 'duchas',
     source_label: 'Dúchas — National Folklore Collection',
     source_url: sourceUrl,

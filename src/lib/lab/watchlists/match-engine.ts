@@ -7,9 +7,8 @@
 // Scoring (MVP — tunable later):
 //   - Start at 1.0.
 //   - HARD criteria — phen_family, state_or_country, event year range,
-//     witness_count_min, has_photo_video, min_credibility, time-of-day
-//     window — multiply by 0.0 on a fail (immediate disqualification),
-//     1.0 on a pass.
+//     witness_count_min, has_photo_video, time-of-day window — multiply
+//     by 0.0 on a fail (immediate disqualification), 1.0 on a pass.
 //   - SOFT criteria — descriptor partial overlap, subfamily token
 //     match — multiply by 0.5 on a partial-match-fail, 1.0 on a pass.
 //   - Geo proximity uses a smooth decay: 1.0 inside 50% of radius,
@@ -180,22 +179,6 @@ function inHourWindow(hour: number, start: number, end: number): boolean {
   return hour >= start || hour <= end
 }
 
-function credibilityRank(c: string | null | undefined): number {
-  if (c === 'high') return 3
-  if (c === 'medium') return 2
-  if (c === 'low') return 1
-  return 0
-}
-
-function reportCredibility(r: CandidateReport): string | null {
-  var assess = r.paradocs_assessment
-  if (assess && typeof assess === 'object') {
-    var c = assess.credibility || assess.credibility_tier || null
-    if (typeof c === 'string') return c.toLowerCase()
-  }
-  return null
-}
-
 function reportHasMedia(r: CandidateReport): boolean {
   // We don't have a reliable `media_count` column populated everywhere;
   // we use tag heuristics + an assessment flag if present. Conservative.
@@ -328,17 +311,6 @@ export function scoreReport(
     breakdown.has_photo_video = mOk ? 1 : 0
     if (!mOk) {
       return { confidence: 0, breakdown: breakdown, match: false, reason: 'no_media' }
-    }
-  }
-
-  // ── HARD: min credibility ───────────────────────────────────────────
-  if (criteria.min_credibility) {
-    var requiredRank = credibilityRank(criteria.min_credibility)
-    var actualRank = credibilityRank(reportCredibility(report))
-    var cOk = actualRank >= requiredRank
-    breakdown.min_credibility = cOk ? 1 : 0
-    if (!cOk) {
-      return { confidence: 0, breakdown: breakdown, match: false, reason: 'credibility_below_min' }
     }
   }
 

@@ -10,14 +10,14 @@
  * - Evidence and source analysis
  * - AI-detected emerging patterns
  * - Correlation explorer
- * - Category and credibility breakdowns
+ * - Category breakdowns
  */
 
 import React, { useEffect, useState } from 'react'
 import Head from 'next/head'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, AreaChart, Area
+  Cell, AreaChart, Area
 } from 'recharts'
 import {
   FileText, Eye, MapPin, TrendingUp, Calendar, Activity,
@@ -46,7 +46,6 @@ interface AnalyticsData {
   categoryBreakdown: { category: string; count: number }[]
   countryBreakdown: { country: string; count: number }[]
   monthlyTrend: { month: string; monthKey: string; count: number; byCategory: Record<string, number> }[]
-  credibilityBreakdown: { name: string; value: number }[]
   timeOfDayData: { hour: number; label: string; count: number; byCategory: Record<string, number> }[]
   dayOfWeekData: { day: number; name: string; shortName: string; count: number; byCategory: Record<string, number> }[]
   evidenceAnalysis: {
@@ -124,14 +123,6 @@ export default function AnalyticsPage() {
   }
 
   const COLORS = ['#22c55e', '#f59e0b', '#a855f7', '#ef4444', '#3b82f6', '#14b8a6', '#ec4899', '#6b7280']
-
-  const CREDIBILITY_COLORS: Record<string, string> = {
-    confirmed: '#22c55e',
-    high: '#3b82f6',
-    medium: '#f59e0b',
-    low: '#f97316',
-    unverified: '#6b7280',
-  }
 
   if (loading) {
     return (
@@ -331,56 +322,7 @@ export default function AnalyticsPage() {
                   timeOfDayData={data.timeOfDayData}
                   dayOfWeekData={data.dayOfWeekData}
                   categoryData={data.categoryBreakdown}
-                  credibilityData={data.credibilityBreakdown}
                 />
-
-                {/* Credibility pie chart */}
-                <div className="glass-card p-6">
-                  <h3 className="text-lg font-medium text-white mb-4">Credibility Distribution</h3>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie
-                        data={data.credibilityBreakdown}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={40}
-                        outerRadius={70}
-                        paddingAngle={2}
-                        dataKey="value"
-                        nameKey="name"
-                      >
-                        {data.credibilityBreakdown.map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={CREDIBILITY_COLORS[entry.name] || COLORS[index % COLORS.length]}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{
-                          background: 'rgba(20,20,35,0.95)',
-                          border: '1px solid rgba(255,255,255,0.1)',
-                          borderRadius: '8px',
-                        }}
-                        formatter={(value: number, name: string) => [
-                          value,
-                          name.charAt(0).toUpperCase() + name.slice(1)
-                        ]}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="flex flex-wrap justify-center gap-3 mt-2">
-                    {data.credibilityBreakdown.map((item, i) => (
-                      <div key={item.name} className="flex items-center gap-2">
-                        <div
-                          className="w-2 h-2 rounded-full"
-                          style={{ background: CREDIBILITY_COLORS[item.name] || COLORS[i] }}
-                        />
-                        <span className="text-xs text-gray-400 capitalize">{item.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -433,7 +375,6 @@ export default function AnalyticsPage() {
               timeOfDayData={data.timeOfDayData}
               dayOfWeekData={data.dayOfWeekData}
               categoryData={data.categoryBreakdown}
-              credibilityData={data.credibilityBreakdown}
             />
           </div>
         )}

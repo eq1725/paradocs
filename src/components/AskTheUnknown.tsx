@@ -248,7 +248,7 @@ export default function AskTheUnknown({ context, suggestedQuestions }: AskTheUnk
                     {context?.type === 'phenomenon' 
                       ? `I see you\'re exploring ${context.name}. I can help you dig deeper into sightings, evidence, and theories. What would you like to know?`
                       : context?.type === 'report'
-                      ? 'Interesting report! I can help analyze credibility, find similar cases, or explore possible explanations. What catches your attention?'
+                      ? 'Interesting report! I can help analyze the details, find similar cases, or explore possible explanations. What catches your attention?'
                       : 'Welcome! I\'m your AI paranormal research assistant. I have access to over 258,000 reports. Ask me anything about UFOs, cryptids, ghosts, or unexplained phenomena.'
                     }
                   </p>

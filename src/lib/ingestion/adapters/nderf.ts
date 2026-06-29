@@ -73,30 +73,6 @@ function extractCharacteristics(content: string): string[] {
   return characteristics;
 }
 
-// Determine credibility based on detail level.
-// Uses the NDERF tier as an internal signal (still valuable: NDERF curators
-// hand-ranked these), but the tier itself is never displayed.
-function determineCredibility(content: string, nderfTier: NDERFTier): 'low' | 'medium' | 'high' {
-  let score = 0;
-
-  // Length-based scoring
-  if (content.length > 500) score += 1;
-  if (content.length > 1500) score += 1;
-  if (content.length > 3000) score += 1;
-
-  // Tier-based scoring (internal use of NDERF's curation)
-  if (nderfTier === 'exceptional') score += 2;
-  else if (nderfTier === 'probable') score += 1;
-
-  // Detail indicators
-  if (content.includes('date') || /\d{4}/.test(content)) score += 1;
-  if (content.includes('hospital') || content.includes('doctor')) score += 1;
-
-  if (score >= 4) return 'high';
-  if (score >= 2) return 'medium';
-  return 'low';
-}
-
 // Generate tags from content.
 // NOTE: we intentionally do NOT emit the NDERF evaluative tier as a tag.
 // Tags are user-visible filters; republishing "exceptional" / "probable"
@@ -941,7 +917,8 @@ async function parseExperiencePage(html: string, id: string, name: string): Prom
   console.log(`[NDERF] ${id}: clean narrative ${content.length} chars, starts: "${content.substring(0, 80)}..."`);
 
   // Determine NDERF evaluative tier from page content or URL.
-  // INTERNAL ONLY — used for credibility scoring; never surfaced in UI.
+  // INTERNAL ONLY — retained in metadata.nderf_tier for our own quality
+  // scoring; never surfaced in UI.
   // Non-NDE experience types (OBE/STE/SDE/FDE) live on oberf.org and are
   // handled by the OBERF adapter, so we no longer branch on those here.
   let nderfTier: NDERFTier = 'exceptional';
@@ -1018,7 +995,6 @@ async function parseExperiencePage(html: string, id: string, name: string): Prom
     event_date: eventDate,
     event_date_precision: datePrecision,
     event_date_extracted_from: dateSource,
-    credibility: determineCredibility(content, nderfTier),
     source_type: 'nderf',
     original_report_id: `nderf-${id}`,
     tags: Array.from(new Set(tags)),
@@ -1038,7 +1014,7 @@ async function parseExperiencePage(html: string, id: string, name: string): Prom
       experienceTypeSlug: tags.includes('distressing-nde')
         ? 'distressing-nde'
         : 'near-death-experience',
-      // Internal-only: NDERF's evaluative tier. Used for our own credibility
+      // Internal-only: NDERF's evaluative tier. Used for our own quality
       // ranking; never rendered in the UI. Replace/remove this field if we
       // later decide we shouldn't retain it at all.
       nderf_tier: nderfTier,

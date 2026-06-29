@@ -82,7 +82,6 @@ interface AcademicData {
   quality: {
     dataQualityScore: number | null
     completenessScore: number | null
-    credibilityScore: number | null
     sourceType: string
     sourceUrl: string | null
     collectionMethod: string
@@ -370,7 +369,7 @@ export default function AcademicObservationPanel({ reportSlug, className, isExpa
               </div>
 
               {/* Data Quality */}
-              {(data.quality.dataQualityScore || data.quality.credibilityScore) && (
+              {(data.quality.dataQualityScore || data.quality.completenessScore) && (
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
                     <AlertTriangle className="w-3.5 h-3.5 text-gray-400" />
@@ -382,9 +381,6 @@ export default function AcademicObservationPanel({ reportSlug, className, isExpa
                     )}
                     {data.quality.completenessScore && (
                       <DataRow label="Completeness" value={`${data.quality.completenessScore}/10`} />
-                    )}
-                    {data.quality.credibilityScore && (
-                      <DataRow label="Credibility" value={data.quality.credibilityScore} />
                     )}
                   </div>
                 </div>

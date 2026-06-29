@@ -70,28 +70,6 @@ function extractCharacteristics(content: string): string[] {
   return characteristics;
 }
 
-// Determine credibility based on detail level
-function determineCredibility(content: string): 'low' | 'medium' | 'high' {
-  let score = 0;
-
-  // Length-based scoring
-  if (content.length > 500) score += 1;
-  if (content.length > 1500) score += 1;
-  if (content.length > 3000) score += 1;
-
-  // Detail indicators
-  if (content.includes('date') || /\d{4}/.test(content)) score += 1;
-  if (content.includes('hospital') || content.includes('doctor')) score += 1;
-  if (content.includes('verified') || content.includes('medical records')) score += 1;
-
-  // IANDS accounts are typically well-vetted
-  score += 1;
-
-  if (score >= 4) return 'high';
-  if (score >= 2) return 'medium';
-  return 'low';
-}
-
 // Generate tags from content
 function generateTags(content: string, accountType: string): string[] {
   const tags: string[] = ['nde', 'near-death-experience', 'iands'];
@@ -307,7 +285,6 @@ function parseAccountPage(html: string, id: string, title: string): ScrapedRepor
     event_date: extracted.date || undefined,
     event_date_precision: extracted.precision,
     event_date_extracted_from: extracted.source,
-    credibility: determineCredibility(content),
     source_type: 'iands',
     original_report_id: `iands-${id}`,
     tags,

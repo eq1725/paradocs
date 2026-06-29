@@ -109,14 +109,6 @@ function parseLocationEntries(html: string, stateName: string): ScrapedReport[] 
       tags.push('historical');
     }
 
-    // Determine credibility based on detail level
-    let credibility: 'low' | 'medium' | 'high' = 'medium';
-    if (description.length > 500 && tags.length > 2) {
-      credibility = 'high';
-    } else if (description.length < 100) {
-      credibility = 'low';
-    }
-
     // V10.8.B.2 — Shadowlands has no structured date field, but haunted-place
     // descriptions often include era cues ("Civil War", "the 1920s", "since
     // 1842"). Run extractDate over the prose to capture what we can.
@@ -130,7 +122,6 @@ function parseLocationEntries(html: string, stateName: string): ScrapedReport[] 
       location_name: `${locationName}, ${stateName}`,
       country: 'United States',
       state_province: stateName,
-      credibility,
       source_type: 'shadowlands',
       original_report_id: reportId,
       tags,

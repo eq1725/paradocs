@@ -582,21 +582,6 @@ function generateOBERFTitle(
 }
 
 // ---------------------------------------------------------------------------
-// Credibility scoring — simpler than NDERF (no tier input). Based purely on
-// narrative length + structural completeness signals.
-// ---------------------------------------------------------------------------
-function determineCredibility(content: string): 'low' | 'medium' | 'high' {
-  let score = 0;
-  if (content.length > 500) score += 1;
-  if (content.length > 1500) score += 1;
-  if (content.length > 3000) score += 1;
-  if (/\d{4}/.test(content)) score += 1;  // has at least a year reference
-  if (score >= 3) return 'high';
-  if (score >= 2) return 'medium';
-  return 'low';
-}
-
-// ---------------------------------------------------------------------------
 // Tag generation — type-slug + structural signals. No evaluative tags.
 // ---------------------------------------------------------------------------
 function generateOBERFTags(content: string, typeSlug: string): string[] {
@@ -830,7 +815,6 @@ async function parseOBERFExperiencePage(
     event_date_precision: datePrecision,
     // V10.8.B audit trail — how extractDate arrived at the date above.
     event_date_extracted_from: dateSource,
-    credibility: determineCredibility(content),
     source_type: 'oberf',
     // Use a hash-like slug based on the filename stem — OBERF's filenames
     // encode first name + last initial which is low-PII but we still

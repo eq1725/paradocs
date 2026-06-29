@@ -185,7 +185,6 @@ export function useViewportData(
             slug: r.slug,
             summary: r.summary,
             category: r.category,
-            credibility: r.credibility || 'unverified',
             location_name: r.location_name,
             country: r.country,
             event_date: r.event_date,
@@ -286,10 +285,6 @@ export function useViewportData(
 
     if (filters.category) {
       reports = reports.filter((r) => r.properties.category === filters.category)
-    }
-
-    if (filters.credibility) {
-      reports = reports.filter((r) => r.properties.credibility === filters.credibility)
     }
 
     if (filters.country) {

@@ -131,19 +131,6 @@ function parseGhostStories(html: string, stateName: string, cityName?: string): 
       tags.push('tragic-death');
     }
 
-    // Determine credibility
-    let credibility: 'low' | 'medium' | 'high' = 'medium';
-    const hasDetails = cleanContent.length > 500;
-    const hasDate = !!eventDate;
-    const hasSpecificLocation = locationMatch !== null;
-    const detailScore = (hasDetails ? 1 : 0) + (hasDate ? 1 : 0) + (hasSpecificLocation ? 1 : 0);
-
-    if (detailScore >= 2) {
-      credibility = 'high';
-    } else if (detailScore === 0 && cleanContent.length < 200) {
-      credibility = 'low';
-    }
-
     // V10.8.B.2 — precision now comes from extractDate (above) rather than
     // post-hoc inspection of the raw regex match.
     const datePrecision: 'exact' | 'month' | 'year' | 'decade' | 'estimated' | 'unknown' = extracted.precision;
@@ -160,7 +147,6 @@ function parseGhostStories(html: string, stateName: string, cityName?: string): 
       event_date: eventDate,
       event_date_precision: datePrecision,
       event_date_extracted_from: eventDateSource,
-      credibility,
       source_type: 'ghostsofamerica',
       original_report_id: reportId,
       tags,
@@ -203,7 +189,6 @@ function parseGhostStories(html: string, stateName: string, cityName?: string): 
         country: 'United States',
         state_province: stateName,
         city: cityName,
-        credibility: 'medium',
         source_type: 'ghostsofamerica',
         original_report_id: reportId,
         tags: ['ghost-story'],

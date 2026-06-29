@@ -56,19 +56,6 @@ export function DetailView(props: {
           {card.headline}
         </h2>
 
-        {/* Credibility tags */}
-        {card.credibility && card.credibility.length > 0 && (
-          <div className="flex gap-1.5 flex-wrap mb-4">
-            {card.credibility.map(function (c, i) {
-              return (
-                <span key={i} className="text-[10px] px-2.5 py-0.5 rounded-full border border-white/10 text-gray-400 font-sans font-medium">
-                  {c}
-                </span>
-              )
-            })}
-          </div>
-        )}
-
         {/* Divider */}
         <div className="h-px bg-white/[0.07] mb-4" />
 

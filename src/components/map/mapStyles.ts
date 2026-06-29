@@ -104,7 +104,6 @@ export interface ReportProperties {
   slug: string
   summary: string | null
   category: PhenomenonCategory
-  credibility: string
   location_name: string | null
   country: string | null
   event_date: string | null
@@ -137,7 +136,6 @@ export function isCluster(props: MapFeatureProperties): props is ClusterProperti
 // ─── Map State ─────────────────────────────────────────────
 export interface MapFilters {
   category: PhenomenonCategory | null
-  credibility: string | null
   country: string | null
   dateFrom: number | null
   dateTo: number | null
@@ -147,7 +145,6 @@ export interface MapFilters {
 
 export const DEFAULT_FILTERS: MapFilters = {
   category: null,
-  credibility: null,
   country: null,
   dateFrom: null,
   dateTo: null,

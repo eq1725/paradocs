@@ -615,7 +615,6 @@ class ErowidAdapter implements SourceAdapter {
             description: parsed.body,
             summary: summary,
             category: category,
-            credibility: 'medium',
             event_date: extracted.date || undefined,
             event_date_precision: extracted.precision,
             event_date_extracted_from: extracted.source,

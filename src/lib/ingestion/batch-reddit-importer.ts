@@ -382,19 +382,6 @@ function parseRedditDumpPost(post: RedditPost): ScrapedReport | null {
     if (post.is_gallery) tags.push('gallery');
   }
 
-  // Determine credibility
-  // Comments with high upvotes are especially credible (community-validated experiences)
-  let credibility: 'low' | 'medium' | 'high' = 'medium';
-  const scoreThreshold = isCommentPost ? 50 : 100;  // Lower threshold for comments
-  const hasHighEngagement = (post.score || 0) > scoreThreshold || (post.num_comments || 0) > 20;
-  const hasDetailedText = description.length > 1000;
-
-  if (hasHighEngagement && hasDetailedText) {
-    credibility = 'high';
-  } else if (description.length < 300 && (post.score || 0) < 10) {
-    credibility = 'low';
-  }
-
   // Build permalink - comments have different URL structure
   let permalink: string;
   if (isCommentPost && post.link_id) {
@@ -427,7 +414,6 @@ function parseRedditDumpPost(post: RedditPost): ScrapedReport | null {
     country,
     state_province: stateProvince,
     event_date: eventDate,
-    credibility,
     source_type: sourceType,
     original_report_id: `${sourceType}-${post.id}`,
     tags,
@@ -730,7 +716,6 @@ async function processBatch(
           latitude: report.latitude,
           longitude: report.longitude,
           event_date: report.event_date,
-          credibility: report.credibility || 'medium',
           source_type: report.source_type,
           original_report_id: report.original_report_id,
           status: 'approved',

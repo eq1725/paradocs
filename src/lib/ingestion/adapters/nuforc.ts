@@ -126,17 +126,6 @@ function parseDate(dateStr: string): string | undefined {
   return undefined;
 }
 
-function determineCredibility(summary: string, shape: string, hasMedia: boolean): 'low' | 'medium' | 'high' {
-  let score = 0;
-  if (summary.length > 100) score += 1;
-  if (summary.length > 300) score += 1;
-  if (shape && shape !== 'unknown' && shape !== 'other') score += 1;
-  if (hasMedia) score += 2;
-  if (score >= 4) return 'high';
-  if (score >= 2) return 'medium';
-  return 'low';
-}
-
 function extractTags(shape: string, summary: string): string[] {
   const tags: string[] = ['ufo', 'nuforc'];
   const shapeLower = shape?.toLowerCase() || '';
@@ -1055,7 +1044,6 @@ export const nuforcAdapter: SourceAdapter = {
               event_date: eventDate,
               event_date_precision: eventDatePrecision,
               event_date_extracted_from: eventDateSource,
-              credibility: determineCredibility(description, meta.shape, meta.hasMedia || mediaItems.length > 0),
               source_type: 'nuforc',
               original_report_id: 'nuforc-' + meta.id,
               tags: tags,

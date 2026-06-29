@@ -92,25 +92,6 @@ function getCategoryKeywords(category: string | null): string[] {
 }
 
 /**
- * Determine credibility based on source reputation
- */
-function determineCredibility(sourceName: string): 'low' | 'medium' | 'high' {
-  const majorOutlets = [
-    'bbc', 'cnn', 'reuters', 'associated press', 'ap', 'npr', 'guardian',
-    'new york times', 'times', 'washington post', 'wall street journal',
-    'abc', 'nbc', 'cbs', 'pbs', 'bbc', 'itv', 'channel 4', 'fox',
-    'cnet', 'wired', 'techcrunch', 'theverge', 'engadget',
-    'nature', 'science daily', 'scientific american', 'mit technology review',
-  ];
-
-  const sourceLower = sourceName.toLowerCase();
-  if (majorOutlets.some(outlet => sourceLower.includes(outlet))) {
-    return 'medium';
-  }
-  return 'low';
-}
-
-/**
  * Quality filter: skip articles that don't meet minimum quality standards
  */
 function passesQualityFilter(article: NewsArticle): boolean {
@@ -267,7 +248,6 @@ const newsAdapter: SourceAdapter = {
               original_report_id: hashUrl(article.url),
               source_label: article.source.name,
               source_url: article.url,
-              credibility: determineCredibility(article.source.name),
               event_date: newsExtract.date || undefined,
               event_date_precision: newsExtract.precision,
               event_date_extracted_from: newsExtract.source,

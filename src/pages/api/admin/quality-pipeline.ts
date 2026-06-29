@@ -135,7 +135,6 @@ async function handleScoreBatch(res: NextApiResponse, batchSize: number) {
         has_official_report: report.has_official_report,
         evidence_summary: report.evidence_summary,
         source_type: report.source_type,
-        credibility: report.credibility,
         tags: report.tags,
       };
 

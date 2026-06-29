@@ -26,8 +26,6 @@ export interface WatchlistTimeOfDayWindow {
   end_hour: number
 }
 
-export type WatchlistCredibility = 'low' | 'medium' | 'high'
-
 export interface WatchlistCriteria {
   /** Match if report.category is in this list. */
   phen_family?: HintCategory[]
@@ -59,9 +57,6 @@ export interface WatchlistCriteria {
    *  whose paradocs_assessment indicates media or whose
    *  reports.media_count > 0 (proxy: tags include 'has_photo'/'has_video'). */
   has_photo_video?: boolean
-  /** Minimum credibility tier — uses paradocs_assessment.credibility
-   *  (when present). 'low' is the loosest gate; 'high' the strictest. */
-  min_credibility?: WatchlistCredibility
 }
 
 export interface ValidationResult {
@@ -90,7 +85,6 @@ export function validateCriteria(c: any): ValidationResult {
     'phen_family', 'subfamily', 'descriptors_any', 'descriptors_all',
     'geo', 'state_or_country', 'event_year_from', 'event_year_to',
     'time_of_day_window', 'witness_count_min', 'has_photo_video',
-    'min_credibility',
   ]
   for (var i = 0; i < settableKeys.length; i++) {
     var k = settableKeys[i]
@@ -177,14 +171,6 @@ export function validateCriteria(c: any): ValidationResult {
     errors.push('has_photo_video must be a boolean')
   }
 
-  // min_credibility — enum.
-  if (c.min_credibility !== undefined
-      && c.min_credibility !== 'low'
-      && c.min_credibility !== 'medium'
-      && c.min_credibility !== 'high') {
-    errors.push("min_credibility must be 'low' | 'medium' | 'high'")
-  }
-
   return { ok: errors.length === 0, errors: errors }
 }
 
@@ -230,7 +216,6 @@ export function summarizeCriteria(c: WatchlistCriteria): string {
     parts.push(c.witness_count_min + '+ witnesses')
   }
   if (c.has_photo_video) parts.push('with media')
-  if (c.min_credibility) parts.push(c.min_credibility + '+ credibility')
 
   return parts.length > 0 ? parts.join(', ') : 'no criteria set'
 }

@@ -627,7 +627,6 @@ async function fetchPostComments(
         event_date_precision: eventDatePrecision,
         event_date_extracted_from: extracted.source,
         source_published_at: sourcePublishedAt,
-        credibility: comment.score > 50 ? 'high' : (comment.score > 10 ? 'medium' : 'low'),
         source_type: 'reddit',
         original_report_id: `reddit-comment-${comment.id}`,
         tags,
@@ -736,19 +735,6 @@ export function parseRedditPost(post: ArcticShiftPost): ScrapedReport | null {
     tags.push('childhood-experience');
   }
 
-  // Determine credibility based on engagement and detail
-  let credibility: 'low' | 'medium' | 'high' = 'medium';
-
-  const hasHighEngagement = post.score > 100 || post.num_comments > 20;
-  const hasDetailedText = description.length > 1000;
-  const hasLocation = !!locationName;
-
-  if (hasHighEngagement && hasDetailedText) {
-    credibility = 'high';
-  } else if (description.length < 300 && post.score < 10) {
-    credibility = 'low';
-  }
-
   // Extract media from the post
   const extractedMedia = extractMediaFromPost(post);
   if (extractedMedia.length > 0) {
@@ -776,7 +762,6 @@ export function parseRedditPost(post: ArcticShiftPost): ScrapedReport | null {
     event_date_precision: eventDatePrecision,
     event_date_extracted_from: extracted.source,
     source_published_at: sourcePublishedAt,
-    credibility,
     source_type: 'reddit',
     original_report_id: `reddit-${post.id}`,
     tags,

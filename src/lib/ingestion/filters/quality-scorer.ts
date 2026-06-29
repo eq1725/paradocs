@@ -60,7 +60,6 @@ export interface ScoringInput {
   has_official_report?: boolean;
   evidence_summary?: string | null;
   source_type?: string | null;
-  credibility?: string | null;
   tags?: string[];
   metadata?: Record<string, any>;
 }
@@ -735,7 +734,6 @@ function scoreDataCompleteness(input: ScoringInput): DimensionScore {
     { name: 'source_type', value: input.source_type, weight: 0.5 },
     { name: 'tags', value: input.tags && input.tags.length > 0, weight: 0.5 },
     { name: 'witness_count', value: input.witness_count && input.witness_count > 0, weight: 0.5 },
-    { name: 'credibility', value: input.credibility, weight: 0.5 },
   ];
 
   let totalWeight = 0;
@@ -847,7 +845,6 @@ export function fromScrapedReport(report: ScrapedReport): ScoringInput {
     longitude: report.longitude,
     event_date: report.event_date,
     source_type: report.source_type,
-    credibility: report.credibility,
     tags: report.tags,
     metadata: report.metadata,
   };

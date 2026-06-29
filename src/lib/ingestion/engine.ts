@@ -880,7 +880,6 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               // sets these when it uses the unified extractDate utility.
               event_date_extracted_from: (report as any).event_date_extracted_from || null,
               source_published_at: (report as any).source_published_at || null,
-              credibility: report.credibility,
               has_photo_video: report.has_photo_video || false,
               witness_count: report.witness_count || null,
               has_official_report: report.has_official_report || false,
@@ -1158,7 +1157,6 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               longitude: report.longitude,
               event_date: report.event_date,
               event_date_precision: report.event_date_precision || 'unknown',
-              credibility: report.credibility || 'medium',
               source_type: report.source_type,
               original_report_id: report.original_report_id,
               status: status,  // Quality-based status instead of auto-approve

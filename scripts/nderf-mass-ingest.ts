@@ -501,7 +501,6 @@ async function processShard(
         coords_synthetic: normalizedLocation ? !!normalizedLocation.coords_synthetic : false,
         event_date: report.event_date,
         event_date_precision: report.event_date_precision || 'unknown',
-        credibility: report.credibility || 'medium',
         source_type: report.source_type,
         original_report_id: report.original_report_id,
         status: 'pending_review',

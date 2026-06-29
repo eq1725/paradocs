@@ -28,6 +28,7 @@ export interface RabbitHoleCard {
   tag: string
   headline: string
   summary: string
+  // Retained for compatibility with card builders; no longer rendered.
   credibility: string[]
 }
 
@@ -87,19 +88,6 @@ export function RabbitHolePanel(props: {
               <p className="text-sm font-display font-semibold text-gray-200 leading-snug mb-1.5">
                 {c.headline}
               </p>
-
-              {/* Credibility tags */}
-              {c.credibility && c.credibility.length > 0 && (
-                <div className="flex gap-1 flex-wrap">
-                  {c.credibility.map(function (tag, j) {
-                    return (
-                      <span key={j} className="text-[8px] px-2 py-0.5 rounded-full border border-white/[0.08] text-gray-500 font-sans">
-                        {tag}
-                      </span>
-                    )
-                  })}
-                </div>
-              )}
             </button>
           )
         })}

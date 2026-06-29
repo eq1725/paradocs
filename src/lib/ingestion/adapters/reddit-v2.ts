@@ -236,13 +236,6 @@ function timestampToIsoDate(timestamp: number): string {
   return new Date(timestamp * 1000).toISOString();
 }
 
-// Determine credibility based on Reddit score
-function getCredibilityFromScore(score: number): 'low' | 'medium' | 'high' {
-  if (score > 500) return 'high';
-  if (score > 200) return 'medium';
-  return 'low';
-}
-
 // Extract tags from post
 function extractTags(post: ArcticShiftPost, subreddit: string): string[] {
   const tags: string[] = [subreddit.toLowerCase()];
@@ -269,7 +262,6 @@ function postToReport(post: ArcticShiftPost): ScrapedReport {
   // Case-insensitive lookup; unmapped subs return null and Sonnet does the
   // per-record classification downstream.
   const category = SUBREDDIT_CATEGORIES[subreddit] || SUBREDDIT_CATEGORIES[subreddit.toLowerCase()] || null;
-  const credibility = getCredibilityFromScore(post.score);
   const summary = post.selftext.substring(0, 200);
   // V10.8.B.2 — post created_utc is the Reddit submission timestamp, not the
   // event date. Move it to source_published_at and run extractDate over the
@@ -296,7 +288,6 @@ function postToReport(post: ArcticShiftPost): ScrapedReport {
     description: post.selftext,
     summary,
     category,
-    credibility,
     tags,
     event_date: extracted.date || undefined,
     event_date_precision: extracted.precision,

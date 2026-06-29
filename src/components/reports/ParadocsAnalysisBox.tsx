@@ -5,18 +5,14 @@
  * New structure from single-call generation:
  *   - pull_quote: the screenshot-worthy line (hero element)
  *   - analysis: 4-6 sentence evidence-first editorial (paradocs_narrative)
- *   - credibility_signal: 1 phrase, max 8 words (replaces numeric score)
  *   - mundane_explanations: expandable alternative explanations
  *   - similar_phenomena: expandable related phenomena links
- *
- * Backward compatible: reads legacy fields (credibility_score, credibility_reasoning,
- * credibility_factors) from old reports that haven't been regenerated.
  *
  * SWC compliant: var, function(){}, string concat.
  */
 
 import React, { useEffect, useState } from 'react'
-import { Shield, Scale, Compass, ChevronDown, ChevronUp } from 'lucide-react'
+import { Scale, Compass, ChevronDown, ChevronUp } from 'lucide-react'
 import { classNames } from '@/lib/utils'
 import Link from 'next/link'
 
@@ -28,7 +24,6 @@ var _resolverCache: Record<string, ResolvedMatch> = {}
 export interface ParadocsAssessment {
   // New hybrid fields
   pull_quote?: string
-  credibility_signal?: string
   mundane_explanations?: Array<{
     explanation: string
     likelihood: 'high' | 'medium' | 'low'
@@ -36,14 +31,6 @@ export interface ParadocsAssessment {
   }>
   similar_phenomena?: string[]
   emotional_tone?: string
-  // Legacy fields (still readable from old reports)
-  credibility_score?: number
-  credibility_reasoning?: string
-  credibility_factors?: Array<{
-    name: string
-    impact: 'positive' | 'negative' | 'neutral'
-    description: string
-  }>
 }
 
 interface Props {
@@ -176,25 +163,15 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className, 
             {contextSummary}
           </p>
           <p className="text-gray-500 text-xs mt-2">
-            {'Our analysis engine reviews evidence, cross-references similar cases, and evaluates credibility signals. Check back soon.'}
+            {'Our analysis engine reviews evidence and cross-references similar cases. Check back soon.'}
           </p>
         </div>
       </div>
     )
   }
 
-  // Extract fields — support both new hybrid and legacy format
+  // Extract fields
   var pullQuote = assessment ? assessment.pull_quote : null
-  var credSignal = assessment ? assessment.credibility_signal : null
-
-  // Legacy fallback: if no credibility_signal, build one from old score
-  if (!credSignal && assessment && typeof assessment.credibility_score === 'number') {
-    var score = assessment.credibility_score
-    if (score >= 80) credSignal = 'Strong supporting evidence'
-    else if (score >= 60) credSignal = 'Moderate supporting detail'
-    else if (score >= 40) credSignal = 'Limited corroboration'
-    else credSignal = 'Single unverified account'
-  }
 
   // Split narrative into paragraphs
   var paragraphs = narrative ? narrative.split('\n\n').filter(function(p) { return p.trim().length > 0 }) : []
@@ -215,13 +192,6 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className, 
               </div>
               <h2 className="text-lg font-semibold text-white">Paradocs Analysis</h2>
             </div>
-            {/* Credibility Signal — top right, always visible */}
-            {credSignal && (
-              <div className="flex items-center gap-1.5">
-                <Shield className="w-3.5 h-3.5 text-gray-500" />
-                <span className="text-xs text-gray-400 font-medium">{credSignal}</span>
-              </div>
-            )}
           </div>
         </div>
 
@@ -255,24 +225,6 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className, 
         {/* ── Expandable Sections ── */}
         {assessment && (
           <div className="px-5 pb-5 sm:px-6 sm:pb-6">
-
-            {/* Legacy credibility reasoning — shown for old reports that have it */}
-            {!credSignal && assessment.credibility_reasoning && (
-              <div className="border-t border-white/[0.06] pt-4 mt-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <Shield className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm font-medium text-gray-300">Credibility</span>
-                  {typeof assessment.credibility_score === 'number' && (
-                    <span className="text-sm text-gray-500 font-semibold tabular-nums">
-                      {assessment.credibility_score}/100
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm text-gray-400 leading-relaxed ml-6">
-                  {assessment.credibility_reasoning}
-                </p>
-              </div>
-            )}
 
             {/* Alternative Explanations — expandable */}
             {assessment.mundane_explanations && assessment.mundane_explanations.length > 0 && (

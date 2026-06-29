@@ -5,8 +5,7 @@
 // WatchlistEditor — modal for create / edit. Renders inputs for every
 // criteria field defined in criteria-schema.ts (phen family multi-
 // select, descriptors, geo + radius, year range, time-of-day, witness
-// count, media required, credibility floor) plus notification
-// preferences.
+// count, media required) plus notification preferences.
 //
 // Defaults per founder decision (PRO_TIER_VALIDATION_V3 Round 3):
 //   - notify_push: TRUE
@@ -444,39 +443,19 @@ export function WatchlistEditor(props: WatchlistEditorProps) {
           </div>
 
           {/* Witness count */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] uppercase tracking-widest text-gray-400 font-semibold mb-2">Min witnesses</label>
-              <input
-                type="number"
-                min={1}
-                value={criteria.witness_count_min ?? ''}
-                onChange={function (e) {
-                  var n = parseInt(e.target.value, 10)
-                  setCriteria(function (prev) { return Object.assign({}, prev, { witness_count_min: isNaN(n) ? undefined : n }) })
-                }}
-                placeholder="e.g., 2"
-                className="w-full px-3 py-2 bg-gray-900 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/40"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] uppercase tracking-widest text-gray-400 font-semibold mb-2">Min credibility</label>
-              <select
-                value={criteria.min_credibility || ''}
-                onChange={function (e) {
-                  var v = e.target.value
-                  setCriteria(function (prev) {
-                    return Object.assign({}, prev, { min_credibility: v === '' ? undefined : (v as any) })
-                  })
-                }}
-                className="w-full px-3 py-2 bg-gray-900 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-purple-500/40"
-              >
-                <option value="">— any —</option>
-                <option value="low">low</option>
-                <option value="medium">medium</option>
-                <option value="high">high</option>
-              </select>
-            </div>
+          <div>
+            <label className="block text-[11px] uppercase tracking-widest text-gray-400 font-semibold mb-2">Min witnesses</label>
+            <input
+              type="number"
+              min={1}
+              value={criteria.witness_count_min ?? ''}
+              onChange={function (e) {
+                var n = parseInt(e.target.value, 10)
+                setCriteria(function (prev) { return Object.assign({}, prev, { witness_count_min: isNaN(n) ? undefined : n }) })
+              }}
+              placeholder="e.g., 2"
+              className="w-full px-3 py-2 bg-gray-900 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/40"
+            />
           </div>
 
           {/* Has photo/video */}

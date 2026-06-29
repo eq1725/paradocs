@@ -48,7 +48,6 @@ function parseQuery(query: Record<string, string | string[] | undefined>): {
   return {
     filters: {
       category: (str('category') as PhenomenonCategory) || null,
-      credibility: str('credibility'),
       country: str('country'),
       dateFrom: num('dateFrom'),
       dateTo: num('dateTo'),
@@ -68,7 +67,6 @@ function filtersToQuery(
   const q: Record<string, string> = {}
 
   if (filters.category) q.category = filters.category
-  if (filters.credibility) q.credibility = filters.credibility
   if (filters.country) q.country = filters.country
   if (filters.dateFrom !== null) q.dateFrom = String(filters.dateFrom)
   if (filters.dateTo !== null) q.dateTo = String(filters.dateTo)

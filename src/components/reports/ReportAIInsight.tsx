@@ -3,26 +3,13 @@
  *
  * Displays AI-generated analysis for a report including:
  * - Contextual analysis narrative
- * - Credibility assessment with factors
  * - Mundane explanations
  * - Similar historical cases
  */
 
 import React, { useEffect, useState } from 'react'
-import { Sparkles, RefreshCw, Shield, AlertCircle, History, ChevronDown, ChevronUp, AlertTriangle, FileText, BookOpen } from 'lucide-react'
+import { Sparkles, RefreshCw, AlertCircle, History, ChevronDown, ChevronUp, AlertTriangle, FileText, BookOpen } from 'lucide-react'
 import { classNames } from '@/lib/utils'
-
-interface CredibilityFactor {
-  name: string
-  impact: 'positive' | 'negative' | 'neutral'
-  description: string
-}
-
-interface CredibilityAnalysis {
-  score: number
-  reasoning: string
-  factors: CredibilityFactor[]
-}
 
 interface MundaneExplanation {
   explanation: string
@@ -50,7 +37,6 @@ interface ReportInsight {
   title: string
   summary: string
   content: string
-  credibility_analysis: CredibilityAnalysis | null
   similar_cases: SimilarCase[] | null
   mundane_explanations: MundaneExplanation[] | null
   content_type_assessment: ContentTypeAssessment | null
@@ -68,7 +54,6 @@ export default function ReportAIInsight({ reportSlug, className }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [regenerating, setRegenerating] = useState(false)
   const [expandedSections, setExpandedSections] = useState({
-    credibility: true,
     mundane: false,
     similar: false
   })
@@ -146,13 +131,6 @@ export default function ReportAIInsight({ reportSlug, className }: Props) {
 
   if (!insight) return null
 
-  const credibility = insight.credibility_analysis
-  const credibilityColor = credibility
-    ? credibility.score >= 70 ? 'text-green-400'
-      : credibility.score >= 40 ? 'text-yellow-400'
-        : 'text-red-400'
-    : 'text-gray-400'
-
   return (
     <div className={classNames('glass-card p-4 sm:p-6 overflow-hidden', className)}>
       {/* Header */}
@@ -228,52 +206,6 @@ export default function ReportAIInsight({ reportSlug, className }: Props) {
           {insight.content}
         </p>
       </div>
-
-      {/* Credibility Assessment */}
-      {credibility && (
-        <div className="border-t border-white/10 pt-4 mb-4">
-          <button
-            onClick={() => toggleSection('credibility')}
-            className="flex items-center justify-between w-full text-left gap-2"
-          >
-            <div className="flex items-center gap-2 flex-wrap">
-              <Shield className="w-4 h-4 text-gray-400 flex-shrink-0" />
-              <span className="text-sm font-medium text-white">Credibility</span>
-              <span className={classNames('text-sm font-bold', credibilityColor)}>
-                {credibility.score}/100
-              </span>
-            </div>
-            {expandedSections.credibility ? (
-              <ChevronUp className="w-4 h-4 text-gray-400 flex-shrink-0" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
-            )}
-          </button>
-
-          {expandedSections.credibility && (
-            <div className="mt-3 space-y-3">
-              <p className="text-sm text-gray-400">{credibility.reasoning}</p>
-              {credibility.factors.length > 0 && (
-                <div className="space-y-2">
-                  {credibility.factors.map((factor, i) => (
-                    <div key={i} className="flex items-start gap-2 text-sm">
-                      <span className={classNames(
-                        'w-2 h-2 rounded-full mt-1.5 flex-shrink-0',
-                        factor.impact === 'positive' ? 'bg-green-400' :
-                          factor.impact === 'negative' ? 'bg-red-400' : 'bg-gray-400'
-                      )} />
-                      <div>
-                        <span className="text-white font-medium">{factor.name}:</span>{' '}
-                        <span className="text-gray-400">{factor.description}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Mundane Explanations */}
       {insight.mundane_explanations && insight.mundane_explanations.length > 0 && (

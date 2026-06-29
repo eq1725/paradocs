@@ -54,7 +54,7 @@ var RESEARCHER_FEATURES = [
   {
     id: 'custom_alerts',
     name: 'Custom Alert Rules',
-    description: 'Create personalized alert rules for specific phenomena, locations, or credibility thresholds.',
+    description: 'Create personalized alert rules for specific phenomena, locations, or report types.',
     icon: '\uD83D\uDD14',
     minTier: 'pro'
   },

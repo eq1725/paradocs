@@ -26,7 +26,6 @@ interface CorrelationExplorerProps {
   timeOfDayData: { hour: number; count: number; byCategory: Record<string, number> }[]
   dayOfWeekData: { day: number; name: string; count: number; byCategory: Record<string, number> }[]
   categoryData: { category: string; count: number }[]
-  credibilityData: { name: string; value: number }[]
 }
 
 interface CorrelationInsight {
@@ -41,7 +40,6 @@ export default function CorrelationExplorer({
   timeOfDayData,
   dayOfWeekData,
   categoryData,
-  credibilityData,
 }: CorrelationExplorerProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [isExpanded, setIsExpanded] = useState(false)
@@ -134,22 +132,6 @@ export default function CorrelationExplorer({
       }
     }
 
-    // Credibility distribution insight
-    const highCredibility = credibilityData.find(c => c.name === 'high' || c.name === 'confirmed')
-    const totalCred = credibilityData.reduce((sum, c) => sum + c.value, 0)
-    if (highCredibility && totalCred > 0) {
-      const highPercentage = Math.round((highCredibility.value / totalCred) * 100)
-      if (highPercentage > 20) {
-        results.push({
-          title: 'High Credibility Rate',
-          description: `${highPercentage}% of reports have high or confirmed credibility, indicating quality submissions with supporting evidence.`,
-          strength: highPercentage > 30 ? 'strong' : 'moderate',
-          icon: TrendingUp,
-          color: '#a855f7',
-        })
-      }
-    }
-
     // Peak hour analysis - filtered by category
     if (timeOfDayData.length > 0) {
       const hourDataFiltered = timeOfDayData.map(d => ({ ...d, filteredCount: getCount(d) }))
@@ -171,7 +153,7 @@ export default function CorrelationExplorer({
     }
 
     return results
-  }, [timeOfDayData, dayOfWeekData, categoryData, credibilityData, selectedCategory])
+  }, [timeOfDayData, dayOfWeekData, categoryData, selectedCategory])
 
   // Category-specific time analysis
   const categoryTimeCorrelation = useMemo(() => {

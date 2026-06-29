@@ -127,7 +127,6 @@ function parseTableRow(row: string, category: string, pageTitle: string, index: 
     event_date: eventDate,
     event_date_precision: wikiExtract.precision,
     event_date_extracted_from: wikiExtract.source,
-    credibility: 'medium', // Wikipedia is generally reliable
     source_type: 'wikipedia',
     original_report_id: reportId,
     tags: ['wikipedia', 'historical', category.replace(/_/g, '-')],
@@ -307,7 +306,6 @@ function parseWikiContent(html: string, category: string, pageTitle: string): Sc
         summary: description.length > 200 ? description.substring(0, 197) + '...' : description,
         description,
         category,
-        credibility: 'medium',
         source_type: 'wikipedia',
         original_report_id: reportId,
         event_date: fbExtract.date || undefined,
