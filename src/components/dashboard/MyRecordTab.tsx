@@ -106,6 +106,9 @@ export default function MyRecordTab() {
   var [focusedIdx, setFocusedIdx] = useState<number>(0)
   var [userExperience, setUserExperience] = useState<UserExperience | null>(null)
   var [matches, setMatches] = useState<MatchedReport[]>([])
+  // V11.38 — spine Dossier real-data: the SIGNAL payload (geographic cluster +
+  // temporal context) for the focused report, fetched only in spine mode.
+  var [signalData, setSignalData] = useState<any>(null)
   var [totalExperiences, setTotalExperiences] = useState(0)
   var [showReveal, setShowReveal] = useState(false)
   var [showPaywall, setShowPaywall] = useState(false)
@@ -210,6 +213,15 @@ export default function MyRecordTab() {
       var token = s.data.session?.access_token || ''
       if (!token) return
       fetchMatches(report.id, report.category, report.latitude, report.longitude, report.description || report.summary || '', token)
+      // V11.38 — spine Dossier: fetch the SIGNAL payload so the open
+      // Geographic/Temporal sections render live data for this report.
+      if (router.query.spine === '1') {
+        setSignalData(null)
+        fetch('/api/lab/your-signal?report_id=' + encodeURIComponent(report.id), { headers: { Authorization: 'Bearer ' + token } })
+          .then(function (r) { return r.ok ? r.json() : null })
+          .then(function (payload) { if (payload) setSignalData(payload) })
+          .catch(function () {})
+      }
     })
     // Mirror focus to URL (shallow). YourSignalTab will pick it up.
     var nextQuery = Object.assign({}, router.query, { focus: report.id })
@@ -364,6 +376,7 @@ export default function MyRecordTab() {
         allReports={allReports}
         focusedIdx={focusedIdx}
         onFocus={setFocusedIdx}
+        signalData={signalData}
       />
     )
   }

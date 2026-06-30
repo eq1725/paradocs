@@ -28,13 +28,58 @@ export const RECORD_SPINE_TITLE = 'My Record'
 // free taste; the rest are membership-ghosted with a one-line "what it opens".
 const DOSSIER_SECTIONS: Array<{ key: string; name: string; blurb: string; free?: boolean }> = [
   { key: 'kindred', name: 'Closest accounts', blurb: 'the experiences most like yours, ranked', free: true },
-  { key: 'geographic', name: 'Geographic neighbors', blurb: 'who else reported near where you were' },
-  { key: 'temporal', name: 'Temporal neighbors', blurb: 'where your night sits across the decades' },
+  { key: 'geographic', name: 'Geographic neighbors', blurb: 'who else reported near where you were', free: true },
+  { key: 'temporal', name: 'Temporal neighbors', blurb: 'where your night sits across the decades', free: true },
   { key: 'lineage', name: 'Phenomenology lineage', blurb: 'how your experience type traces through history' },
   { key: 'rarity', name: 'Descriptor rarity', blurb: 'which details of yours are common, which are rare' },
   { key: 'patterns', name: 'Pattern connections', blurb: 'recurring motifs your account shares' },
   { key: 'sources', name: 'Source cross-reference', blurb: 'where similar accounts were documented' },
 ]
+
+// Render the LIVE summary for an open Dossier section from the SIGNAL payload.
+// Returns null when there's no data yet (still loading) or the surface was
+// skipped (sparse area / no location) — the section then shows just its blurb.
+function liveDossier(key: string, sd: any): React.ReactNode {
+  if (!sd) return null
+  if (key === 'geographic') {
+    const cl = sd.cluster
+    if (!cl || cl.skipped || !cl.nearby_count) return null
+    const yr = (cl.year_min && cl.year_max && cl.year_min !== cl.year_max)
+      ? cl.year_min + '–' + cl.year_max
+      : (cl.year_min ? String(cl.year_min) : '')
+    const c = cl.contribution
+    return (
+      <>
+        <span className="font-semibold text-purple-300">{Number(cl.nearby_count).toLocaleString()}</span>{' '}
+        report{cl.nearby_count === 1 ? '' : 's'} within ~{cl.radius_mi} miles{yr ? <> — spanning <span className="font-semibold text-purple-300">{yr}</span></> : ''}.
+        {c && (c.is_foundational || c.is_early) && (
+          <span className="block mt-1 text-xs text-gray-400">
+            {c.is_foundational ? 'Your story is one of the foundational cases here' : 'Your story arrived early in this cluster'}
+            {typeof c.newer_arrivals_count === 'number' ? ' — ' + c.newer_arrivals_count + (c.newer_arrivals_count === 1 ? ' report has' : ' reports have') + ' joined since.' : '.'}
+          </span>
+        )}
+      </>
+    )
+  }
+  if (key === 'temporal') {
+    const cx = sd.context
+    if (!cx || cx.skipped || !cx.peak_month_name) return null
+    return (
+      <>
+        Reports like yours peak in <span className="font-semibold text-purple-300">{cx.peak_month_name}</span>{' '}
+        <span className="text-gray-400">({cx.peak_share_pct}% of dated reports)</span>.
+        {cx.user_month_name && (
+          <span className="block mt-1 text-xs text-gray-400">
+            {cx.user_matches_peak
+              ? 'Yours was logged in ' + cx.user_month_name + ' — right inside that peak.'
+              : 'Yours was logged in ' + cx.user_month_name + '.'}
+          </span>
+        )}
+      </>
+    )
+  }
+  return null
+}
 
 interface RecordSpineProps {
   userExperience: UserExperience
@@ -48,6 +93,9 @@ interface RecordSpineProps {
   allReports?: any[]
   focusedIdx?: number
   onFocus?: (idx: number) => void
+  // SIGNAL payload (geographic cluster + temporal context) for the open
+  // Dossier sections. Null while loading → sections show just their blurb.
+  signalData?: any
 }
 
 export default function RecordSpine(props: RecordSpineProps) {
@@ -173,26 +221,34 @@ export default function RecordSpine(props: RecordSpineProps) {
       <section>
         <SectionHeading n="03" title="Dossier" sub="Seven cross-references on your experience" />
         <div className="space-y-2">
-          {DOSSIER_SECTIONS.map((s) => (
-            <div
-              key={s.key}
-              className={'rounded-lg border p-3 ' + (s.free ? 'border-purple-700/50 bg-purple-950/20' : 'border-gray-800/60 bg-gray-900/20')}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className={'text-sm font-medium ' + (s.free ? 'text-white' : 'text-gray-300')}>{s.name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{s.blurb}</p>
+          {DOSSIER_SECTIONS.map((s) => {
+            const live = s.free ? liveDossier(s.key, props.signalData) : null
+            return (
+              <div
+                key={s.key}
+                className={'rounded-lg border p-3 ' + (s.free ? 'border-purple-700/50 bg-purple-950/20' : 'border-gray-800/60 bg-gray-900/20')}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className={'text-sm font-medium ' + (s.free ? 'text-white' : 'text-gray-300')}>{s.name}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{s.blurb}</p>
+                  </div>
+                  {s.free ? (
+                    <span className="text-[10px] uppercase tracking-wider text-purple-300 font-semibold flex-shrink-0">Open</span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold flex-shrink-0">
+                      <Lock className="w-3 h-3" />Membership
+                    </span>
+                  )}
                 </div>
-                {s.free ? (
-                  <span className="text-[10px] uppercase tracking-wider text-purple-300 font-semibold flex-shrink-0">Open</span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold flex-shrink-0">
-                    <Lock className="w-3 h-3" />Membership
-                  </span>
+                {live && (
+                  <div className="mt-2.5 pt-2.5 border-t border-white/5 text-sm text-gray-200 leading-relaxed">
+                    {live}
+                  </div>
                 )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
         <Link href="/account/subscription" className="mt-3 inline-flex items-center gap-1.5 text-sm text-purple-300 hover:text-purple-200">
           Open all seven with membership <ChevronRight className="w-4 h-4" />
