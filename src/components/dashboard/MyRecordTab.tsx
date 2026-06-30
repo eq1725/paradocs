@@ -348,6 +348,23 @@ export default function MyRecordTab() {
   // V10.16 Phase E.1 — switcher ALWAYS renders (even with one
   // submission) so the Manage affordance is reachable. Was hidden
   // for single-submission users in V10.15.
+  // V11.38 — Phase 1: when ?spine=1, the Record spine replaces the entire
+  // record view (switcher + RADAR + matches). lab.tsx hides the surrounding
+  // Story surfaces, so this becomes the whole tab. Multi-experience switching
+  // gets folded INTO the spine in a later increment (founder direction #3).
+  if (userExperience && router.query.spine === '1') {
+    return (
+      <RecordSpine
+        userExperience={userExperience}
+        matches={matches}
+        totalExperiences={totalExperiences}
+        userEmail={userEmail}
+        router={router}
+        reportRaw={allReports[focusedIdx] || null}
+      />
+    )
+  }
+
   if (userExperience) {
     return (
       <>
@@ -1080,13 +1097,6 @@ function PolishedRadarView(props: {
   var ownYear = ownYearUnknown
     ? ''
     : (props.userExperience.year ? String(props.userExperience.year) : '')
-
-  // V11.38 — Phase 1 flag (MY_RECORD_UX_PANEL_REVIEW). ?spine=1 renders the new
-  // vertical Record spine instead of the RADAR-first dashboard. All hooks above
-  // run unconditionally, so this conditional return is hooks-safe. Default off.
-  if (props.router && props.router.query && props.router.query.spine === '1') {
-    return <RecordSpine {...props} />
-  }
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-3xl mx-auto">

@@ -350,6 +350,20 @@ export default function LabPage() {
               // hide), but default is elevated.
               var fromParam = router.query.from
               var elevateDelta = fromParam !== 'cold'
+              // V11.38 — Phase 1 (MY_RECORD_UX_PANEL_REVIEW). When ?spine=1, the
+              // vertical Record spine IS the whole Story tab: render MyRecordTab
+              // alone (it renders RecordSpine) and hide the legacy Story surfaces
+              // (growth card, hints rail, SIGNAL stack) so the spine isn't
+              // sandwiched between old content. Default off → unchanged page.
+              if (router.query.spine === '1') {
+                return (
+                  <div style={{ minHeight: 'calc(100dvh - 200px)' }}>
+                    <div data-section="lab-constellation">
+                      <MyRecordTab />
+                    </div>
+                  </div>
+                )
+              }
               return (
                 <div style={{ minHeight: 'calc(100dvh - 200px)' }}>
                   {elevateDelta && (
