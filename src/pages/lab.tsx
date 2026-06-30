@@ -358,8 +358,31 @@ export default function LabPage() {
               if (router.query.spine === '1') {
                 return (
                   <div style={{ minHeight: 'calc(100dvh - 200px)' }}>
+                    {/* ① Opening + ② Kindred */}
                     <div data-section="lab-constellation">
                       <MyRecordTab />
+                    </div>
+                    {/* ③ Dossier — the live depth (geographic / temporal /
+                        signature + membership gating) via the existing SIGNAL
+                        surfaces, constrained to the spine's column width so it
+                        reads as one continuous spine, not a separate dashboard. */}
+                    <div className="max-w-2xl mx-auto">
+                      <YourSignalTab />
+                    </div>
+                    {/* Secondary access — one tap, not a tab. */}
+                    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 mt-4 flex flex-wrap gap-3 border-t border-gray-800/60">
+                      <a
+                        href="/start"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-600/15 border border-purple-500/40 text-sm text-purple-200 hover:bg-purple-600/25 hover:text-white transition-colors"
+                      >
+                        + Share another experience
+                      </a>
+                      <a
+                        href="/discover"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-gray-700/60 text-sm text-gray-300 hover:text-white hover:border-gray-600 transition-colors"
+                      >
+                        Explore the archive
+                      </a>
                     </div>
                   </div>
                 )

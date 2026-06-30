@@ -2,47 +2,27 @@
 
 // V11.38 — Phase 1 of MY_RECORD_UX_PANEL_REVIEW: the vertical Record spine.
 //
-// Flag-gated (?spine=1) sibling to PolishedRadarView. Replaces the RADAR-first
-// dashboard with a single top-to-bottom narrative about *you in the archive*,
-// in the panel's emotion-first order:
-//   ① Opening  — your experience, held (no chart first)
-//   ② Kindred  — you're not alone (closest accounts + "why you match")
-//   ③ Dossier  — the depth, made legible (one section open, the rest ghosted)
+// Flag-gated (?spine=1). Renders the emotion-first lead of the spine:
+//   ① Opening — your experience, held (no chart first)
+//   ② Kindred — you're not alone (closest accounts + "why you match")
 //
-// Locked principles from the panel:
-//   - n=1 / low-kindred is the DEFAULT case; rarity is reframed as DISTINCTION,
-//     never absence.
-//   - Free is GENEROUS (your Record, your closest kindred with reasons, the
-//     living count, one Dossier section); membership is MORE, not access —
-//     driven by each match's `locked` flag, no separate tier fetch.
-//   - No gamification. Documentary restraint. Mobile-first single column.
+// Chapter ③ (the Dossier / "How yours connects" depth) is composed AFTER this
+// in lab.tsx by reusing the live YourSignalTab surfaces (real geographic /
+// temporal / signature data + membership gating) — so the spine is
+// Opening + Kindred (here) + the real Dossier (there).
 //
-// Phase 1 MVP scope: Opening + Kindred (the recurring "wow") fully wired to
-// real data; Dossier rendered as the panel's "legible ghosts" (names +
-// one-line descriptions of what each opens). Full Dossier surfaces + the
-// Living Edge ritual land in subsequent increments.
+// Locked principles: n=1 / low-kindred is the DEFAULT (rarity = distinction,
+// never absence); free is GENEROUS, membership is MORE (driven by match.locked);
+// no gamification; documentary restraint; mobile-first single column.
 
 import React from 'react'
 import Link from 'next/link'
-import { MapPin, Calendar, ChevronRight, Lock, Plus } from 'lucide-react'
+import { MapPin, Calendar, ChevronRight, Lock } from 'lucide-react'
 import type { MatchedReport, UserExperience } from '@/components/constellation/ConstellationReveal'
 
-// Single configurable surface title so the go-to-market naming A/B
-// (Your Record / My Place / My Record) is a one-line change, not a refactor.
+// Single configurable surface title so a future go-to-market naming swap is a
+// one-line change, not a refactor.
 export const RECORD_SPINE_TITLE = 'My Record'
-
-// The seven Dossier cross-references, as the panel's "legible ghosts": the
-// first is free (real taste of value), the rest are labeled with exactly what
-// they open so desire is specific, not vague.
-const DOSSIER_SECTIONS: Array<{ key: string; name: string; blurb: string; free?: boolean }> = [
-  { key: 'kindred', name: 'Closest accounts', blurb: 'the experiences most like yours, ranked', free: true },
-  { key: 'geographic', name: 'Geographic neighbors', blurb: 'who else reported near where you were' },
-  { key: 'temporal', name: 'Temporal neighbors', blurb: 'where your night sits across the decades' },
-  { key: 'lineage', name: 'Phenomenology lineage', blurb: 'how your experience type traces through history' },
-  { key: 'rarity', name: 'Descriptor rarity', blurb: 'which details of yours are common, which are rare' },
-  { key: 'patterns', name: 'Pattern connections', blurb: 'recurring motifs your account shares' },
-  { key: 'sources', name: 'Source cross-reference', blurb: 'where similar accounts were documented' },
-]
 
 interface RecordSpineProps {
   userExperience: UserExperience
@@ -83,7 +63,7 @@ export default function RecordSpine(props: RecordSpineProps) {
   const showYear = exp.year && !(exp as any).year_unknown
 
   return (
-    <div className="px-4 sm:px-6 py-6 max-w-2xl mx-auto space-y-10">
+    <div className="px-4 sm:px-6 pt-6 pb-2 max-w-2xl mx-auto space-y-10">
 
       {/* ① THE OPENING — your experience, held. Emotion first, no chart. */}
       <section>
@@ -143,51 +123,8 @@ export default function RecordSpine(props: RecordSpineProps) {
         )}
       </section>
 
-      {/* ③ THE DOSSIER — the depth, made legible (legible ghosts). */}
-      <section>
-        <SectionHeading n="03" title="Dossier" sub="Seven cross-references on your experience" />
-        <div className="space-y-2">
-          {DOSSIER_SECTIONS.map((s) => (
-            <div
-              key={s.key}
-              className={'rounded-lg border p-3 ' + (s.free ? 'border-purple-700/50 bg-purple-950/20' : 'border-gray-800/60 bg-gray-900/20')}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className={'text-sm font-medium ' + (s.free ? 'text-white' : 'text-gray-300')}>{s.name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{s.blurb}</p>
-                </div>
-                {s.free ? (
-                  <span className="text-[10px] uppercase tracking-wider text-purple-300 font-semibold flex-shrink-0">Open</span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold flex-shrink-0">
-                    <Lock className="w-3 h-3" />Membership
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-        <Link href="/account/subscription" className="mt-3 inline-flex items-center gap-1.5 text-sm text-purple-300 hover:text-purple-200">
-          Open all seven with membership <ChevronRight className="w-4 h-4" />
-        </Link>
-      </section>
-
-      {/* Secondary access — one tap, not a tab. */}
-      <section className="pt-2 border-t border-gray-800/60 flex flex-wrap gap-3">
-        <Link
-          href="/start"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-600/15 border border-purple-500/40 text-sm text-purple-200 hover:bg-purple-600/25 hover:text-white transition-colors"
-        >
-          <Plus className="w-4 h-4" /> Share another experience
-        </Link>
-        <Link
-          href="/discover"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-gray-700/60 text-sm text-gray-300 hover:text-white hover:border-gray-600 transition-colors"
-        >
-          Explore the archive
-        </Link>
-      </section>
+      {/* ③ Dossier follows — the live "How yours connects" depth, composed in
+          lab.tsx by reusing YourSignalTab. */}
     </div>
   )
 }
