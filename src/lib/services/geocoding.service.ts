@@ -61,6 +61,19 @@ function getMapTilerKey(): string | null {
     || null;
 }
 
+// V11.37 — Nominatim politeness. Their policy is ~1 req/sec; batch ingestion
+// fired far faster and got a 429 storm (the BFRO run logged 321), which
+// degraded geo to state-centroid fallbacks. This module-level gate enforces a
+// minimum interval so every caller in the process shares one rate budget, and
+// geocodeWithNominatim retries 429s with backoff.
+var nominatimLastCallMs = 0;
+const NOMINATIM_MIN_INTERVAL_MS = 1100;
+async function throttleNominatim(): Promise<void> {
+  var wait = NOMINATIM_MIN_INTERVAL_MS - (Date.now() - nominatimLastCallMs);
+  if (wait > 0) await new Promise(function (r) { setTimeout(r, wait); });
+  nominatimLastCallMs = Date.now();
+}
+
 /**
  * Geocode using Nominatim (OpenStreetMap) — free, no API key required.
  * Rate limit: 1 request/second. User-Agent required by Nominatim policy.
@@ -70,14 +83,22 @@ async function geocodeWithNominatim(location: string): Promise<GeocodingResult |
     var encodedLocation = encodeURIComponent(location);
     var url = 'https://nominatim.openstreetmap.org/search?q=' + encodedLocation + '&format=json&limit=1&addressdetails=1';
 
-    var response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Paradocs/1.0 (www.discoverparadocs.com)'
+    // Throttle to ~1 req/sec; retry 429 with backoff (up to 3 attempts).
+    var response: Response | null = null;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      await throttleNominatim();
+      response = await fetch(url, {
+        headers: { 'User-Agent': 'Paradocs/1.0 (www.discoverparadocs.com)' }
+      });
+      if (response.status === 429) {
+        await new Promise(function (r) { setTimeout(r, 1500 * (attempt + 1)); });
+        continue;
       }
-    });
+      break;
+    }
 
-    if (!response.ok) {
-      console.error('[Geocoding] Nominatim API error: ' + response.status);
+    if (!response || !response.ok) {
+      if (response) console.error('[Geocoding] Nominatim API error: ' + response.status);
       return null;
     }
 
@@ -150,9 +171,13 @@ async function geocodeWithMapTiler(location: string, apiKey: string): Promise<Ge
     var response = await fetch(url);
 
     if (!response.ok) {
-      // 403 means the key doesn't have geocoding access — not a transient error
+      // 403 means the key genuinely lacks geocoding scope — that's the ONLY
+      // case where we disable MapTiler for the rest of the session. A normal
+      // per-location miss (404/no-results) must NOT disable it (that bug sent
+      // entire runs to Nominatim → 429 storms; V11.37).
       if (response.status === 403) {
-        console.warn('[Geocoding] MapTiler key lacks geocoding permission (403). Falling back to Nominatim.');
+        mapTilerDisabled = true;
+        console.warn('[Geocoding] MapTiler key lacks geocoding permission (403). Disabling MapTiler for this session; using Nominatim.');
       } else {
         console.error('[Geocoding] MapTiler API error: ' + response.status);
       }
@@ -227,11 +252,10 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
   var apiKey = getMapTilerKey();
   if (apiKey && !mapTilerDisabled) {
     geocoded = await geocodeWithMapTiler(location, apiKey);
-    if (!geocoded) {
-      // If MapTiler failed, check if it was a 403 and disable for future calls
-      // (the 403 log message is printed inside geocodeWithMapTiler)
-      mapTilerDisabled = true;
-    }
+    // Do NOT disable MapTiler just because this one location returned no result
+    // — that's a normal miss (common for rural BFRO places) and disabling here
+    // was routing the whole run to Nominatim → 429 storms. geocodeWithMapTiler
+    // sets mapTilerDisabled itself, and only on a real 403 (V11.37).
   }
 
   // Fallback to Nominatim if MapTiler unavailable or failed
