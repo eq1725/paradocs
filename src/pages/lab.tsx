@@ -281,7 +281,9 @@ export default function LabPage() {
           </div>
         </div>
 
-        {/* Tab bar — sticky below header so users can always switch tabs */}
+        {/* Tab bar — sticky below header. V11.38: hidden in spine mode
+            (?spine=1); the Record spine is a single narrative, no tabs. */}
+        {router.query.spine !== '1' && (
         <div className="sticky-below-header bg-gray-950/95 backdrop-blur-lg" style={{ background: activeTab === 'story' ? '#0a0a14' : undefined }}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className={classNames(
@@ -318,6 +320,7 @@ export default function LabPage() {
             </div>
           </div>
         </div>
+        )}
 
         {/* Auth gate for unauthenticated users */}
         {!isLoggedIn && !loading ? (
@@ -356,44 +359,13 @@ export default function LabPage() {
               // (growth card, hints rail, SIGNAL stack) so the spine isn't
               // sandwiched between old content. Default off → unchanged page.
               if (router.query.spine === '1') {
+                // The spine renders the whole Story tab: Opening + Kindred +
+                // the comprehensive Dossier ladder + secondary nav, all inside
+                // RecordSpine. No tabs, no legacy Story surfaces.
                 return (
                   <div style={{ minHeight: 'calc(100dvh - 200px)' }}>
-                    {/* ① Opening + ② Kindred */}
                     <div data-section="lab-constellation">
                       <MyRecordTab />
-                    </div>
-                    {/* ③ Dossier — the live depth (geographic / temporal /
-                        signature + membership gating) via the existing SIGNAL
-                        surfaces, constrained to the spine's column width so it
-                        reads as one continuous spine, not a separate dashboard.
-                        A labeled chapter heading keeps the ①②③ spine identity
-                        (the surface's own "How yours connects" sits beneath). */}
-                    <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-6">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-[11px] font-mono text-purple-500/70">03</span>
-                        <h2 className="text-base font-semibold text-white tracking-wide">Dossier</h2>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Seven cross-references on your experience — where it sits geographically, across time, and in the wider phenomenon.
-                      </p>
-                    </div>
-                    <div className="max-w-2xl mx-auto">
-                      <YourSignalTab />
-                    </div>
-                    {/* Secondary access — one tap, not a tab. */}
-                    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 mt-4 flex flex-wrap gap-3 border-t border-gray-800/60">
-                      <a
-                        href="/start"
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-600/15 border border-purple-500/40 text-sm text-purple-200 hover:bg-purple-600/25 hover:text-white transition-colors"
-                      >
-                        + Share another experience
-                      </a>
-                      <a
-                        href="/discover"
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-gray-700/60 text-sm text-gray-300 hover:text-white hover:border-gray-600 transition-colors"
-                      >
-                        Explore the archive
-                      </a>
                     </div>
                   </div>
                 )

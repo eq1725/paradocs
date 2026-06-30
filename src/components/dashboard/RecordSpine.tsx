@@ -2,27 +2,39 @@
 
 // V11.38 — Phase 1 of MY_RECORD_UX_PANEL_REVIEW: the vertical Record spine.
 //
-// Flag-gated (?spine=1). Renders the emotion-first lead of the spine:
-//   ① Opening — your experience, held (no chart first)
+// Flag-gated (?spine=1). One top-to-bottom narrative about you in the archive,
+// emotion-first:
+//   ① Opening — your experience, held (no chart first) + multi-experience switch
 //   ② Kindred — you're not alone (closest accounts + "why you match")
+//   ③ Dossier — the depth, made legible: ALL seven cross-references named so the
+//      user knows the full depth exists; the first is open (the taste), the rest
+//      are membership-ghosted with a one-line description of what each reveals.
 //
-// Chapter ③ (the Dossier / "How yours connects" depth) is composed AFTER this
-// in lab.tsx by reusing the live YourSignalTab surfaces (real geographic /
-// temporal / signature data + membership gating) — so the spine is
-// Opening + Kindred (here) + the real Dossier (there).
-//
-// Locked principles: n=1 / low-kindred is the DEFAULT (rarity = distinction,
-// never absence); free is GENEROUS, membership is MORE (driven by match.locked);
-// no gamification; documentary restraint; mobile-first single column.
+// Locked principles: n=1 / low-kindred is the DEFAULT (rarity = distinction);
+// free is GENEROUS, membership is MORE (driven by match.locked); no gamification;
+// documentary restraint; mobile-first single column.
 
 import React from 'react'
 import Link from 'next/link'
-import { MapPin, Calendar, ChevronRight, Lock } from 'lucide-react'
+import { MapPin, Calendar, ChevronRight, Lock, Plus } from 'lucide-react'
 import type { MatchedReport, UserExperience } from '@/components/constellation/ConstellationReveal'
 
 // Single configurable surface title so a future go-to-market naming swap is a
 // one-line change, not a refactor.
 export const RECORD_SPINE_TITLE = 'My Record'
+
+// The seven Dossier cross-references — comprehensive + good titles, so the user
+// always sees the full depth that exists (even when locked). The first is the
+// free taste; the rest are membership-ghosted with a one-line "what it opens".
+const DOSSIER_SECTIONS: Array<{ key: string; name: string; blurb: string; free?: boolean }> = [
+  { key: 'kindred', name: 'Closest accounts', blurb: 'the experiences most like yours, ranked', free: true },
+  { key: 'geographic', name: 'Geographic neighbors', blurb: 'who else reported near where you were' },
+  { key: 'temporal', name: 'Temporal neighbors', blurb: 'where your night sits across the decades' },
+  { key: 'lineage', name: 'Phenomenology lineage', blurb: 'how your experience type traces through history' },
+  { key: 'rarity', name: 'Descriptor rarity', blurb: 'which details of yours are common, which are rare' },
+  { key: 'patterns', name: 'Pattern connections', blurb: 'recurring motifs your account shares' },
+  { key: 'sources', name: 'Source cross-reference', blurb: 'where similar accounts were documented' },
+]
 
 interface RecordSpineProps {
   userExperience: UserExperience
@@ -44,9 +56,6 @@ export default function RecordSpine(props: RecordSpineProps) {
   const unlocked = matches.filter((m) => !m.locked)
   const lockedCount = matches.length - unlocked.length
   const kindredCount = matches.length
-
-  // Free is generous: the three closest kindred, with reasons. Membership opens
-  // the full set (the `locked` matches the matcher already withheld).
   const freeKindred = unlocked.slice(0, 3)
 
   // The living-context line — composed for the n=1 / low-kindred DEFAULT,
@@ -65,18 +74,19 @@ export default function RecordSpine(props: RecordSpineProps) {
   })()
 
   const showYear = exp.year && !(exp as any).year_unknown
+  const multi = Array.isArray(props.allReports) && props.allReports.length > 1
 
   return (
-    <div className="px-4 sm:px-6 pt-6 pb-2 max-w-2xl mx-auto space-y-10">
+    <div className="px-4 sm:px-6 py-6 max-w-2xl mx-auto space-y-10">
 
       {/* ① THE OPENING — your experience, held. Emotion first, no chart. */}
       <section>
         <p className="text-[10px] font-semibold tracking-[0.2em] uppercase text-purple-400/80 mb-3">
           {RECORD_SPINE_TITLE}
         </p>
-        {Array.isArray(props.allReports) && props.allReports.length > 1 && (
+        {multi && (
           <div className="flex flex-wrap gap-2 mb-4">
-            {props.allReports.map((r: any, i: number) => {
+            {props.allReports!.map((r: any, i: number) => {
               const label = [r.city, r.state_province].filter(Boolean).join(', ') || r.title || ('Experience ' + (i + 1))
               const active = i === (props.focusedIdx || 0)
               return (
@@ -158,8 +168,52 @@ export default function RecordSpine(props: RecordSpineProps) {
         )}
       </section>
 
-      {/* ③ Dossier follows — the live "How yours connects" depth, composed in
-          lab.tsx by reusing YourSignalTab. */}
+      {/* ③ THE DOSSIER — the depth, made legible. All seven named so the full
+          depth is visible; first open, the rest membership-ghosted. */}
+      <section>
+        <SectionHeading n="03" title="Dossier" sub="Seven cross-references on your experience" />
+        <div className="space-y-2">
+          {DOSSIER_SECTIONS.map((s) => (
+            <div
+              key={s.key}
+              className={'rounded-lg border p-3 ' + (s.free ? 'border-purple-700/50 bg-purple-950/20' : 'border-gray-800/60 bg-gray-900/20')}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className={'text-sm font-medium ' + (s.free ? 'text-white' : 'text-gray-300')}>{s.name}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{s.blurb}</p>
+                </div>
+                {s.free ? (
+                  <span className="text-[10px] uppercase tracking-wider text-purple-300 font-semibold flex-shrink-0">Open</span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold flex-shrink-0">
+                    <Lock className="w-3 h-3" />Membership
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        <Link href="/account/subscription" className="mt-3 inline-flex items-center gap-1.5 text-sm text-purple-300 hover:text-purple-200">
+          Open all seven with membership <ChevronRight className="w-4 h-4" />
+        </Link>
+      </section>
+
+      {/* Secondary access — one tap, not a tab. */}
+      <section className="pt-2 border-t border-gray-800/60 flex flex-wrap gap-3">
+        <Link
+          href="/start"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-600/15 border border-purple-500/40 text-sm text-purple-200 hover:bg-purple-600/25 hover:text-white transition-colors"
+        >
+          <Plus className="w-4 h-4" /> Share another experience
+        </Link>
+        <Link
+          href="/discover"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-gray-700/60 text-sm text-gray-300 hover:text-white hover:border-gray-600 transition-colors"
+        >
+          Explore the archive
+        </Link>
+      </section>
     </div>
   )
 }
