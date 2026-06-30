@@ -365,7 +365,18 @@ export default function LabPage() {
                     {/* ③ Dossier — the live depth (geographic / temporal /
                         signature + membership gating) via the existing SIGNAL
                         surfaces, constrained to the spine's column width so it
-                        reads as one continuous spine, not a separate dashboard. */}
+                        reads as one continuous spine, not a separate dashboard.
+                        A labeled chapter heading keeps the ①②③ spine identity
+                        (the surface's own "How yours connects" sits beneath). */}
+                    <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-6">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-[11px] font-mono text-purple-500/70">03</span>
+                        <h2 className="text-base font-semibold text-white tracking-wide">Dossier</h2>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Seven cross-references on your experience — where it sits geographically, across time, and in the wider phenomenon.
+                      </p>
+                    </div>
                     <div className="max-w-2xl mx-auto">
                       <YourSignalTab />
                     </div>

@@ -361,6 +361,9 @@ export default function MyRecordTab() {
         userEmail={userEmail}
         router={router}
         reportRaw={allReports[focusedIdx] || null}
+        allReports={allReports}
+        focusedIdx={focusedIdx}
+        onFocus={setFocusedIdx}
       />
     )
   }

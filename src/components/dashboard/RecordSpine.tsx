@@ -32,6 +32,10 @@ interface RecordSpineProps {
   router: any
   reportRaw?: any
   onReportEdited?: () => void
+  // Multi-experience switching (founder direction #3 — first-class, native).
+  allReports?: any[]
+  focusedIdx?: number
+  onFocus?: (idx: number) => void
 }
 
 export default function RecordSpine(props: RecordSpineProps) {
@@ -70,6 +74,29 @@ export default function RecordSpine(props: RecordSpineProps) {
         <p className="text-[10px] font-semibold tracking-[0.2em] uppercase text-purple-400/80 mb-3">
           {RECORD_SPINE_TITLE}
         </p>
+        {Array.isArray(props.allReports) && props.allReports.length > 1 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {props.allReports.map((r: any, i: number) => {
+              const label = [r.city, r.state_province].filter(Boolean).join(', ') || r.title || ('Experience ' + (i + 1))
+              const active = i === (props.focusedIdx || 0)
+              return (
+                <button
+                  key={r.id || i}
+                  type="button"
+                  onClick={() => { if (props.onFocus) props.onFocus(i) }}
+                  className={
+                    'px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ' +
+                    (active
+                      ? 'bg-purple-600/25 border-purple-500/60 text-white'
+                      : 'border-gray-700/60 text-gray-400 hover:text-gray-200 hover:border-gray-600')
+                  }
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        )}
         <h1 className="text-xl sm:text-2xl font-semibold text-white leading-snug">
           {exp.type_name || 'Your experience'}
         </h1>
@@ -87,6 +114,14 @@ export default function RecordSpine(props: RecordSpineProps) {
           </blockquote>
         )}
         <p className="mt-4 text-sm text-purple-200/90 leading-relaxed">{livingLine}</p>
+        {props.reportRaw && props.reportRaw.slug && (
+          <Link
+            href={'/report/' + props.reportRaw.slug}
+            className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-purple-300 hover:text-purple-200"
+          >
+            View your full report <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        )}
       </section>
 
       {/* ② THE KINDRED — you're not alone (the recurring wow). */}
