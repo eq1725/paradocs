@@ -182,6 +182,11 @@ export default function RecordSpine(props: RecordSpineProps) {
         )}
       </section>
 
+      {/* ④ THE LIVING EDGE — "since you last visited" (the return hook).
+          Elevated near the top for returning users — the red team's #1 churn
+          fix (the silent return). Shown only when there's a real delta. */}
+      <LivingEdge signalData={props.signalData} />
+
       {/* ② THE KINDRED — you're not alone (the recurring wow). */}
       <section>
         <SectionHeading
@@ -271,6 +276,28 @@ export default function RecordSpine(props: RecordSpineProps) {
         </Link>
       </section>
     </div>
+  )
+}
+
+// The Living Edge — "since you last visited." Documentary, never gamified.
+// Renders only when there's a real delta for a returning user; otherwise the
+// spine stays quiet (the never-empty fallback ladder is a later enhancement).
+function LivingEdge(props: { signalData: any }) {
+  const slv = props.signalData && props.signalData.since_last_visit
+  if (!slv || slv.is_first_visit) return null
+  const peers = slv.new_peers_opted_in || 0
+  const cluster = slv.new_in_cluster || 0
+  const archive = slv.new_in_archive || 0
+  const items: string[] = []
+  if (peers > 0) items.push(peers + (peers === 1 ? ' account is' : ' accounts are') + ' open to comparing notes')
+  if (cluster > 0) items.push(cluster + ' new ' + (cluster === 1 ? 'report' : 'reports') + ' near where you were')
+  if (items.length === 0 && archive > 0) items.push(Number(archive).toLocaleString() + ' new ' + (archive === 1 ? 'report' : 'reports') + ' joined the archive')
+  if (items.length === 0) return null
+  return (
+    <section className="rounded-xl border border-purple-600/40 bg-gradient-to-br from-purple-600/12 via-purple-600/5 to-transparent p-4">
+      <p className="text-[10px] font-semibold tracking-wider uppercase text-purple-300/90 mb-1">Since you last visited</p>
+      <p className="text-sm text-purple-100 leading-relaxed">{items.join(' · ')}.</p>
+    </section>
   )
 }
 
