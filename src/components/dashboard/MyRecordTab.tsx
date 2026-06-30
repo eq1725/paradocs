@@ -50,6 +50,7 @@ import RadarVisualization, { CATEGORY_COLORS, CATEGORY_LABELS } from '@/componen
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import { Pencil } from 'lucide-react'
 import EditReportModal from './EditReportModal'
+import RecordSpine from './RecordSpine'
 
 /**
  * Panel-feedback (May 2026 — 5th round). Resolve a category slug to
@@ -1079,6 +1080,13 @@ function PolishedRadarView(props: {
   var ownYear = ownYearUnknown
     ? ''
     : (props.userExperience.year ? String(props.userExperience.year) : '')
+
+  // V11.38 — Phase 1 flag (MY_RECORD_UX_PANEL_REVIEW). ?spine=1 renders the new
+  // vertical Record spine instead of the RADAR-first dashboard. All hooks above
+  // run unconditionally, so this conditional return is hooks-safe. Default off.
+  if (props.router && props.router.query && props.router.query.spine === '1') {
+    return <RecordSpine {...props} />
+  }
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-3xl mx-auto">
