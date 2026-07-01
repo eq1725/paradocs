@@ -215,7 +215,7 @@ export default function MyRecordTab() {
       fetchMatches(report.id, report.category, report.latitude, report.longitude, report.description || report.summary || '', token)
       // V11.38 — spine Dossier: fetch the SIGNAL payload so the open
       // Geographic/Temporal sections render live data for this report.
-      if (router.query.spine === '1') {
+      if (router.query.spine !== '0') {
         setSignalData(null)
         fetch('/api/lab/your-signal?report_id=' + encodeURIComponent(report.id), { headers: { Authorization: 'Bearer ' + token } })
           .then(function (r) { return r.ok ? r.json() : null })
@@ -364,7 +364,7 @@ export default function MyRecordTab() {
   // record view (switcher + RADAR + matches). lab.tsx hides the surrounding
   // Story surfaces, so this becomes the whole tab. Multi-experience switching
   // gets folded INTO the spine in a later increment (founder direction #3).
-  if (userExperience && router.query.spine === '1') {
+  if (userExperience && router.query.spine !== '0') {
     return (
       <RecordSpine
         userExperience={userExperience}

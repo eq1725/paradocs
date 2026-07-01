@@ -14,9 +14,10 @@
 // free is GENEROUS, membership is MORE (driven by match.locked); no gamification;
 // documentary restraint; mobile-first single column.
 
-import React from 'react'
+import React, { useEffect } from 'react'
 import Link from 'next/link'
 import { MapPin, Calendar, ChevronRight, Lock, Plus } from 'lucide-react'
+import { capture } from '@/lib/posthog'
 import type { MatchedReport, UserExperience } from '@/components/constellation/ConstellationReveal'
 
 // Single configurable surface title so a future go-to-market naming swap is a
@@ -124,6 +125,22 @@ export default function RecordSpine(props: RecordSpineProps) {
   const showYear = exp.year && !(exp as any).year_unknown
   const multi = Array.isArray(props.allReports) && props.allReports.length > 1
 
+  // Instrumentation — activation event when the spine renders (re-fires on
+  // experience switch). Feeds the A/B: activation now, free→member via the
+  // upgrade-click events below (with WHERE in the spine it fired).
+  useEffect(() => {
+    try {
+      capture('record_spine_view', {
+        kindred_count: kindredCount,
+        locked_count: lockedCount,
+        multi_experience: multi,
+        category: exp.category || null,
+        has_living_edge: !!(props.signalData && props.signalData.since_last_visit && !props.signalData.since_last_visit.is_first_visit),
+      })
+    } catch (_) { /* analytics is best-effort */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exp.id, kindredCount])
+
   return (
     <div className="px-4 sm:px-6 py-6 max-w-2xl mx-auto space-y-10">
 
@@ -207,6 +224,7 @@ export default function RecordSpine(props: RecordSpineProps) {
         {lockedCount > 0 && (
           <Link
             href="/account/subscription"
+            onClick={() => { try { capture('record_spine_upgrade_click', { where: 'kindred', locked_count: lockedCount }) } catch (_) {} }}
             className="mt-3 flex items-center justify-between rounded-xl border border-purple-600/40 bg-gradient-to-br from-purple-600/15 to-transparent p-4 hover:border-purple-500/60 transition-colors group"
           >
             <div className="flex items-center gap-3">
@@ -255,7 +273,11 @@ export default function RecordSpine(props: RecordSpineProps) {
             )
           })}
         </div>
-        <Link href="/account/subscription" className="mt-3 inline-flex items-center gap-1.5 text-sm text-purple-300 hover:text-purple-200">
+        <Link
+          href="/account/subscription"
+          onClick={() => { try { capture('record_spine_upgrade_click', { where: 'dossier' }) } catch (_) {} }}
+          className="mt-3 inline-flex items-center gap-1.5 text-sm text-purple-300 hover:text-purple-200"
+        >
           Open all seven with membership <ChevronRight className="w-4 h-4" />
         </Link>
       </section>

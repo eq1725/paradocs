@@ -281,9 +281,9 @@ export default function LabPage() {
           </div>
         </div>
 
-        {/* Tab bar — sticky below header. V11.38: hidden in spine mode
-            (?spine=1); the Record spine is a single narrative, no tabs. */}
-        {router.query.spine !== '1' && (
+        {/* Tab bar — hidden by default now the Record spine is the live My
+            Record (V11.38 default-on). Shown only in the legacy view (?spine=0). */}
+        {router.query.spine === '0' && (
         <div className="sticky-below-header bg-gray-950/95 backdrop-blur-lg" style={{ background: activeTab === 'story' ? '#0a0a14' : undefined }}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className={classNames(
@@ -358,10 +358,10 @@ export default function LabPage() {
               // alone (it renders RecordSpine) and hide the legacy Story surfaces
               // (growth card, hints rail, SIGNAL stack) so the spine isn't
               // sandwiched between old content. Default off → unchanged page.
-              if (router.query.spine === '1') {
-                // The spine renders the whole Story tab: Opening + Kindred +
-                // the comprehensive Dossier ladder + secondary nav, all inside
-                // RecordSpine. No tabs, no legacy Story surfaces.
+              if (router.query.spine !== '0') {
+                // DEFAULT-ON (V11.38): the spine IS the Story tab now — Opening
+                // + Living Edge + Kindred + the Dossier ladder + secondary nav,
+                // all inside RecordSpine. ?spine=0 falls back to the legacy view.
                 return (
                   <div style={{ minHeight: 'calc(100dvh - 200px)' }}>
                     <div data-section="lab-constellation">
