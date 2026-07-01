@@ -109,6 +109,9 @@ export default function MyRecordTab() {
   // V11.38 — spine Dossier real-data: the SIGNAL payload (geographic cluster +
   // temporal context) for the focused report, fetched only in spine mode.
   var [signalData, setSignalData] = useState<any>(null)
+  // V11.40 — never-empty Living Edge: On-This-Date anniversaries for the
+  // focused report's category (a fallback rung when there's no fresh delta).
+  var [onThisDate, setOnThisDate] = useState<any>(null)
   var [totalExperiences, setTotalExperiences] = useState(0)
   var [showReveal, setShowReveal] = useState(false)
   var [showPaywall, setShowPaywall] = useState(false)
@@ -220,6 +223,13 @@ export default function MyRecordTab() {
         fetch('/api/lab/your-signal?report_id=' + encodeURIComponent(report.id), { headers: { Authorization: 'Bearer ' + token } })
           .then(function (r) { return r.ok ? r.json() : null })
           .then(function (payload) { if (payload) setSignalData(payload) })
+          .catch(function () {})
+        // Never-empty Living Edge — On-This-Date anniversaries in this report's
+        // category (public GET, no auth needed).
+        setOnThisDate(null)
+        fetch('/api/discover/on-this-date?category=' + encodeURIComponent(report.category || ''))
+          .then(function (r) { return r.ok ? r.json() : null })
+          .then(function (p) { setOnThisDate(p) })
           .catch(function () {})
       }
     })
@@ -377,6 +387,7 @@ export default function MyRecordTab() {
         focusedIdx={focusedIdx}
         onFocus={setFocusedIdx}
         signalData={signalData}
+        onThisDate={onThisDate}
       />
     )
   }

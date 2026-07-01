@@ -97,6 +97,8 @@ interface RecordSpineProps {
   // SIGNAL payload (geographic cluster + temporal context) for the open
   // Dossier sections. Null while loading → sections show just their blurb.
   signalData?: any
+  // On-This-Date anniversaries (fallback rung for the Living Edge).
+  onThisDate?: any
 }
 
 export default function RecordSpine(props: RecordSpineProps) {
@@ -202,7 +204,12 @@ export default function RecordSpine(props: RecordSpineProps) {
       {/* ④ THE LIVING EDGE — "since you last visited" (the return hook).
           Elevated near the top for returning users — the red team's #1 churn
           fix (the silent return). Shown only when there's a real delta. */}
-      <LivingEdge signalData={props.signalData} />
+      <LivingEdge
+        signalData={props.signalData}
+        onThisDate={props.onThisDate}
+        matches={freeKindred}
+        totalExperiences={props.totalExperiences}
+      />
 
       {/* ② THE KINDRED — you're not alone (the recurring wow). */}
       <section>
@@ -301,26 +308,72 @@ export default function RecordSpine(props: RecordSpineProps) {
   )
 }
 
-// The Living Edge — "since you last visited." Documentary, never gamified.
-// Renders only when there's a real delta for a returning user; otherwise the
-// spine stays quiet (the never-empty fallback ladder is a later enhancement).
-function LivingEdge(props: { signalData: any }) {
+// The Living Edge — "why you return." Documentary, never gamified. NEVER-EMPTY:
+// a fallback ladder that always resolves to *something* fresh so a returning
+// user never lands on a silent surface (the panel's #1 churn fix). Rungs:
+//   1. a real delta since last visit  →  2. On This Date in your phenomenon
+//   →  3. your closest kindred  →  4. the archive-is-alive floor (always shows)
+function LivingEdge(props: { signalData: any; onThisDate: any; matches: MatchedReport[]; totalExperiences: number }) {
+  // Rung 1 — a real delta (the ideal: something actually happened for you).
   const slv = props.signalData && props.signalData.since_last_visit
-  if (!slv || slv.is_first_visit) return null
-  const peers = slv.new_peers_opted_in || 0
-  const cluster = slv.new_in_cluster || 0
-  const archive = slv.new_in_archive || 0
-  const items: string[] = []
-  if (peers > 0) items.push(peers + (peers === 1 ? ' account is' : ' accounts are') + ' open to comparing notes')
-  if (cluster > 0) items.push(cluster + ' new ' + (cluster === 1 ? 'report' : 'reports') + ' near where you were')
-  if (items.length === 0 && archive > 0) items.push(Number(archive).toLocaleString() + ' new ' + (archive === 1 ? 'report' : 'reports') + ' joined the archive')
-  if (items.length === 0) return null
+  if (slv && !slv.is_first_visit) {
+    const peers = slv.new_peers_opted_in || 0
+    const cluster = slv.new_in_cluster || 0
+    const archive = slv.new_in_archive || 0
+    const items: string[] = []
+    if (peers > 0) items.push(peers + (peers === 1 ? ' account is' : ' accounts are') + ' open to comparing notes')
+    if (cluster > 0) items.push(cluster + ' new ' + (cluster === 1 ? 'report' : 'reports') + ' near where you were')
+    if (items.length === 0 && archive > 0) items.push(Number(archive).toLocaleString() + ' new ' + (archive === 1 ? 'report' : 'reports') + ' joined the archive')
+    if (items.length > 0) return <EdgeCard kicker="Since you last visited" body={items.join(' · ') + '.'} />
+  }
+
+  // Rung 2 — On This Date anniversary in this phenomenon.
+  const otd = props.onThisDate && Array.isArray(props.onThisDate.items) ? props.onThisDate.items[0] : null
+  if (otd && otd.name) {
+    const year = otd._eventYear
+    return (
+      <EdgeCard
+        kicker="On this date"
+        href={otd.slug ? '/phenomena/' + otd.slug : undefined}
+        body={<>{year ? <>In <span className="font-semibold text-purple-300">{year}</span>, </> : ''}<span className="font-semibold text-purple-200">{otd.name}</span>{year ? ' was documented on today’s date.' : ' shares today’s date in the record.'}</>}
+      />
+    )
+  }
+
+  // Rung 3 — your closest kindred (available whenever a match exists).
+  const top = props.matches && props.matches[0]
+  if (top) {
+    const place = [top.city, top.state_province].filter(Boolean).join(', ') || top.country || ''
+    return (
+      <EdgeCard
+        kicker="Your closest kin"
+        href={top.slug ? '/report/' + top.slug : undefined}
+        body={<><span className="font-semibold text-purple-200">{top.title}</span>{place ? ' — ' + place : ''}. The account most like yours in the archive.</>}
+      />
+    )
+  }
+
+  // Rung 4 — the floor: the archive is alive and growing. Always renders.
+  const total = props.totalExperiences || 0
   return (
-    <section className="rounded-xl border border-purple-600/40 bg-gradient-to-br from-purple-600/12 via-purple-600/5 to-transparent p-4">
-      <p className="text-[10px] font-semibold tracking-wider uppercase text-purple-300/90 mb-1">Since you last visited</p>
-      <p className="text-sm text-purple-100 leading-relaxed">{items.join(' · ')}.</p>
-    </section>
+    <EdgeCard
+      kicker="Your record is live"
+      body={total
+        ? <>The archive holds <span className="font-semibold text-purple-300">{total.toLocaleString()}</span> accounts and grows daily — new arrivals are matched against yours, and the first kin will surface here.</>
+        : 'Your record is live — new arrivals are matched against yours, and the first kin will surface here.'}
+    />
   )
+}
+
+function EdgeCard(props: { kicker: string; body: React.ReactNode; href?: string }) {
+  const cls = 'block rounded-xl border border-purple-600/40 bg-gradient-to-br from-purple-600/12 via-purple-600/5 to-transparent p-4' + (props.href ? ' hover:border-purple-500/60 transition-colors' : '')
+  const inner = (
+    <>
+      <p className="text-[10px] font-semibold tracking-wider uppercase text-purple-300/90 mb-1">{props.kicker}</p>
+      <p className="text-sm text-purple-100 leading-relaxed">{props.body}</p>
+    </>
+  )
+  return props.href ? <Link href={props.href} className={cls}>{inner}</Link> : <section className={cls}>{inner}</section>
 }
 
 function SectionHeading(props: { n: string; title: string; sub?: string }) {
