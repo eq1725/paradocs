@@ -16,7 +16,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import {
   Search, Home, Compass, Map,
-  BookOpen, Sparkles, Flame,
+  BookOpen, Sparkles, Flame, Bookmark,
   User, LogOut, LogIn, Settings, LayoutDashboard
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -159,6 +159,19 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* Right section */}
             <div className="flex items-center gap-3">
+              {/* V11.42 — P1 item 9b (Addendum A): global door to saved
+                  items, next to the bell. Saving happens in the feed and
+                  on report pages; retrieval must be reachable from where
+                  saving happens, not two hops inside My Record. */}
+              {!loading && user && (
+                <Link
+                  href="/lab?tab=library"
+                  className="flex items-center justify-center w-10 h-10 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                  aria-label="Saved items"
+                >
+                  <Bookmark className="w-5 h-5" />
+                </Link>
+              )}
               {/* T1.9 — Notifications bell. Authenticated only; renders
                   the user_notifications dropdown. Placed before avatar
                   so it's consistently to the left of the user menu on

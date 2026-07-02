@@ -16,7 +16,7 @@
 
 import React, { useEffect } from 'react'
 import Link from 'next/link'
-import { MapPin, Calendar, ChevronRight, Lock, Plus } from 'lucide-react'
+import { MapPin, Calendar, ChevronRight, Lock, Plus, Bookmark } from 'lucide-react'
 import { capture } from '@/lib/posthog'
 import type { MatchedReport, UserExperience } from '@/components/constellation/ConstellationReveal'
 
@@ -329,6 +329,16 @@ export default function RecordSpine(props: RecordSpineProps) {
           className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-gray-700/60 text-sm text-gray-300 hover:text-white hover:border-gray-600 transition-colors"
         >
           Explore the archive
+        </Link>
+        {/* V11.42 — P1 item 9a (Addendum A): the always-present door to
+            saves. Before this, spine users had NO path to their saved
+            items (tab bar hidden, no other entry). Never hidden at 0 —
+            hiding-at-zero is how the dead-end happened. */}
+        <Link
+          href="/lab?tab=library"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-gray-700/60 text-sm text-gray-300 hover:text-white hover:border-gray-600 transition-colors"
+        >
+          <Bookmark className="w-4 h-4" /> Saved
         </Link>
       </section>
     </div>

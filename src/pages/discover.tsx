@@ -2166,7 +2166,10 @@ export default function DiscoverPage(props: DiscoverPageProps) {
                     was wheel / ArrowDown / Space only — invisible to mouse
                     users, who then clicked the ‹ › action pills expecting
                     paging. Mobile keeps pure swipe (hidden below md). */}
-                <div className="hidden md:flex absolute right-2 bottom-6 flex-col items-center gap-1.5 z-10">
+                {/* bottom-20 (was bottom-6, V11.42): clears the lead card's
+                    full-width Explore CTA, which occupies the pane's bottom
+                    edge and was overlapping the Next pill. */}
+                <div className="hidden md:flex absolute right-2 bottom-20 flex-col items-center gap-1.5 z-10">
                   {idx > 0 && (
                     <button
                       type="button"

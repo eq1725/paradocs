@@ -141,7 +141,7 @@ Short mediated messages with PII/named-party redaction, block/report, age-gate 1
 
 **P1 — The vision loop, completed (order of leverage):**
 8. Dossier locked-section content build (rarity + lineage first) — the $7.99 substance.
-9. **Restore a path to saves from the default `/lab`.** The spine has no Saved/Library entry — saves are currently reachable only via `/dashboard/saved` or `/lab?spine=0` → Library. The synthesis's "Secondary (one tap): Saved & Collections" row was never wired into `RecordSpine.tsx`; saves are a dead-end again for spine users.
+9. **Saves access in the spine era — panel decision in Addendum A (2026-07-02, simplified per founder).** Save stays (one tap, one flat searchable list, auto-grouped by category); **Collections/case-files/notes are PARKED** — power-user organization with no mass-market user, revisit only if post-launch data shows curators organizing. Two S-sized slices: **9a** a "Saved · N" row at the spine's foot (chevron → `/lab?tab=library`, never hidden, honest empty state); **9b** a bookmark entry in the global header next to the bell — retrieval lives where saving happens. Tab bar stays dead; `?tab=library` URL contract stays.
 10. Finite "Today's set" end-state + demoted explore CTA; "View as list" relabel. **[Decided: 7 cards, reset at local midnight — see §6.1]**
 11. Interest picker + submission-category seeding + "less like this" — visible personalization.
 12. Monthly emergent-pattern insight per user via Batches (revives the retired insight slot).
@@ -150,6 +150,11 @@ Short mediated messages with PII/named-party redaction, block/report, age-gate 1
 15. **Narrated-report video pipeline — funded now [decided, §6.3]** (Batches narration over the text corpus; editorial QA pass per clip; sensitivity tiers enforced from clip #1).
 16. Semantic "describe what you saw" search mode.
 17. Sign in with Apple/Google in the Capacitor build; convert the flagged SSR pages; wire deep links.
+
+**Founder additions (2026-07-02, post-verification) — P1:**
+- **Recurrence capture.** Many experiences are recurring (hauntings, sleep paralysis, repeated sightings) and the date step forces a single-event frame. Add a "How often?" chip row on the date step — *Just once · A few times · Ongoing* — stored as `reports.recurrence` (+ optional `last_occurred_at`; `event_date` stays "first time"). Three payoffs: a phenomenology dimension the matcher can use ("both report recurring 3am events"), honest data (recurrence is *defining* for several categories), and the retention hook — recurring experiencers get a one-tap **"It happened again"** update on their Record (Living Edge rung + push-worthy moment + compounding first-party data). S/M.
+- **Async submit pipeline.** "Saving your experience…" blocks 5–15s (occasionally 30s) because consolidated AI (narrative+title), Paradocs analysis, and the demotion gate all run synchronously inside `/api/onboarding/submit`. Fix: respond after moderation + insert (~2–3s), run the AI/gate work post-response via `waitUntil` (@vercel/functions); the response's existing `ai_ready` flag already tells the client the narrative isn't ready. The spine doesn't need the AI output (it renders the user's own words); the public report page fills in when generation lands. M.
+- **[P0, found in live verification] Checkout is broken in production.** `POST /api/subscription/create-checkout` returns 500 on BOTH cadences (generic "Failed to create checkout session"), and the pricing CTA **fails silently** — no error state, the button just does nothing. Pricing *page* copy is correct ($7.99/$59.99/37%). Root cause is server-side (read the Vercel function logs; likely price-ID ↔ Stripe-mode mismatch or key issue — the code's distinct `stripe_price_not_configured` path did NOT fire, so the env vars resolve and Stripe itself is rejecting). Fix the config, then add a visible client error state so a dead checkout can never fail silently again.
 
 **P2 — Expansion:**
 18. Comparing Notes Phase C (mediated thread) — post-launch only, gated on a completed safety/legal review.
@@ -174,4 +179,24 @@ Short mediated messages with PII/named-party redaction, block/report, age-gate 1
 
 ---
 
-*Prepared by the Paradocs design panel and red-team review, 2026-07-02. Live-session findings verified against production and code the same morning. No code changed.*
+---
+
+## Addendum A — Saves access in the spine era (panel session, 2026-07-02)
+
+**Trigger:** the founder couldn't find his own saves. With the spine default-on and the tab bar hidden, the Library is reachable only by URL (`/lab?tab=library` renders; `/dashboard/saved` redirects there) — there is no visible entry anywhere in the product. Saves are collected (bookmark affordances everywhere) but never retrievable: the exact "saves go into a tab and die" failure the superteam review flagged, now worse — the tab is gone too.
+
+**Options considered:**
+- **(a) Restore the tab bar.** Rejected — re-fragments the sanctuary; reverses the spine's core move for one feature. The prior red team already settled this: *demote, don't delete*.
+- **(b) A Library chapter row at the spine's foot.** The original synthesis's "Secondary (one tap): Saved & Collections" — specified but never wired into `RecordSpine.tsx`. Adopted.
+- **(c) A global header bookmark entry.** Saving happens in the Today feed and on report pages; retrieval anchored *only* inside My Record forces a two-hop mental model ("my saves live inside my record?"). One icon next to the bell → `/lab?tab=library`. Adopted.
+- **(d) Fold saves into the Dossier.** Rejected — the Dossier is the archive's intelligence *about* your experience; the Library is *your* curation. Conflating them muddies both.
+
+**Red-team pass:** two entry points is retrieval redundancy, and that's fine — orphaned saves are expensive (curators of 5+ saves convert 3–4×; the IKEA-effect loop is dead if the collection is invisible), while a second entry costs one icon. Header clutter risk is minimal (one glyph); in the Capacitor app shell, Library graduates to the profile/bottom-nav surface. Keep the `?tab=library` URL contract so existing bookmarks/redirects keep working. Empty state must be honest and composed ("Nothing saved yet — tap the bookmark on any account"), never hidden — hiding-at-zero is how this dead-end happened.
+
+**Verdict:** ship **(b) + (c)** as P1 item 9 (slices 9a/9b, both S). The spine stays a single narrative; the Library becomes one quiet, always-present door at its foot plus one global door where saving actually happens.
+
+**Founder simplification (same day):** *"Why do we need collections and saves?"* Panel answer: **Save earns its place** (explicit personalization signal for the feed's learning loop; the basic keep-what-you-found retrieval promise; collection-as-retention). **Collections does not** — named folders/case-files/notes are power-user IA with no mass-market constituency; the flat list's auto category grouping + search is organization enough. Collections is parked, not killed: it returns as a member feature only if post-launch data shows real curator behavior. All surfaces say "Saved," not "Library & Collections."
+
+---
+
+*Prepared by the Paradocs design panel and red-team review, 2026-07-02. Live-session findings verified against production and code the same morning. Addendum A recorded after live verification. No code changed in the review itself.*

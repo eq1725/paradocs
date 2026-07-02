@@ -51,6 +51,10 @@ import { screenForCrisis } from '@/lib/moderation/crisis-screen'
 import { suggestOnboardingTitle } from '@/lib/services/onboarding-title.service'
 import { generateAndSaveConsolidatedAI, isConsolidatedAIEnabled } from '@/lib/services/consolidated-ai.service'
 import { generateAndSaveParadocsAnalysis } from '@/lib/services/paradocs-analysis.service'
+// V11.42 — async post-submit pipeline. waitUntil keeps the lambda alive
+// after the response so AI generation ALWAYS completes (preserving the
+// V11.17.41 guarantee) without blocking the user for 5-30s.
+import { waitUntil } from '@vercel/functions'
 
 // V11.17.41 — Bumped serverless function timeout. Synchronous AI
 // generation on submit takes 5-15s typically, occasionally up to 30s on
@@ -102,7 +106,9 @@ interface SubmitPayload {
 
   visibility?: 'radar_only' | 'public' | 'private'
   /** V11.41 P0-2 — 17+ attestation from the account step. */
-  age_confirmed?: boolean   // first-report privacy
+  age_confirmed?: boolean
+  /** V11.42 — recurrence capture ("How often?" chips on the date step). */
+  recurrence?: 'once' | 'multiple' | 'ongoing'   // first-report privacy
   share_anonymously?: boolean         // hide identity on RADAR
   tags?: string[]
 }
@@ -350,6 +356,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (Array.isArray(p.tags) && p.tags.length > 0) insert.tags = p.tags
   if (p.phenomenon_type_id) insert.phenomenon_type_id = p.phenomenon_type_id
+  // V11.42 — recurrence capture. event_date stays "the first time";
+  // recurrence marks whether it kept happening.
+  if (p.recurrence && ['once', 'multiple', 'ongoing'].indexOf(p.recurrence) >= 0) {
+    insert.recurrence = p.recurrence
+  }
   insert.onboarding_first_report = true
 
   var { data: inserted, error: insertErr } = await (admin
@@ -366,7 +377,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // V11.17.52 — location safety net. Same hook as ingestion engine:
   // if the submitter didn't fill in a location but mentioned one in
   // their description/title, Haiku-extract + geocode and persist.
-  // Best-effort, non-blocking.
+  // V11.42 — moved into the async post-submit pipeline (was awaited
+  // pre-response; one more Haiku round-trip the user no longer waits on).
+  var runLocationSafetyNet = async function () {
   if (!insert.location_name) {
     try {
       var locSvc = await import('@/lib/services/location-extraction.service')
@@ -392,6 +405,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } catch (locErr: any) {
       console.warn('[OnboardingSubmit] Location safety net failed: ' + (locErr?.message || locErr))
     }
+  }
   }
 
   // V9.11.1 — when a primary phenomenon_type was picked, also write the
@@ -453,6 +467,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // report on first load instead of a perpetual skeleton.
 
   var newReportId = (inserted as any).id
+
+  // ──────────────────────────────────────────────────────────────────
+  // V11.42 — the AI generation + demotion gate below is UNCHANGED from
+  // the synchronous V11.17.41 path, but now runs AFTER the response via
+  // waitUntil. The V11.17.41 guarantee (fields always get filled, junk
+  // always gets gated) is preserved — the lambda stays alive until this
+  // function settles. A row may flip approved → pending_review/archived
+  // a few seconds after the client sees success; the owner still sees
+  // their report in their Record (spine loads .neq('deleted')), and
+  // nothing public surfaces a narrative-less row in that window.
+  // ──────────────────────────────────────────────────────────────────
+  var runPostSubmitAI = async function () {
   var finalStatus: string = status  // 'approved' or 'pending' from moderation
   var aiOk = false
   var demoteReason: string | null = null
@@ -532,6 +558,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.error('[OnboardingSubmit] demotion gate failed (non-fatal) for ' + newReportId + ':', gateErr?.message || gateErr)
     }
   }
+  }
+
+  // V11.42 — kick the pipeline (location net → AI → gate) into the
+  // post-response window. waitUntil throws outside a Vercel request
+  // context (e.g., next dev) — fall back to a floating promise there.
+  var postSubmitPipeline = async function () {
+    try { await runLocationSafetyNet() } catch (e: any) {
+      console.warn('[OnboardingSubmit] location net (async) failed:', e?.message || e)
+    }
+    await runPostSubmitAI()
+  }
+  try {
+    waitUntil(postSubmitPipeline())
+  } catch (_noCtx) {
+    postSubmitPipeline().catch(function (e: any) {
+      console.error('[OnboardingSubmit] post-submit pipeline failed:', e?.message || e)
+    })
+  }
 
   return res.status(200).json({
     ok: true,
@@ -539,13 +583,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     slug: (inserted as any).slug,
     decision: mod.decision,
     moderation: mod.decision === 'pending' ? { reason: mod.reason } : undefined,
-    // V11.17.41 — let the frontend know whether the report is publicly
-    // visible. Status='pending_review' or 'archived' means the user
-    // should see a "thanks, we're reviewing this" screen instead of
-    // a link to the report page that will 404 or show empty.
-    status: finalStatus,
-    ai_ready: aiOk && finalStatus === 'approved',
-    demote_reason: demoteReason,
+    // V11.42 — insert-time status; the background gate may demote to
+    // pending_review/archived seconds later. ai_ready is always false
+    // now (generation is async); the report page renders its existing
+    // "Paradocs is analyzing…" placeholder until fields land.
+    status: status,
+    ai_ready: false,
+    demote_reason: null,
     // V11.41 P0-6 — client shows the support-resources card alongside
     // the normal flow (never instead of it).
     crisis_resources: crisis.flagged,

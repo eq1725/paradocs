@@ -83,6 +83,8 @@ interface ExperienceDraft {
   // When did this happen?
   event_date: string
   event_date_precision: 'exact' | 'month' | 'year' | 'decade'
+  /** V11.42 — recurrence capture. '' = unanswered; event_date stays "the first time". */
+  recurrence: '' | 'once' | 'multiple' | 'ongoing'
   event_time: string
   duration_minutes: string
 
@@ -455,6 +457,7 @@ export default function StartPage() {
     additional_type_ids: [],
     event_date: '',
     event_date_precision: 'exact',
+    recurrence: '',
     event_time: '',
     duration_minutes: '',
     location_name: '',
@@ -1649,6 +1652,8 @@ export default function StartPage() {
             // to nulls so empty optional fields don't pollute the row.
             event_date: draft.event_date || null,
             event_date_precision: draft.event_date_precision,
+            // V11.42 — recurrence capture ("Did it happen more than once?").
+            recurrence: draft.recurrence || undefined,
             event_time: draft.event_time || null,
             duration_minutes: draft.duration_minutes ? parseInt(draft.duration_minutes, 10) : null,
             location_name: draft.location_name || null,
@@ -2889,6 +2894,48 @@ export default function StartPage() {
                         placeholder="e.g. 5"
                         className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
                       />
+                    </div>
+
+                    {/* V11.42 — recurrence capture. Recurring is DEFINING for
+                        several categories (hauntings, sleep paralysis); the
+                        single-event date frame was lossy. Tap again to clear. */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-1.5">
+                        Did it happen more than once? <span className="text-gray-600">(optional)</span>
+                      </label>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[
+                          { v: 'once', l: 'Just once' },
+                          { v: 'multiple', l: 'A few times' },
+                          { v: 'ongoing', l: 'Ongoing' },
+                        ].map(function (o) {
+                          var active = draft.recurrence === o.v
+                          return (
+                            <button
+                              key={o.v}
+                              type="button"
+                              onClick={function () {
+                                setDraft(function (d) {
+                                  return { ...d, recurrence: active ? '' : (o.v as any) }
+                                })
+                              }}
+                              className={
+                                'px-2 py-1.5 rounded-lg text-xs font-medium transition-colors border ' +
+                                (active
+                                  ? 'bg-purple-600 text-white border-purple-500'
+                                  : 'bg-gray-900/60 text-gray-300 border-gray-700 hover:border-purple-500/40')
+                              }
+                            >
+                              {o.l}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {(draft.recurrence === 'multiple' || draft.recurrence === 'ongoing') && (
+                        <p className="text-[11px] text-gray-500 mt-1.5">
+                          We&rsquo;ll treat the date above as the first time. Your Record will hold the pattern.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </DetailSection>

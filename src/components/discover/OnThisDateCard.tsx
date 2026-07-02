@@ -49,9 +49,20 @@ export function OnThisDateCard(props: OnThisDateCardProps) {
 
   var monthDay = ''
   try {
-    var d = new Date(item.first_reported_date)
+    // V11.42 — off-by-one fix (live bug, 2026-07-02): date-only strings
+    // ("1861-07-02") parse as UTC midnight, so local getters render the
+    // previous day anywhere west of Greenwich ("JULY 1" on a July 2
+    // event). Split the Y-M-D parts directly instead of Date-parsing.
     var months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-    monthDay = months[d.getMonth()] + ' ' + d.getDate()
+    var parts = String(item.first_reported_date).slice(0, 10).split('-')
+    var mIdx = parseInt(parts[1], 10) - 1
+    var dayNum = parseInt(parts[2], 10)
+    if (months[mIdx] && dayNum >= 1 && dayNum <= 31) {
+      monthDay = months[mIdx] + ' ' + dayNum
+    } else {
+      var d = new Date(item.first_reported_date)
+      monthDay = months[d.getMonth()] + ' ' + d.getDate()
+    }
   } catch (e) {
     monthDay = 'Today'
   }
