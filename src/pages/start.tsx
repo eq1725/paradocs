@@ -1546,6 +1546,14 @@ export default function StartPage() {
    * sets the ACCOUNT_ONLY flag so we know to route to /discover instead
    * of the RADAR reveal, and advances to step 2 (email/username).
    */
+  // V11.41 P0-2 — 17+ age attestation at account creation (App Store
+  // age-rating floor). Persisted client-side, stamped onto profiles
+  // by /api/onboarding/submit once a session exists.
+  var [ageConfirmed, setAgeConfirmed] = useState(false)
+  // V11.41 P0-6 — set when the submit API's crisis screen fires; holds
+  // the redirect so we can show support resources first, gently.
+  var [crisisSupport, setCrisisSupport] = useState(false)
+
   function handleAccountOnly() {
     try {
       localStorage.setItem(ACCOUNT_ONLY_KEY, '1')
@@ -1668,6 +1676,11 @@ export default function StartPage() {
             evidence_summary: draft.evidence_summary || null,
             visibility: draft.visibility,
             share_anonymously: draft.share_anonymously,
+            // V11.41 P0-2 — age attestation captured at the account step;
+            // the API stamps profiles.age_confirmed_at.
+            age_confirmed: (function () {
+              try { return localStorage.getItem('pd:age-confirmed') === '1' } catch (e) { return false }
+            })(),
           }),
         })
         var result = await resp.json()
@@ -1736,6 +1749,13 @@ export default function StartPage() {
         // (/lab), where ALL matches for the saved report are unlocked —
         // the natural "you've unlocked the rest" payoff to the teaser.
         clearDraft()
+        // V11.41 P0-6 — if the crisis screen fired, hold the redirect
+        // and show support resources first (never instead of saving —
+        // the report is already saved at this point).
+        if (!cancelled && result.crisis_resources) {
+          setCrisisSupport(true)
+          return
+        }
         if (!cancelled) router.replace('/lab')
       } catch (err: any) {
         if (!cancelled) setError(err?.message || 'Something went wrong.')
@@ -2168,14 +2188,35 @@ export default function StartPage() {
                 </div>
               )}
 
+              {/* V11.41 P0-2 — 17+ attestation (App Store age gate). */}
+              <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={ageConfirmed}
+                  onChange={function (e) {
+                    setAgeConfirmed(e.target.checked)
+                    try { localStorage.setItem('pd:age-confirmed', e.target.checked ? '1' : '0') } catch (_e) {}
+                  }}
+                  className="mt-0.5 accent-purple-500"
+                />
+                <span className="text-xs text-gray-400 leading-relaxed">
+                  I&rsquo;m 17 or older, and I agree to the{' '}
+                  <Link href="/terms" target="_blank" className="text-purple-300 hover:text-purple-200 underline underline-offset-2">Terms</Link>{' '}
+                  and{' '}
+                  <Link href="/privacy" target="_blank" className="text-purple-300 hover:text-purple-200 underline underline-offset-2">Privacy Policy</Link>.
+                </span>
+              </label>
+
               <button
                 type="button"
                 onClick={sendMagicLink}
                 disabled={
                   // V12 — email is the only required field. Username is
                   // optional; we only block on a typed-but-invalid handle.
+                  // V11.41 P0-2 — plus the 17+ attestation.
                   busy ||
                   !account.email ||
+                  !ageConfirmed ||
                   (!!account.username && (usernameStatus === 'taken' || usernameStatus === 'invalid' || usernameStatus === 'checking'))
                 }
                 className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors disabled:opacity-40"
@@ -2282,13 +2323,45 @@ export default function StartPage() {
               {/* V9.11.5 — only spin while we're actually working. When
                   an error has fired, drop the loader and show a recovery
                   path back to step 1 so the user isn't trapped. */}
-              {!error && (
+              {!error && !crisisSupport && (
                 <>
                   <Loader2 className="w-10 h-10 text-purple-300 animate-spin mx-auto" />
                   <p className="text-base text-gray-200">
                     {busy ? 'Saving your experience…' : 'Searching the archive…'}
                   </p>
                 </>
+              )}
+              {/* V11.41 P0-6 — support resources, shown when the crisis
+                  screen fired. Warm, brief, never gating: the report is
+                  saved and honored either way. */}
+              {!error && crisisSupport && (
+                <div className="max-w-md mx-auto text-left space-y-4">
+                  <div className="rounded-2xl border border-purple-800/50 bg-purple-950/20 p-5">
+                    <p className="text-sm text-gray-100 leading-relaxed">
+                      Your experience is saved and will be treated with care.
+                    </p>
+                    <p className="text-sm text-gray-300 leading-relaxed mt-3">
+                      Part of what you wrote sounds heavy. If any of it is about
+                      how you&rsquo;re doing right now, you deserve support from a
+                      real person — not just an archive.
+                    </p>
+                    <p className="text-sm text-gray-200 leading-relaxed mt-3">
+                      In the US you can call or text <span className="font-semibold text-white">988</span>{' '}
+                      (Suicide &amp; Crisis Lifeline), any hour. Elsewhere,{' '}
+                      <a href="https://findahelpline.com" target="_blank" rel="noopener noreferrer" className="text-purple-300 underline underline-offset-2 hover:text-purple-200">
+                        findahelpline.com
+                      </a>{' '}
+                      lists local lines.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={function () { router.replace('/lab') }}
+                    className="w-full inline-flex items-center justify-center px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors"
+                  >
+                    Continue to your Record
+                  </button>
+                </div>
               )}
               {error && (
                 <>

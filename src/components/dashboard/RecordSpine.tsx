@@ -85,6 +85,10 @@ function liveDossier(key: string, sd: any): React.ReactNode {
 interface RecordSpineProps {
   userExperience: UserExperience
   matches: MatchedReport[]
+  // V11.41 P0-4 — true while the matcher is in flight with no cached
+  // payload. Kindred renders a skeleton and the living line stays quiet
+  // instead of falsely claiming "your night stands alone" mid-search.
+  matchesLoading?: boolean
   totalExperiences: number
   userEmail: string
   router: any
@@ -113,6 +117,11 @@ export default function RecordSpine(props: RecordSpineProps) {
   // distinction-framed so rarity reads as the point, never as emptiness.
   const livingLine = (() => {
     const total = props.totalExperiences || 0
+    // V11.41 P0-4 — matcher still searching: say so, quietly. Never
+    // render the rarity/alone framing until the search has actually run.
+    if (props.matchesLoading && kindredCount === 0) {
+      return 'Placing your experience among the archive’s accounts…'
+    }
     if (kindredCount === 0) {
       return total
         ? `Yours stands alone so far — nothing in ${total.toLocaleString()} accounts echoes it yet. That's what makes it worth recording.`
@@ -131,6 +140,10 @@ export default function RecordSpine(props: RecordSpineProps) {
   // experience switch). Feeds the A/B: activation now, free→member via the
   // upgrade-click events below (with WHERE in the spine it fired).
   useEffect(() => {
+    // V11.41 P0-4 — don't fire the activation event with a transient
+    // kindred_count of 0 while the matcher is still in flight; the
+    // effect re-runs (kindredCount dep) once real counts land.
+    if (props.matchesLoading && kindredCount === 0) return
     try {
       capture('record_spine_view', {
         kindred_count: kindredCount,
@@ -216,9 +229,23 @@ export default function RecordSpine(props: RecordSpineProps) {
         <SectionHeading
           n="02"
           title="Kindred"
-          sub={kindredCount > 0 ? 'The accounts closest to yours' : 'No close echoes yet — your night stands alone'}
+          sub={
+            kindredCount > 0
+              ? 'The accounts closest to yours'
+              : props.matchesLoading
+                ? 'Searching the archive for the accounts closest to yours…'
+                : 'No close echoes yet — your night stands alone'
+          }
         />
-        {freeKindred.length === 0 ? (
+        {freeKindred.length === 0 && props.matchesLoading ? (
+          // V11.41 P0-4 — matcher in flight: composed skeleton rows, not
+          // a false empty state.
+          <div className="space-y-3" aria-hidden="true">
+            <div className="rounded-xl border border-purple-800/40 bg-purple-950/15 h-[76px] animate-pulse" />
+            <div className="rounded-xl border border-purple-800/40 bg-purple-950/15 h-[76px] animate-pulse" />
+            <div className="rounded-xl border border-purple-800/40 bg-purple-950/15 h-[76px] animate-pulse" />
+          </div>
+        ) : freeKindred.length === 0 ? (
           <div className="rounded-xl border border-purple-800/40 bg-purple-950/15 p-4 text-sm text-gray-400 leading-relaxed">
             Nothing closely echoes yours yet. As the archive grows, new accounts are matched against your
             Record — the first kin will surface right here.

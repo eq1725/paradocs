@@ -73,7 +73,7 @@ import type { Finding as FindingCardData } from '@/components/patterns/FindingCa
 //   - Real production RadarVisualization w/ reveal animation
 //   - 5-variant headline ladder driven by /api/lab/footprint
 //   - Hairline-divided benefits mapped to Library / Your Story / Explore
-//   - Single-tier $5.99 footer (Pro deliberately not shown — tier
+//   - Single-tier $7.99 Member footer (P0-1 sweep 2026-07-02; tier
 //     selection happens on /pricing after intent signal)
 import { LabPromo } from '@/components/discover/LabPromo'
 import type { PromoCardData } from '@/components/discover/LabPromo'
@@ -88,6 +88,11 @@ import type { TodayLens } from '@/components/discover/TodayHeader'
 import { GestureTutorial, isGestureTutorialComplete, resetGestureTutorial } from '@/components/discover/GestureTutorial'
 import { EndOfFeedCard } from '@/components/discover/EndOfFeedCard'
 import { SkeletonCard } from '@/components/discover/SkeletonCard'
+// V11.38 — P0-3 affordance fix (APP_EXPERIENCE_PANEL_REVIEW.md): the edge
+// pills are ACTIONS (dismiss/save) but rendered ‹ › glyphs that read as
+// prev/next navigation, trapping mouse users into toggling save. Honest
+// icons for the actions + an explicit visible next/prev control.
+import { X as DismissIcon, Bookmark as SaveIcon, ChevronUp, ChevronDown } from 'lucide-react'
 // V11.18.17 — desktop 3-column layout. OnThisWeekRail fills the
 // previously-empty left margin at ≥1024px with the 6 most-recent
 // approved reports. Mobile + tablet are unaffected (hidden lg:flex).
@@ -1215,10 +1220,40 @@ export default function DiscoverPage(props: DiscoverPageProps) {
       // invalidating earlier target indices in the same pass.
       var remaining: { card: ExtendedFeedItem; position: number }[] = []
       var inserted: { type: string; position: number }[] = []
+      // V11.41 P0-7 (APP_EXPERIENCE_PANEL_REVIEW.md) — min-gap rule:
+      // never land a special within MIN_SPECIAL_GAP slots of another
+      // special (cluster / on_this_date / promo / finding, incl. the
+      // SSR-baked ones). Fixed-index splices could previously stack
+      // two specials back-to-back when cadence positions collided.
+      var MIN_SPECIAL_GAP = 2
+      function isSpecialAt(index: number): boolean {
+        var it = arr[index] as any
+        if (!it) return false
+        return it.item_type === 'cluster' || it.item_type === 'on_this_date'
+          || it.item_type === 'promo' || it.item_type === 'finding'
+      }
+      function clearOfSpecials(pos: number): boolean {
+        for (var d = -MIN_SPECIAL_GAP; d < MIN_SPECIAL_GAP; d++) {
+          if (isSpecialAt(pos + d)) return false
+        }
+        return true
+      }
       pendingSpecialCards.current.forEach(function (entry) {
         if (entry.position <= arr.length) {
-          arr.splice(entry.position, 0, entry.card)
-          inserted.push({ type: (entry.card as any).item_type || 'unknown', position: entry.position })
+          // Nudge downward (max +6) until the gap rule is satisfied;
+          // if no clear slot exists in range, defer to a later page.
+          var target = entry.position
+          var nudged = 0
+          while (!clearOfSpecials(target) && nudged < 6 && target < arr.length) {
+            target++
+            nudged++
+          }
+          if (!clearOfSpecials(target)) {
+            remaining.push(entry)
+            return
+          }
+          arr.splice(target, 0, entry.card)
+          inserted.push({ type: (entry.card as any).item_type || 'unknown', position: target })
         } else {
           remaining.push(entry)
         }
@@ -2109,10 +2144,10 @@ export default function DiscoverPage(props: DiscoverPageProps) {
                     if (item) doDismiss(item)
                     nextCard()
                   }}
-                  aria-label="Dismiss this case (previous)"
+                  aria-label="Dismiss this case and advance"
                   className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 items-center gap-1.5 h-9 px-2 rounded-full text-white/40 hover:text-white hover:bg-black/40 transition-colors today-edge-chevron"
                 >
-                  <span className="text-xl leading-none">{'‹'}</span>
+                  <DismissIcon className="w-4 h-4" aria-hidden="true" />
                   <span className="today-edge-chevron-label text-[11px] font-sans font-medium uppercase tracking-wider">Dismiss</span>
                 </button>
                 <button
@@ -2125,8 +2160,33 @@ export default function DiscoverPage(props: DiscoverPageProps) {
                   className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 items-center gap-1.5 h-9 px-2 rounded-full text-white/40 hover:text-amber-200 hover:bg-black/40 transition-colors today-edge-chevron"
                 >
                   <span className="today-edge-chevron-label text-[11px] font-sans font-medium uppercase tracking-wider">Save</span>
-                  <span className="text-xl leading-none">{'›'}</span>
+                  <SaveIcon className="w-4 h-4" aria-hidden="true" />
                 </button>
+                {/* V11.38 — explicit desktop next/prev (P0-3). Navigation
+                    was wheel / ArrowDown / Space only — invisible to mouse
+                    users, who then clicked the ‹ › action pills expecting
+                    paging. Mobile keeps pure swipe (hidden below md). */}
+                <div className="hidden md:flex absolute right-2 bottom-6 flex-col items-center gap-1.5 z-10">
+                  {idx > 0 && (
+                    <button
+                      type="button"
+                      onClick={function () { prevCard() }}
+                      aria-label="Previous card"
+                      className="flex items-center justify-center w-9 h-9 rounded-full text-white/40 hover:text-white hover:bg-black/40 transition-colors"
+                    >
+                      <ChevronUp className="w-5 h-5" aria-hidden="true" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={function () { nextCard() }}
+                    aria-label="Next card"
+                    className="flex items-center gap-1.5 h-9 px-2 rounded-full text-white/40 hover:text-white hover:bg-black/40 transition-colors today-edge-chevron"
+                  >
+                    <span className="today-edge-chevron-label text-[11px] font-sans font-medium uppercase tracking-wider">Next</span>
+                    <ChevronDown className="w-5 h-5" aria-hidden="true" />
+                  </button>
+                </div>
                 {/* V10.7.E.18 — Connected button. Floating chip on mobile/
                     tablet so the rabbit-hole panel has a discoverable entry
                     point now that we've adopted TikTok-style gestures (down

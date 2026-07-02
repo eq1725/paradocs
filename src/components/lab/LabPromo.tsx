@@ -91,17 +91,19 @@ function buildCopy(variant: LabPromoVariant, accountCount: number): CopyShape | 
     return {
       eyebrow: 'Your record',
       body:
-        'You’ve shared ' + nounPhrase + '. Basic unlocks every match ' +
+        'You’ve shared ' + nounPhrase + '. Membership unlocks every match ' +
         'and pattern the corpus surfaces for your record.',
-      cta: { label: 'Unlock Basic — $5.99/mo', href: '/pricing' },
+      cta: { label: 'Become a Member — $7.99/mo', href: '/pricing' },
     }
   }
-  // basic
+  // member (formerly 'basic' — single Member tier as of 2026-07-02;
+  // Pro is retired, so members get no upsell, just management access)
   return {
     eyebrow: 'Your record',
     body:
-      'Pro adds monthly Atlas drops and standing-pattern alerts to your record.',
-    cta: { label: 'Upgrade to Pro', href: '/pricing' },
+      'You’re a Member — every match, pattern, and drop the corpus ' +
+      'surfaces for your record is yours.',
+    cta: { label: 'Manage membership', href: '/account/subscription' },
   }
 }
 

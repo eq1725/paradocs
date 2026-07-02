@@ -130,7 +130,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       limit: dailyLimit,
       // Client renders this directly in the upgrade modal — see
       // docs/TIER_DESIGN_V2.md § "Conversion trigger surfaces".
-      upgrade_message: 'Unlock unlimited Ask the Unknown questions with Basic — $5.99/mo.',
+      upgrade_message: 'Unlock unlimited Ask the Unknown questions with membership — $7.99/mo.',
       upgrade_url: '/account/subscription',
     })
   }

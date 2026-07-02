@@ -183,8 +183,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     var freeUserId = freeUserIds[fIdx]
     var freeSubs = subsByUser[freeUserId] || []
     var noticeNotif = {
-      title: 'Daily record alerts are now part of Basic',
-      body: 'Upgrade to keep getting pushes when new accounts land near your experiences. $5.99/mo.',
+      title: 'Daily record alerts are now part of membership',
+      body: 'Become a Member to keep getting pushes when new accounts land near your experiences. $7.99/mo.',
       icon: '/icons/icon-192x192.png',
       badge: '/icons/icon-192x192.png',
       data: {

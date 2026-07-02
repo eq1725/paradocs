@@ -10,8 +10,9 @@
  *     vocabulary ("radar", "your story", "library") onto the
  *     archive/record register the panel locked in.
  *   - Subscription footer copy refreshed to V3 gating language
- *     ($5.99/mo confirmed by founder; flagging the Pro tier as a
- *     separate ticket — see LAB_TIER1_BUILD_NOTES.md).
+ *     (2026-07-02: pricing collapsed to single Member tier at
+ *     $7.99/mo · $59.99/yr per APP_EXPERIENCE_PANEL_REVIEW.md P0-1;
+ *     the old $5.99 Basic / Pro tiers are retired).
  *
  * Original (V11.17.40 impression telemetry + paywall click logging)
  *
@@ -54,7 +55,7 @@
  *     - Sub-headline: "The pattern is already there. Lab makes it visible."
  *     - 3 benefit lines → Library / Your Story / Explore
  *     - CTA: "Start 7-day free trial"
- *     - Footer: "Then $5.99/mo · Cancel anytime"
+ *     - Footer: "Then $7.99/mo or $59.99/yr · Cancel anytime"
  *
  * SWC compliant: var + function() form.
  */
@@ -320,7 +321,7 @@ export function LabPromo(props: LabPromoProps) {
             Start 7-day free trial
           </Link>
           <p className="font-display font-normal text-[11px] text-[#f2ead8]/50 mt-2">
-            Then $5.99/mo · Cancel anytime
+            Then $7.99/mo or $59.99/yr · Cancel anytime
           </p>
         </div>
       </div>

@@ -97,6 +97,7 @@ import InlineVideoPlayer from '@/components/video/InlineVideoPlayer'
 import CardActionStrip from '@/components/feed/CardActionStrip'
 import ReportBelowFold, { type RelatedReport, type AlternativeExplanation } from './ReportBelowFold'
 import ResonanceButton from './ResonanceButton'
+import FlagReportButton from './FlagReportButton'
 // V10.7.B.2 — WitnessProfilePill standalone usage replaced by SourceAndWitnessBlock; component file kept for backward-compat.
 import { stripPiiWithLogging } from '@/lib/ai/pii-filter'
 import { supabase } from '@/lib/supabase'
@@ -1118,6 +1119,16 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               )}
               {patterns && patterns.length > 0 && (
                 <PatternStrip patterns={patterns} />
+              )}
+              {/* V11.41 — UGC trust floor (P0-2, Apple 1.2): flag +
+                  block affordance on every report. Quiet by design. */}
+              {report?.slug && (
+                <FlagReportButton
+                  slug={report.slug}
+                  submittedBy={(report as any)?.submitted_by || null}
+                  sourceType={report?.source_type || null}
+                  className="mt-2"
+                />
               )}
             </div>
           </aside>

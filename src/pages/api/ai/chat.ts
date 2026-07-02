@@ -77,7 +77,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(429).json({
         error: 'Daily AI limit reached',
         tier: tier, used: used, limit: limit,
-        message: tier === 'free' ? 'Free accounts get ' + limit + ' AI queries per day. Upgrade to Pro for more.' : 'You have used all ' + limit + ' queries for today.'
+        message: tier === 'free' ? 'Free accounts get ' + limit + ' AI queries per day. Become a Member for more.' : 'You have used all ' + limit + ' queries for today.'
       })
     }
   } catch (e) { console.log('Rate limit check skipped:', e) }

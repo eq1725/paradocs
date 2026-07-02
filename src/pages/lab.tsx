@@ -1651,14 +1651,14 @@ function LockedAICard(props: { kind: string }) {
       <p className="text-xs sm:text-[13px] text-gray-300 leading-relaxed max-w-sm mx-auto mb-4">
         Your first experience received the full body-of-work paragraph &mdash; the
         cross-archive context, weekly refresh, and related-account list tied
-        to it. Basic gives you the same on every experience you add to your
-        record.
+        to it. Membership gives you the same on every experience you add to
+        your record.
       </p>
       <Link
         href="/account/subscription"
         className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs sm:text-sm font-semibold text-white bg-purple-600 hover:bg-purple-500 transition-colors"
       >
-        Upgrade to Basic &middot; $5.99/mo
+        Become a Member &middot; $7.99/mo
         <ArrowRight className="w-3.5 h-3.5" />
       </Link>
       <p className="text-[10px] text-gray-500 mt-3">

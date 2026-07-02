@@ -43,6 +43,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import { moderateExperience } from '@/lib/services/text-moderation-experience.service'
+// V11.41 — P0-6 crisis interception (APP_EXPERIENCE_PANEL_REVIEW.md /
+// readiness plan workstream C). Never blocks a submission: sets
+// reports.crisis_screened for priority human review and tells the
+// client to show the resources card.
+import { screenForCrisis } from '@/lib/moderation/crisis-screen'
 import { suggestOnboardingTitle } from '@/lib/services/onboarding-title.service'
 import { generateAndSaveConsolidatedAI, isConsolidatedAIEnabled } from '@/lib/services/consolidated-ai.service'
 import { generateAndSaveParadocsAnalysis } from '@/lib/services/paradocs-analysis.service'
@@ -95,7 +100,9 @@ interface SubmitPayload {
   has_official_report?: boolean
   evidence_summary?: string | null
 
-  visibility?: 'radar_only' | 'public' | 'private'   // first-report privacy
+  visibility?: 'radar_only' | 'public' | 'private'
+  /** V11.41 P0-2 — 17+ attestation from the account step. */
+  age_confirmed?: boolean   // first-report privacy
   share_anonymously?: boolean         // hide identity on RADAR
   tags?: string[]
 }
@@ -199,6 +206,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // who can see it.
   var status = mod.decision === 'pending' ? 'pending' : 'approved'
 
+  // V11.41 P0-6 — crisis screen. Non-gating: the report proceeds
+  // exactly as it otherwise would; we mark it for priority human
+  // review and surface support resources client-side.
+  var crisis = screenForCrisis(description)
+
+  // V11.41 P0-2 — stamp the 17+ attestation onto the profile (once).
+  if (p.age_confirmed) {
+    try {
+      await admin
+        .from('profiles')
+        .update({ age_confirmed_at: new Date().toISOString() })
+        .eq('id', userId)
+        .is('age_confirmed_at', null)
+    } catch (ageErr: any) {
+      console.warn('[OnboardingSubmit] age attestation stamp failed (non-fatal):', ageErr?.message || ageErr)
+    }
+  }
+
   var insert: any = {
     title,
     slug,
@@ -206,6 +231,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     description,
     category,
     status,
+    crisis_screened: crisis.flagged,
     submitted_by: userId,
     // V9.11.5 #11 — without this, /lab's RADAR tab couldn't find the
     // user's onboarding submission (it filters source_type='user_submission')
@@ -520,5 +546,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     status: finalStatus,
     ai_ready: aiOk && finalStatus === 'approved',
     demote_reason: demoteReason,
+    // V11.41 P0-6 — client shows the support-resources card alongside
+    // the normal flow (never instead of it).
+    crisis_resources: crisis.flagged,
   })
 }

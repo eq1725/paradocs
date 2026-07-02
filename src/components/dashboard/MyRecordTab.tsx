@@ -92,9 +92,39 @@ function resolveEventYear(r: any): number | null {
   return null
 }
 
+// V11.41 — P0-4 (APP_EXPERIENCE_PANEL_REVIEW.md): /lab took 10–13s of
+// full-page spinner because loadData AWAITED the constellation matcher
+// before first paint. The Opening (the user's own words) needs only the
+// cheap reports query — paint it immediately, stream matches in behind
+// it, and cache the match payload per report so return visits are
+// instant (stale-while-revalidate, 6h TTL).
+var MATCH_CACHE_TTL_MS = 6 * 60 * 60 * 1000
+
+function readMatchCache(reportId: string): { matches: any[]; total: number } | null {
+  try {
+    var raw = window.localStorage.getItem('pd:match:' + reportId)
+    if (!raw) return null
+    var obj = JSON.parse(raw)
+    if (!obj || typeof obj.t !== 'number' || Date.now() - obj.t > MATCH_CACHE_TTL_MS) return null
+    return { matches: obj.matches || [], total: obj.total || 0 }
+  } catch (e) {
+    return null
+  }
+}
+
+function writeMatchCache(reportId: string, matches: any[], total: number) {
+  try {
+    window.localStorage.setItem('pd:match:' + reportId, JSON.stringify({ t: Date.now(), matches: matches, total: total }))
+  } catch (e) { /* storage full / private mode — cache is best-effort */ }
+}
+
 export default function MyRecordTab() {
   var router = useRouter()
   var [loading, setLoading] = useState(true)
+  // V11.41 P0-4 — true while the matcher is in flight AND we had no cache
+  // to show; drives the Kindred skeleton + quiet living-line state so the
+  // spine never claims "your night stands alone" mid-search.
+  var [matchesLoading, setMatchesLoading] = useState(true)
   var [hasSubmission, setHasSubmission] = useState(false)
   // V10.15 Phase C — load ALL non-deleted user submissions, not just
   // the most recent. allReports holds the raw rows; focusedIdx picks
@@ -183,8 +213,10 @@ export default function MyRecordTab() {
         if (resolvedYear0 == null) (exp as any).year_unknown = true
         setUserExperience(exp)
 
-        // Fetch matches for the focused report.
-        await fetchMatches(report.id, report.category, report.latitude, report.longitude, report.description || report.summary || '', session.access_token)
+        // V11.41 P0-4 — deliberately NOT awaited: the matcher can take
+        // many seconds (embeddings + rerank). The spine paints the
+        // Opening now; Kindred streams in when this resolves.
+        fetchMatches(report.id, report.category, report.latitude, report.longitude, report.description || report.summary || '', session.access_token)
       }
 
       setLoading(false)
@@ -254,6 +286,17 @@ export default function MyRecordTab() {
     description: string,
     token: string,
   ) {
+    // V11.41 P0-4 — stale-while-revalidate: paint cached matches
+    // instantly (6h TTL), then refresh from the API in the background.
+    var cached = reportId ? readMatchCache(reportId) : null
+    if (cached) {
+      setMatches(cached.matches)
+      setTotalExperiences(cached.total)
+      setMatchesLoading(false)
+    } else {
+      setMatchesLoading(true)
+    }
+
     try {
       var params = new URLSearchParams()
       if (reportId) params.set('report_id', reportId)
@@ -270,9 +313,12 @@ export default function MyRecordTab() {
         var data = await res.json()
         setMatches(data.matches || [])
         setTotalExperiences(data.stats?.total_database || 0)
+        if (reportId) writeMatchCache(reportId, data.matches || [], data.stats?.total_database || 0)
       }
     } catch (err) {
       console.error('Constellation match error:', err)
+    } finally {
+      setMatchesLoading(false)
     }
   }, [])
 
@@ -379,6 +425,7 @@ export default function MyRecordTab() {
       <RecordSpine
         userExperience={userExperience}
         matches={matches}
+        matchesLoading={matchesLoading}
         totalExperiences={totalExperiences}
         userEmail={userEmail}
         router={router}

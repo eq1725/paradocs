@@ -75,7 +75,10 @@ export function OnThisWeekRail() {
 
   useEffect(function () {
     var aborted = false
-    fetch('/api/homepage/recent-reports?limit=6')
+    // V11.38 P0-5 — diverse=1 applies category + location caps so an
+    // ingest burst (e.g. BFRO) can't fill all 6 slots with one
+    // category/state. See APP_EXPERIENCE_PANEL_REVIEW.md §1.4.
+    fetch('/api/homepage/recent-reports?limit=6&diverse=1')
       .then(function (res) { return res.ok ? res.json() : null })
       .then(function (data) {
         if (aborted) return

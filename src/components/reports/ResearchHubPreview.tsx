@@ -119,7 +119,7 @@ export default function ResearchHubPreview({
               href="/pricing"
               className="inline-block bg-purple-600 hover:bg-purple-500 text-white px-6 py-2 rounded-full text-sm font-medium transition-colors"
             >
-              {'Start with Basic \u2014 $5.99/mo'}
+              {'Become a Member \u2014 $7.99/mo'}
             </Link>
           ) : (
             emailSubmitted ? (

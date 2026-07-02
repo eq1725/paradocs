@@ -96,7 +96,7 @@ export function CaseViewGate(props: CaseViewGateProps) {
             href="/pricing"
             className="flex items-center justify-center gap-2 w-full py-3.5 bg-purple-600 hover:bg-purple-500 text-white rounded-full font-semibold transition-colors"
           >
-            <span>Start Basic \u2014 $5.99/mo</span>
+            <span>Become a Member \u2014 $7.99/mo</span>
             <ArrowRight className="w-4 h-4" />
           </Link>
           <p className="text-xs text-gray-500 text-center">

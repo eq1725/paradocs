@@ -133,10 +133,10 @@ export default function ResearcherMode(props: ResearcherModeProps) {
           onClick={onUpgrade}
           className="w-full py-2.5 rounded-lg bg-gradient-to-r from-purple-600 to-violet-600 text-white font-semibold text-sm hover:from-purple-700 hover:to-violet-700 transition-all"
         >
-          Upgrade to Pro to Unlock
+          Become a Member to Unlock
         </button>
         <p className="text-center text-xs text-gray-500 mt-2">
-          Starting at $9.99/month
+          $7.99/mo or $59.99/yr
         </p>
       </div>
     );
